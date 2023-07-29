@@ -109,7 +109,7 @@ from hidet.ir.layout import DataLayout
 
 class TileLayout:
   def __init__(self, shape):
-    self.shape: List[int] = shape
+    self.shape: List[int] = shape # all tile shapes are static integers known at compile time
 
 
 class RegisterLayout(TileLayout):
@@ -128,7 +128,6 @@ class SharedLayout(TileLayout):
 
 class TileType:
   dtype: BaseType
-  shape: List[int]  # all tile shapes are static integers known at compile time
   layout: TileLayout
 
 # for scalar types, our existing scalar type system should be enough

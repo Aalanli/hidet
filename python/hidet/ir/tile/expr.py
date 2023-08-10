@@ -12,6 +12,12 @@ class TileOp:
         self.args: List[Expr] = args if args is not None else []
         self.attrs: Dict[str, CConst] = attrs if attrs is not None else {}
 
+    def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
+        return self.__class__(*args, **attrs)
+
+    def make_call(self):
+        return CallTileOp(self)
+
     def infer_type(self) -> BaseType:
         raise NotImplementedError()
 
@@ -19,3 +25,7 @@ class TileOp:
 class CallTileOp(Expr):
     def __init__(self, op: TileOp):
         self.op: TileOp = op
+
+
+def call_tile_op(top: TileOp):
+    return CallTileOp(top)

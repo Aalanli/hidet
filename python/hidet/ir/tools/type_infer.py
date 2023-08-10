@@ -16,7 +16,7 @@ from hidet.ir.expr import TensorSlice, LogicalNot, LogicalOr, LogicalAnd, LessEq
 from hidet.ir.expr import BitwiseAnd, Neg, NotEqual, BitwiseXor, Dereference, Reference, Address, BitwiseNot, BitwiseOr
 from hidet.ir.expr import Var, Constant, TensorElement, Call, Cast
 from hidet.ir.compute import ArgReduceCompute, ReduceCompute, GridCompute, TensorInput, ScalarInput
-from hidet.ir.functors import ExprFunctor, ComputeFunctor
+from hidet.ir.functors import IRFunctor
 from hidet.ir.dialects.pattern import PlaceholderExpr
 
 
@@ -24,7 +24,7 @@ def is_bool(tp: DataType):
     return isinstance(tp, DataType) and tp.name == 'bool'
 
 
-class TypeInfer(ExprFunctor, ComputeFunctor):
+class TypeInfer(IRFunctor):
     def visit_Address(self, e: Address):
         base_type = self(e.expr)
         return PointerType(base_type=base_type)

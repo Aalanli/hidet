@@ -11,12 +11,13 @@ class Arange(TileOp):
 
     def infer_type(self) -> BaseType:
         from hidet.ir.dtypes import int32
+
         extent = self.attrs["end"] - self.attrs["begin"]
         layout = self.attrs["layout"]
         if layout is None:
             layout = void_layout([extent])
-        return tile_type(
-            type_=int32,
-            shape=[extent],
-            layout=layout
-        )
+        return tile_type(type_=int32, shape=[extent], layout=layout)
+
+
+def arange(begin: int, end: int):
+    return Arange(begin, end).make_call()

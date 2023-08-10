@@ -2,7 +2,7 @@ from typing import Union, Optional
 from hidet.ir.expr import Var
 from hidet.ir.type import BaseType, PointerType, DataType, void
 from hidet.ir.tile.type import TileType, PointerType, tile_type
-from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.expr import TileOp, call_tile_op
 
 
 class Load(TileOp):
@@ -44,3 +44,11 @@ class Store(TileOp):
 
     def infer_type(self) -> BaseType:
         return void
+
+
+def load(ptr: Var, mask: Optional[Var] = None):
+    return Load(ptr, mask).make_call()
+
+
+def store(ptr: Var, value: Var, mask: Optional[Var] = None):
+    return Store(ptr, value, mask).make_call()

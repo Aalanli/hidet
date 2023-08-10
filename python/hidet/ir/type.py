@@ -60,6 +60,7 @@ class BaseType(Node):
 
     def is_tile_type(self):
         from hidet.ir.tile.type import TileType
+
         return isinstance(self, TileType)
 
     def as_data_type(self) -> Optional[DataType]:

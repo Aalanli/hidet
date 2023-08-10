@@ -2,7 +2,7 @@ from typing import Union, Optional, List
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Var
 from hidet.ir.tile.type import TileType, PointerType, BlockLayout, tile_type, block_layout, void_layout
-from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.expr import TileOp, call_tile_op
 
 
 class Broadcast(TileOp):
@@ -23,8 +23,8 @@ class Broadcast(TileOp):
                 shape=self.shape,
                 size_per_thread=layout.size_per_thread,
                 thread_per_warp=layout.thread_per_warp,
-                warps_per_block=layout.warps_per_block
-            )
+                warps_per_block=layout.warps_per_block,
+            ),
         )
 
 
@@ -42,11 +42,7 @@ class Reshape(TileOp):
             layout = void_layout(self.shape)
         else:
             layout = self.layout
-        return tile_type(
-            type_=self.x.type,
-            shape=self.shape,
-            layout=layout
-        )
+        return tile_type(type_=self.x.type, shape=self.shape, layout=layout)
 
 
 class Full(TileOp):
@@ -55,3 +51,15 @@ class Full(TileOp):
         self.value: Var = value
         self.shape: List[int] = shape
         self.layout: Optional[BlockLayout] = layout
+
+
+def broadcast(x: Var, shape: List[int]):
+    return Broadcast(x, shape).make_call()
+
+
+def reshape(x: Var, shape: List[int]):
+    return Reshape(x, shape).make_call()
+
+
+def full(value: Var, shape: List[int]):
+    return Full(value, shape).make_call()

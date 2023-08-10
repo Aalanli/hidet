@@ -24,6 +24,7 @@ from hidet.ir.expr import BitwiseAnd, Neg, Cast, NotEqual, BitwiseXor, Reference
 from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt, EvaluateStmt, AssertStmt
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
+from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
 from hidet.ir.layout import ColumnMajorLayout
 from hidet.ir.mapping import RepeatTaskMapping, SpatialTaskMapping, ComposedTaskMapping
@@ -566,6 +567,11 @@ class IRPrinter(IRFunctor):
 
     def visit_ConcatLayout(self, layout: ConcatLayout):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        args_doc = [self(v) for v in call.op.args]
+        attrs_doc = [self(k) + '=' + self(v) for k, v in call.op.attrs.items()]
+        return call.op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
 
 
 def astext(obj: Node) -> str:

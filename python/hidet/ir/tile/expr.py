@@ -12,6 +12,10 @@ class TileOp:
         self.args: List[Expr] = args if args is not None else []
         self.attrs: Dict[str, CConst] = attrs if attrs is not None else {}
 
+    @property
+    def name(self):
+        return self.__class__.__name__.lower()
+
     def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
         return self.__class__(*args, **attrs)
 

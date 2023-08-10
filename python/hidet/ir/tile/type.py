@@ -30,7 +30,7 @@ class BlockLayout(TileLayout):
         self.warps_per_block: List[int] = warps_per_block
 
 
-class TileType:
+class TileType(BaseType):
     def __init__(self, type_: Union[PointerType, DataType], shape: List[int], layout: TileLayout):
         self.type: Union[PointerType, DataType] = type_
         self.shape: List[int] = shape
@@ -41,7 +41,8 @@ def block_layout(shape: List[int], size_per_thread: List[int], thread_per_warp: 
     return BlockLayout(shape, size_per_thread, thread_per_warp, warps_per_block)
 
 
-def tile_type(type_: Union[PointerType, DataType], shape: List[int], layout: Optional[TileLayout] = None):
+def tile_type(type_, shape: List[int], layout: Optional[TileLayout] = None):
+    assert isinstance(type_, (PointerType, DataType))
     if layout is None:
         layout = void_layout(shape)
     return TileType(type_, shape, layout)

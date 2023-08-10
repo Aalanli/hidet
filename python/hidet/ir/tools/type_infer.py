@@ -15,6 +15,7 @@ from hidet.ir.expr import BinaryExpr, Add, Sub, Multiply, Div, Mod, FloorDiv, Co
 from hidet.ir.expr import TensorSlice, LogicalNot, LogicalOr, LogicalAnd, LessEqual, Let, RightShift, LeftShift
 from hidet.ir.expr import BitwiseAnd, Neg, NotEqual, BitwiseXor, Dereference, Reference, Address, BitwiseNot, BitwiseOr
 from hidet.ir.expr import Var, Constant, TensorElement, Call, Cast
+from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.compute import ArgReduceCompute, ReduceCompute, GridCompute, TensorInput, ScalarInput
 from hidet.ir.functors import IRFunctor
 from hidet.ir.dialects.pattern import PlaceholderExpr
@@ -227,6 +228,9 @@ class TypeInfer(IRFunctor):
 
     def visit_PlaceholderExpr(self, e: PlaceholderExpr):
         raise NotImplementedError()
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        return call.op.infer_type()
 
 
 def infer_type(expr):

@@ -209,13 +209,15 @@ class CompiledGraph:
             runtime_api.set_symbol_value(name, symbol_dims[-1])
         return tuple(symbol_dims)
 
-    def _create_outputs(self):
+    def _create_outputs(self, inputs):
         from hidet.graph.tensor import empty
 
         outputs = []
-        for output_index, (sig, const_out) in enumerate(zip(self.meta.outputs, self.constant_outputs)):
-            if const_out is not None:
-                outputs.append(const_out)
+        for output_index, (exec_idx, sig, const_out) in enumerate(zip(self.graph_execution.outputs_index, self.meta.outputs, self.constant_outputs)):
+            if exec_idx in self.graph_execution.inputs_index:
+                outputs.append(inputs[self.graph_execution.inputs_index.index(exec_idx)])
+            elif exec_idx in self.graph_execution.weights_index:
+                outputs.append(self.weights[self.graph_execution.weights_index.index(exec_idx)])
             else:
                 if self.is_dynamic:
                     shape_buffer = Array(i32, len(sig.shape))

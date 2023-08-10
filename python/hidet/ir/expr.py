@@ -539,6 +539,7 @@ class Reference(Expr):
         self.expr: Expr = expr
 
         assert isinstance(expr, Expr)
+        assert False
 
 
 class Var(Expr):

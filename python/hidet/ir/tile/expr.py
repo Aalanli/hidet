@@ -3,7 +3,12 @@ from enum import Enum
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Expr
 
-_ScalarConst = Union[str, int, float, bool]
+
+class Attribute:
+    pass
+
+
+_ScalarConst = Union[str, int, float, bool, Attribute]
 CConst = Union[_ScalarConst, List[_ScalarConst]]  # compile-time constant
 
 
@@ -17,7 +22,7 @@ class TileOp:
         if hasattr(self, "_name"):
             return self._name
 
-        # camel to snake
+        # camel to snake (e.g., CamelName -> camel_name)
         camel_name = self.__class__.__name__
         snake_name = "".join(["_" + c.lower() if c.isupper() else c for c in camel_name]).lstrip("_")
         setattr(self, "_name", snake_name)

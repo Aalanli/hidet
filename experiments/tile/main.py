@@ -19,6 +19,7 @@ def vector_add(n: int):
         @hidet.script
         def vec_add(a: ~f32, b: ~f32, c: ~f32):
             attrs.func_kind = 'cuda_tile'
+            attrs.cuda.block_dim = 256
             attrs.cuda.grid_dim = (n + block_size - 1) // block_size
 
             pid = ti.program_id()

@@ -28,7 +28,7 @@ class BinaryTileOp(TileOp):
         a_type = arg_types[0]
         b_type = arg_types[1]
         assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
-        assert same_list(a_type.shape, b_type.shape)
+        assert a_type.layout == b_type.layout
 
         return arg_types[0]
 

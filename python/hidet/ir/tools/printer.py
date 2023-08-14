@@ -25,6 +25,7 @@ from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt,
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
 from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.type import TileType, TileLayout
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
 from hidet.ir.layout import ColumnMajorLayout
 from hidet.ir.mapping import RepeatTaskMapping, SpatialTaskMapping, ComposedTaskMapping
@@ -570,8 +571,37 @@ class IRPrinter(IRFunctor):
 
     def visit_CallTileOp(self, call: CallTileOp):
         args_doc = [self(v) for v in call.op.args]
-        attrs_doc = [self(k) + '=' + self(v) for k, v in call.op.attrs.items()]
+        attrs_doc = []
+        for k, v in call.op.attrs.items():
+            if isinstance(v, (list, tuple)):
+                attrs_doc.append(self(k) + '=' + '[' + self(v) + ']')
+            elif isinstance(v, dict):
+                attrs_doc.append(self(k) + '=' + '{' + self(v) + '}')
+            else:
+                attrs_doc.append(self(k) + '=' + self(v))
         return call.op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
+
+    def visit_TileType(self, t: TileType):
+        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout
+        items = [
+            self(t.type),
+            '[' + self(t.shape) + ']'
+        ]
+        if isinstance(t.layout, VoidLayout):
+            pass
+        elif isinstance(t.layout, SharedLayout):
+            items.append('shared')
+        elif isinstance(t.layout, BlockLayout):
+            sub_items = {
+                'size_per_thread': self(t.layout.size_per_thread),
+                'thread_per_warp': self(t.layout.thread_per_warp),
+                'warps_per_block': self(t.layout.warps_per_block),
+            }
+            items.append('block(' + doc_join([k + '=' + v for k, v in sub_items.items()], ', ') + ')')
+        else:
+            raise NotImplementedError()
+
+        return 'tile_type(' + doc_join(items, ', ') + ')'
 
 
 def astext(obj: Node) -> str:

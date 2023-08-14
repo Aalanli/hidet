@@ -87,6 +87,7 @@ class LowerSpecialCastPass(FunctionPass):
         func_kind_to_device = {
             'cuda_kernel': 'cuda',
             'cuda_internal': 'cuda',
+            'cuda_tile': 'cuda',
             'cpu_kernel': 'cpu',
             'cpu_internal': 'cpu',
             'public': 'cpu',

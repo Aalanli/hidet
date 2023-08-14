@@ -53,7 +53,7 @@ class InlineFunctionRewriter(IRRewriter):
 
         if not callee.ret_type.is_void():
             ret = False
-        elif callee.kind in ['public', 'cpu_kernel', 'cuda_kernel']:
+        elif callee.kind in ['public', 'cpu_kernel', 'cuda_kernel', 'cuda_tile']:
             ret = False
         elif any(isinstance(arg.type, (ReferenceType, TensorType)) for arg in callee.params):
             ret = False
@@ -125,7 +125,7 @@ class PruneUnusedFunctionRewriter(IRRewriter):
         unused_func_names: Set[str] = set()
         for node in call_graph.nodes:
             func: Function = node.func
-            if func.kind in ['public', 'cpu_kernel', 'cuda_kernel']:
+            if func.kind in ['public', 'cpu_kernel', 'cuda_kernel', 'cuda_tile']:
                 continue
             if len(node.callers) == 0:
                 unused_func_names.add(func.name)

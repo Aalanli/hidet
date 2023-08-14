@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union, Optional, List
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Var
 from hidet.ir.tile.type import tile_type, void_layout, TileLayout
@@ -9,7 +9,7 @@ class Arange(TileOp):
     def __init__(self, begin: int, end: int, layout: Optional[TileLayout] = None):
         super().__init__(args=[], attrs={"begin": begin, "end": end, "layout": layout})
 
-    def infer_type(self) -> BaseType:
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         from hidet.ir.dtypes import int32
 
         extent = self.attrs["end"] - self.attrs["begin"]

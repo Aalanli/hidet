@@ -715,6 +715,8 @@ class CUDACodegen(Codegen):
             doc += 'static __global__ '
         elif func.kind == 'cuda_internal':
             doc += 'static __device__ __forceinline__ '
+        elif func.kind == 'cuda_tile':
+            doc += 'static __global__ '
         elif func.kind == 'cpu_kernel':
             doc += 'static '
         elif func.kind == 'cpu_internal':

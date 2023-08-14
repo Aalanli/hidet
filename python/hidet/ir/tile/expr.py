@@ -14,7 +14,14 @@ class TileOp:
 
     @property
     def name(self):
-        return self.__class__.__name__.lower()
+        if hasattr(self, "_name"):
+            return self._name
+
+        # camel to snake
+        camel_name = self.__class__.__name__
+        snake_name = "".join(["_" + c.lower() if c.isupper() else c for c in camel_name]).lstrip("_")
+        setattr(self, "_name", snake_name)
+        return snake_name
 
     def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
         return self.__class__(*args, **attrs)
@@ -22,8 +29,10 @@ class TileOp:
     def make_call(self):
         return CallTileOp(self)
 
-    def infer_type(self) -> BaseType:
-        raise NotImplementedError()
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        raise NotImplementedError("'infer_type' method has not been implemented for '{}' tile operator".format(
+            type(self).__name__
+        ))
 
 
 class CallTileOp(Expr):

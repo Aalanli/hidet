@@ -38,6 +38,9 @@ from .check_launch_configuration import check_launch_configuration_pass
 from .lower_special_cast import lower_special_cast_pass
 from .annotate_header_and_libs import annotate_header_and_libs_pass
 
+from .tile.inject_explicit_broadcast import inject_explicit_broadcast_pass
+from .tile.convert_arith_expr import convert_arith_expr_pass
+
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
     ctx = PassContext.current()
@@ -52,6 +55,12 @@ def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
 
 
 def lower(ir_module: IRModule) -> IRModule:
+
+    tile_dialect_transforms = [
+        inject_explicit_broadcast_pass(),
+        convert_arith_expr_pass(),
+    ]
+
     transforms = [
         # necessary passes
         unify_global_objects_pass(),
@@ -83,4 +92,8 @@ def lower(ir_module: IRModule) -> IRModule:
         simplify_stmt_pass(),
         annotate_header_and_libs_pass(),
     ]
-    return lower_with(ir_module, transforms)
+    ir_module = lower_with(
+        ir_module,
+        tile_dialect_transforms + transforms
+    )
+    return ir_module

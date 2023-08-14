@@ -1,28 +1,23 @@
-from typing import Union, Optional
-from hidet.ir.expr import Var
-from hidet.ir.type import BaseType, PointerType, DataType, void
-from hidet.ir.tile.type import TileType, PointerType, tile_type
+from typing import List
+from hidet.ir.type import BaseType
 from hidet.ir.tile.expr import TileOp
+from hidet.ir import dtypes
 
 
 class ProgramId(TileOp):
     def __init__(self):
         super().__init__()
 
-    def infer_type(self) -> BaseType:
-        from hidet.ir.dtypes import int32
-
-        return int32
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        return dtypes.int32
 
 
 class NumPrograms(TileOp):
     def __init__(self):
         super().__init__()
 
-    def infer_type(self) -> BaseType:
-        from hidet.ir.dtypes import int32
-
-        return int32
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        return dtypes.int32
 
 
 def program_id():

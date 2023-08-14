@@ -12,7 +12,7 @@
 # pylint: disable=bad-staticmethod-argument
 from hidet.ir.expr import Add, Sub, Multiply, Div, Mod, FloorDiv, Neg, LessThan, LessEqual, Equal, NotEqual, LogicalAnd
 from hidet.ir.expr import LogicalOr, LogicalNot, BitwiseAnd, BitwiseOr, BitwiseNot, BitwiseXor, LeftShift, RightShift
-from hidet.ir.expr import Expr, Reference, BinaryExpr, SymbolVar, cast
+from hidet.ir.expr import Expr, Reference, UnaryExpr, BinaryExpr, SymbolVar, cast
 from hidet.ir.expr import TensorElement, TensorSlice, IfThenElse, Call, Let, Var, Constant, Cast, Dereference, Address
 from hidet.ir.dialects.pattern import PlaceholderExpr
 from hidet.utils import same_list
@@ -319,6 +319,13 @@ class ExprRewriter(ExprFunctor, BaseRewriter):
     def rewrite(self, e):
         return self.visit(e)
 
+    def visit_Unary(self, e: UnaryExpr):
+        a = self(e.a)
+        if a is e.a:
+            return e
+        else:
+            return Expr._unary(e.__class__, a)
+
     def visit_Binary(self, e: BinaryExpr):
         a = self(e.a)
         b = self(e.b)
@@ -364,18 +371,10 @@ class ExprRewriter(ExprFunctor, BaseRewriter):
         return self.visit_Binary(e)
 
     def visit_Neg(self, e: Neg):
-        a = self(e.a)
-        if a is e.a:
-            return e
-        else:
-            return Neg(a)
+        return self.visit_Unary(e)
 
     def visit_Not(self, e: LogicalNot):
-        a = self(e.a)
-        if a is e.a:
-            return e
-        else:
-            return LogicalNot(a)
+        return self.visit_Unary(e)
 
     def visit_BitwiseAnd(self, e: BitwiseAnd):
         return self.visit_Binary(e)
@@ -387,11 +386,7 @@ class ExprRewriter(ExprFunctor, BaseRewriter):
         return self.visit_Binary(e)
 
     def visit_BitwiseNot(self, e: BitwiseNot):
-        base = self.visit(e.a)
-        if base is e.a:
-            return e
-        else:
-            return BitwiseNot(base)
+        return self.visit_Unary(e)
 
     def visit_LeftShift(self, e: LeftShift):
         base = self.visit(e.a)

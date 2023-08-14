@@ -108,7 +108,7 @@ class IRModule(Node):
         hash_dir = sha256(str(self).encode()).hexdigest()[:16]
         output_dir = hidet.utils.cache_dir('ir_modules', hash_dir)
 
-        if any(func.kind in ['cuda_kernel', 'cuda_internal'] for func in self.functions.values()):
+        if any(func.kind in ['cuda_kernel', 'cuda_internal', 'cuda_tile'] for func in self.functions.values()):
             target = 'cuda'
         else:
             target = 'cpu'

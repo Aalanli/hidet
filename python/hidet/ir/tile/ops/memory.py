@@ -1,14 +1,14 @@
-from typing import Union, Optional
-from hidet.ir.expr import Var
+from typing import Union, Optional, List
+from hidet.ir.expr import Var, Expr
 from hidet.ir.type import BaseType, PointerType, DataType, void
 from hidet.ir.tile.type import TileType, PointerType, tile_type
 from hidet.ir.tile.expr import TileOp, call_tile_op
 
 
 class Load(TileOp):
-    def __init__(self, ptr: Var, mask: Optional[Var] = None):
+    def __init__(self, ptr: Expr, mask: Optional[Var] = None):
         super().__init__()
-        self.ptr: Var = ptr
+        self.ptr: Expr = ptr
         self.mask: Optional[Var] = mask
 
         self.args = [ptr] + ([mask] if mask is not None else [])
@@ -21,8 +21,9 @@ class Load(TileOp):
         else:
             raise RuntimeError(f"Invalid type of Load: {ret_type}")
 
-    def infer_type(self) -> BaseType:
-        ptr_type = self.ptr.type
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+
+        ptr_type = arg_types[0]
         if isinstance(ptr_type, PointerType):
             return self._get_loaded_type(ptr_type)
         elif isinstance(ptr_type, TileType):
@@ -34,21 +35,22 @@ class Load(TileOp):
 
 
 class Store(TileOp):
-    def __init__(self, ptr: Var, value: Var, mask: Optional[Var] = None):
+    def __init__(self, ptr: Expr, value: Expr, mask: Optional[Expr] = None):
         super().__init__()
-        self.ptr: Var = ptr
-        self.value: Var = value
-        self.mask: Optional[Var] = mask
+        self.ptr: Expr = ptr
+        self.value: Expr = value
+        self.mask: Optional[Expr] = mask
 
         self.args = [ptr, value] + ([mask] if mask is not None else [])
 
-    def infer_type(self) -> BaseType:
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+
         return void
 
 
-def load(ptr: Var, mask: Optional[Var] = None):
+def load(ptr: Expr, mask: Optional[Expr] = None):
     return Load(ptr, mask).make_call()
 
 
-def store(ptr: Var, value: Var, mask: Optional[Var] = None):
+def store(ptr: Expr, value: Expr, mask: Optional[Expr] = None):
     return Store(ptr, value, mask).make_call()

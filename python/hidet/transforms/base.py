@@ -45,6 +45,9 @@ class Pass:
         self.name = name if name else self.__class__.__name__
 
     def __call__(self, ir_module: IRModule) -> IRModule:
+        if not self.predicate(ir_module):
+            return ir_module
+
         ctx = PassContext.current()
         for instrument in ctx.instruments:
             instrument.before_pass(self.name, ir_module)
@@ -52,6 +55,9 @@ class Pass:
         for instrument in ctx.instruments:
             instrument.after_pass(self.name, ir_module)
         return ir_module
+
+    def predicate(self, ir_module: IRModule) -> bool:
+        return True
 
     def process_module(self, ir_module: IRModule) -> IRModule:
         new_funcs = {}

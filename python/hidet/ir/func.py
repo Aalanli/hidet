@@ -52,6 +52,7 @@ class Function(Node):
         assert isinstance(kind, str) and kind in [
             'cuda_kernel',
             'cuda_internal',
+            'cuda_tile',
             'cpu_kernel',
             'cpu_internal',
             'public',

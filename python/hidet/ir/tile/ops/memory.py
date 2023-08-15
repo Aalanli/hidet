@@ -1,15 +1,15 @@
 from typing import Union, Optional, List
-from hidet.ir.expr import Var, Expr
+from hidet.ir.expr import Expr
 from hidet.ir.type import BaseType, PointerType, DataType, void
 from hidet.ir.tile.type import TileType, PointerType, tile_type
 from hidet.ir.tile.expr import TileOp, call_tile_op
 
 
 class Load(TileOp):
-    def __init__(self, ptr: Expr, mask: Optional[Var] = None):
+    def __init__(self, ptr: Expr, mask: Optional[Expr] = None):
         super().__init__()
         self.ptr: Expr = ptr
-        self.mask: Optional[Var] = mask
+        self.mask: Optional[Expr] = mask
 
         self.args = [ptr] + ([mask] if mask is not None else [])
 

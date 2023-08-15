@@ -6,18 +6,16 @@ from hidet.ir.func import Function
 from hidet.ir import expr
 from hidet.ir.type import PointerType, DataType
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.ops.transform import broadcast, full
-from hidet.ir.utils.broadcast_utils import broadcast_shape
 from hidet.ir.tile.type import TileType, BlockLayout
 from hidet.ir.tile.expr import TileOp, CallTileOp
-from hidet.ir.tile.mixin import TileOpMixin
 from hidet.utils import same_list
 from hidet.ir.tile.ops import Arange, Full, Broadcast, Reshape, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops import ExpandDims, convert_layout
 
 from .base import TileFunctionPass
 
 
-class InstantiateLayoutRewriter(IRRewriter, TileOpMixin):
+class InstantiateLayoutRewriter(IRRewriter):
     def __init__(self, num_warps: int):
         super().__init__()
         self.num_warps: int = num_warps
@@ -26,35 +24,35 @@ class InstantiateLayoutRewriter(IRRewriter, TileOpMixin):
     def block_layout_from_shape(self, shape: List[int]) -> BlockLayout:
         pass
 
-    def visit_CallTileOp(self, call: CallTileOp):
-        return self.dispatch_CallTileOp(call)
-
     def visit_Arange(self, e: Arange):
-        raise NotImplementedError()
-
-    def visit_Load(self, e: Load):
-        raise NotImplementedError()
-
-    def visit_Store(self, e: Store):
-        raise NotImplementedError()
-
-    def visit_UnaryTileOp(self, e: UnaryTileOp):
-        raise NotImplementedError()
+        layout = self.block_layout_from_shape([e.end - e.begin])
+        return Arange(e.begin, e.end, layout)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
-        raise NotImplementedError()
+        x = self.visit(e.x)
+        y = self.visit(e.y)
+        x_type = self.type_infer.visit(x)
+        y_type = self.type_infer.visit(y)
+        assert isinstance(x_type, TileType) and isinstance(y_type, TileType)
+        assert same_list(x_type.shape, y_type.shape)
+
+        if x_type.layout != y_type.layout:
+            y = convert_layout(y, x_type.layout)
+            return e.reforward([x, y])
+        else:
+            return super().visit_BinaryTileOp(e)
 
     def visit_Broadcast(self, e: Broadcast):
-        raise NotImplementedError()
+        x = self.visit(e.x)
+
+    def visit_ExpandDims(self, e: ExpandDims):
+        pass
 
     def visit_Reshape(self, e: Reshape):
         raise NotImplementedError()
 
     def visit_Full(self, e: Full):
         raise NotImplementedError()
-
-    def visit_ConvertLayout(self, e: ConvertLayout):
-        pass
 
 
 class InstantiateLayoutPass(TileFunctionPass):

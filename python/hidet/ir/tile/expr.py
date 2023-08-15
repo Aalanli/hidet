@@ -1,5 +1,6 @@
 from typing import List, Dict, Union
 from enum import Enum
+from hidet.ir.node import Node
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Expr
 
@@ -12,7 +13,7 @@ _ScalarConst = Union[str, int, float, bool, Attribute]
 CConst = Union[_ScalarConst, List[_ScalarConst]]  # compile-time constant
 
 
-class TileOp:
+class TileOp(Node):
     def __init__(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
         self.args: List[Expr] = args if args is not None else []
         self.attrs: Dict[str, CConst] = attrs if attrs is not None else {}
@@ -29,6 +30,8 @@ class TileOp:
         return snake_name
 
     def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
+        if attrs is None:
+            attrs = self.attrs
         return self.__class__(*args, **attrs)
 
     def make_call(self):

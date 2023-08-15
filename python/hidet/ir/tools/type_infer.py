@@ -167,33 +167,6 @@ class TypeInfer(IRFunctor):
             return _logical_binary_infer.infer(a_type, b_type, e)
         else:
             raise NotImplementedError()
-        # if a_type.is_data_type() and b_type.is_data_type():
-        #     a_dtype: DataType = a_type.as_data_type()
-        #     b_dtype: DataType = b_type.as_data_type()
-        #
-        #     if isinstance(e, (Add, Sub, Multiply, Div, Mod, FloorDiv)):
-        #         return numeric_promotion(a_dtype, b_dtype)
-        #     elif isinstance(e, Condition):
-        #         return data_type('bool')
-        #     else:
-        #         raise NotImplementedError('Binary operator type infer {}'.format(type(e)))
-        # elif a_type.is_pointer() and b_type.is_pointer():
-        #     if isinstance(e, Sub):
-        #         return data_type('int32')
-        #     else:
-        #         raise TypeError("Can only do pointer subtraction, got {}".format(type(e)))
-        # elif a_type.is_pointer() and b_type.is_data_type():
-        #     if isinstance(e, (Sub, Add)):
-        #         return a_type
-        #     else:
-        #         raise TypeError("Can only pointer +/- integer, got {} {} {}".format(a_type, type(e), b_type))
-        # elif a_type.is_data_type() and b_type.is_pointer():
-        #     if isinstance(e, Add):
-        #         return b_type
-        #     else:
-        #         raise TypeError("Can only integer + pointer, got {} {} {}".format(a_type, type(e), b_type))
-        # else:
-        #     raise NotImplementedError('Binary operator type infer {} {} {}'.format(a_type, type(e), b_type))
 
     def visit_Neg(self, e: Neg):
         return self(e.a)

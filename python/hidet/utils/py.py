@@ -37,6 +37,10 @@ def prod(seq: Iterable):
         return c
 
 
+def is_power_of_two(n: int) -> bool:
+    return (n & (n - 1)) == 0
+
+
 def median(seq: Iterable):
     seq = list(seq)
     if len(seq) == 0:

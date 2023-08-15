@@ -43,11 +43,35 @@ class IRPrinter(IRFunctor):
     def __init__(self):
         super().__init__(use_memo=False)
         self.namer = Namer()
+        self.attributes: Dict[str, str] = {}
         self.ir_module: Optional[IRModule] = None
         self.show_var_id = hidet.option.get_option('debug_show_var_id')
 
     def __call__(self, node):
         return self.visit(node)
+
+    def get_attr_abbr(self, hint: str, attr_string: str):
+        if attr_string in self.attributes:
+            return self.attributes[attr_string]
+        else:
+            idx = 0
+            while True:
+                abbr = '#' + hint + ("" if idx == 0 else str(idx))
+                if abbr in self.attributes.values():
+                    idx += 1
+                else:
+                    break
+            self.attributes[attr_string] = abbr
+            return abbr
+
+    def astext(self, node):
+        body: Doc = self.visit(node)
+        attrs_doc = Doc()
+        for attr_value, attr_name in self.attributes.items():
+            attrs_doc += '{}: {}'.format(attr_name, attr_value) + NewLine()
+        if len(self.attributes) > 0:
+            attrs_doc += NewLine()
+        return attrs_doc + body
 
     def visit_Tuple(self, tp: Tuple):
         return doc_join([self(v) for v in tp], ', ')
@@ -569,6 +593,24 @@ class IRPrinter(IRFunctor):
     def visit_ConcatLayout(self, layout: ConcatLayout):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
 
+    def visit_TileLayout(self, layout: TileLayout):
+        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout
+        if isinstance(layout, VoidLayout):
+            doc = Doc()
+        elif isinstance(layout, SharedLayout):
+            raise NotImplementedError()
+        elif isinstance(layout, BlockLayout):
+            sub_items = {
+                'size_per_thread': self(layout.size_per_thread),
+                'thread_per_warp': self(layout.thread_per_warp),
+                'warps_per_block': self(layout.warps_per_block),
+            }
+            doc = 'block(' + doc_join([k + '=' + v for k, v in sub_items.items()], ', ') + ')'
+        else:
+            raise NotImplementedError()
+        attr_string = str(doc)
+        return self.get_attr_abbr(hint='layout', attr_string=attr_string)
+
     def visit_CallTileOp(self, call: CallTileOp):
         args_doc = [self(v) for v in call.op.args]
         attrs_doc = []
@@ -577,36 +619,23 @@ class IRPrinter(IRFunctor):
                 attrs_doc.append(self(k) + '=' + '[' + self(v) + ']')
             elif isinstance(v, dict):
                 attrs_doc.append(self(k) + '=' + '{' + self(v) + '}')
+            elif isinstance(v, TileLayout):
+                attrs_doc.append(self(k) + '=' + self.visit_TileLayout(v))
             else:
                 attrs_doc.append(self(k) + '=' + self(v))
         return call.op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
 
     def visit_TileType(self, t: TileType):
-        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout
-        items = [
-            self(t.type),
-            '[' + self(t.shape) + ']'
-        ]
-        if isinstance(t.layout, VoidLayout):
-            pass
-        elif isinstance(t.layout, SharedLayout):
-            items.append('shared')
-        elif isinstance(t.layout, BlockLayout):
-            sub_items = {
-                'size_per_thread': self(t.layout.size_per_thread),
-                'thread_per_warp': self(t.layout.thread_per_warp),
-                'warps_per_block': self(t.layout.warps_per_block),
-            }
-            items.append('block(' + doc_join([k + '=' + v for k, v in sub_items.items()], ', ') + ')')
-        else:
-            raise NotImplementedError()
-
-        return 'tile_type(' + doc_join(items, ', ') + ')'
+        from hidet.ir.tile.type import VoidLayout
+        shape_items = [self(v) for v in t.shape]
+        if t.layout and not isinstance(t.layout, VoidLayout):
+            shape_items.append(self.visit_TileLayout(t.layout))
+        return self(t.type) + '[' + doc_join(shape_items, ', ') + ']'
 
 
 def astext(obj: Node) -> str:
     if isinstance(obj, Node):
         printer = IRPrinter()
-        return str(printer(obj))
+        return str(printer.astext(obj))
     else:
         raise ValueError()

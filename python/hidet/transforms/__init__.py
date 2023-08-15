@@ -40,6 +40,8 @@ from .annotate_header_and_libs import annotate_header_and_libs_pass
 
 from .tile.inject_explicit_broadcast import inject_explicit_broadcast_pass
 from .tile.convert_arith_expr import convert_arith_expr_pass
+from .tile.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
+from .tile.instantiate_layout import instantiate_layout_pass
 
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
@@ -59,6 +61,8 @@ def lower(ir_module: IRModule) -> IRModule:
     tile_dialect_transforms = [
         inject_explicit_broadcast_pass(),
         convert_arith_expr_pass(),
+        convert_tile_expr_to_let_pass(),
+        instantiate_layout_pass()
     ]
 
     transforms = [

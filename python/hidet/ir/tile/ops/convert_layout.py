@@ -15,7 +15,6 @@ class ConvertLayout(TileOp):
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         a_type = arg_types[0]
         assert isinstance(a_type, TileType)
-        assert same_list(a_type.shape, self.layout.shape)
         return tile_type(a_type.type, a_type.shape, self.layout)
 
 

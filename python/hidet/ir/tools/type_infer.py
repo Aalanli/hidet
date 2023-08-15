@@ -71,7 +71,7 @@ class BinaryTypeInfer:
         from hidet.ir.utils import broadcast_shape
         shape = broadcast_shape(lhs.shape, rhs.shape)
         if isinstance(lhs.layout, VoidLayout) and isinstance(rhs.layout, VoidLayout):
-            layout = void_layout(shape)
+            layout = void_layout()
         else:
             raise NotImplementedError()
         return tile_type(

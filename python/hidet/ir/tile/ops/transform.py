@@ -1,7 +1,7 @@
 from typing import Optional, List
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Expr
-from hidet.ir.tile.type import TileType, TileLayout, BlockLayout, tile_type, block_layout, void_layout
+from hidet.ir.tile.type import TileType, TileLayout, BlockLayout, tile_type
 from hidet.ir.tile.expr import TileOp
 
 
@@ -27,7 +27,6 @@ class Reshape(TileOp):
         return tile_type(type_=arg_types[0], shape=self.shape, layout=self.layout)
 
 
-
 class ExpandDims(TileOp):
     def __init__(self, x: Expr, axis: int, layout: Optional[BlockLayout] = None):
         super().__init__(args=[x], attrs={"axis": axis, "layout": layout})
@@ -50,6 +49,7 @@ def broadcast(x: Expr, shape: List[int]):
 
 def reshape(x: Expr, shape: List[int]):
     return Reshape(x, shape).make_call()
+
 
 def expand_dims(x: Expr, axis: int):
     return ExpandDims(x, axis).make_call()

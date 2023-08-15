@@ -8,7 +8,7 @@ from hidet.ir.type import PointerType, DataType
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.ops.transform import broadcast, full
+from hidet.ir.tile.ops import broadcast, full
 from hidet.ir.utils.broadcast_utils import broadcast_shape
 from .base import TileFunctionPass
 from hidet.utils import same_list

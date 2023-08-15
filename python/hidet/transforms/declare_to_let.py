@@ -34,8 +34,8 @@ class DeclareToLetRewriter(IRRewriter):
         super().__init__()
         self.assigns: Dict[Var, int] = defaultdict(int)
 
-    def rewrite(self, func_body: Stmt):
-        for potential_usage in collect(func_body, (DeclareStmt, AssignStmt, AsmStmt, Address, Reference)):
+    def __call__(self, node):
+        for potential_usage in collect(node, (DeclareStmt, AssignStmt, AsmStmt, Address, Reference)):
             if isinstance(potential_usage, Stmt):
                 stmt = potential_usage
                 if isinstance(stmt, DeclareStmt):
@@ -61,7 +61,7 @@ class DeclareToLetRewriter(IRRewriter):
                     assert False
             else:
                 assert False
-        return self.visit(func_body)
+        return self.visit(node)
 
     def visit_SeqStmt(self, seq_stmt: SeqStmt):
         seq = [self.visit(stmt) for stmt in seq_stmt.seq]
@@ -83,7 +83,7 @@ class DeclareToLetRewriter(IRRewriter):
 class DeclareToLetPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
         rewriter = DeclareToLetRewriter()
-        return rewriter.rewrite(func)
+        return rewriter(func)
 
 
 def declare_to_let_pass() -> Pass:

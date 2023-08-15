@@ -43,4 +43,4 @@ class IRRewriter(
     TileRewriter,
 ):
     def rewrite(self, node):
-        return self.visit(node)
+        return self(node)

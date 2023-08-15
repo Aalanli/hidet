@@ -11,7 +11,7 @@
 # limitations under the License.
 from hidet.ir.expr import Let
 from hidet.ir.stmt import LetStmt, EvaluateStmt, BufferStoreStmt, AssignStmt, ForStmt, IfStmt, AssertStmt, AsmStmt
-from hidet.ir.stmt import BlackBoxStmt
+from hidet.ir.stmt import BlackBoxStmt, DeclareStmt
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.transforms import Pass, FunctionPass
@@ -46,6 +46,10 @@ class LetExprExpander(IRRewriter):
         value = self(e.value)
         self.stmt_stack[-1].append(LetStmt(var, value))
         return self(e.body)
+
+    @wrapper
+    def visit_DeclareStmt(self, stmt: DeclareStmt):
+        return IRRewriter.visit_DeclareStmt(self, stmt)
 
     @wrapper
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):

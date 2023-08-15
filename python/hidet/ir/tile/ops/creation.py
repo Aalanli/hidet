@@ -17,7 +17,7 @@ class Arange(TileOp):
         extent = self.attrs["end"] - self.attrs["begin"]
         layout = self.attrs["layout"]
         if layout is None:
-            layout = void_layout([extent])
+            layout = void_layout()
         return tile_type(type_=int32, shape=[extent], layout=layout)
 
 

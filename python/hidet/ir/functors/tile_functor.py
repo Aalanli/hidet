@@ -30,7 +30,7 @@ class TileFunctor(BaseFunctor):
         elif isinstance(node, ConvertLayout):
             return self.visit_ConvertLayout(node)
         else:
-            raise NotImplementedError()
+            return NotImplemented
 
     def visit_CallTileOp(self, call: CallTileOp):
         raise NotImplementedError()
@@ -154,12 +154,12 @@ class TileRewriter(TileFunctor, BaseRewriter):
 
     def visit_Store(self, e: Store):
         ptr = self.visit(e.ptr)
-        mask = self.visit(e.mask)
         value = self.visit(e.value)
+        mask = self.visit(e.mask)
         if ptr is e.ptr and mask is e.mask and value is e.value:
             return e
         else:
-            return e.reforward([ptr, mask, value])
+            return e.reforward([ptr, value, mask])
 
     def visit_Broadcast(self, e: Broadcast):
         x = self.visit(e.x)

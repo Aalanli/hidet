@@ -62,6 +62,7 @@ class Function(Node):
         self.ret_type: BaseType = ret_type
         # self.extern_vars: List[Var] = extern_vars if extern_vars else []
         self.attrs: Dict[str, Union[int, float, str, Node]] = attrs if attrs else {}
+        assert 'func_kind' not in self.attrs
 
     def __call__(self, *args, **kwargs) -> Call:
         raise ValueError('Can only call script function in another script function, or lower it to execute.')

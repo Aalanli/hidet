@@ -75,6 +75,11 @@ class BaseType(Node):
             return None
         return self
 
+    def as_tensor_type(self) -> TensorType:
+        if not isinstance(self, TensorType):
+            return None
+        return self
+
 
 class DataType(BaseType):
     """

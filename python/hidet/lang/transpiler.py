@@ -517,6 +517,7 @@ class PythonToHidetTranslator(PythonAstFunctor):
             func_attrs: Dict[str, Any] = scope.attributes.copy()
             if 'func_kind' in func_attrs:
                 func_kind = func_attrs['func_kind']
+                func_attrs.pop('func_kind')
             elif 'cuda.grid_dim' in func_attrs or 'cuda.block_dim' in func_attrs:
                 if not all(name in func_attrs for name in ['cuda.grid_dim', 'cuda.block_dim']):
                     raise HidetProgramError(

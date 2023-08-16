@@ -106,7 +106,9 @@ class IRPrinter(IRFunctor):
 
         # attributes
         attr_doc = Doc()
-        for attr_name, attr_value in func.attrs.items():
+        attrs = {'kind': func.kind}
+        attrs.update(func.attrs)
+        for attr_name, attr_value in attrs.items():
             attr_doc += (NewLine() + '# {}: {}'.format(attr_name, attr_value)).indent(4)
 
         # body

@@ -1,8 +1,10 @@
-from typing import List, Optional, Union
+from __future__ import annotations
+from typing import List, Optional, Union, Iterable, Tuple
 from hidet.ir.node import Node
 from hidet.ir.type import BaseType, PointerType, DataType
+from hidet.ir.expr import Expr
 from .expr import Attribute
-from hidet.utils import same_list
+from hidet.utils import same_list, iter_grid, prod, is_power_of_two, argmin
 
 
 class TileLayout(Attribute):
@@ -11,6 +13,7 @@ class TileLayout(Attribute):
 
 class VoidLayout(TileLayout):
     """the layout has not been specified"""
+
     def __eq__(self, other):
         return isinstance(other, VoidLayout)
 
@@ -31,6 +34,95 @@ class BlockLayout(TileLayout):
         self.size_per_thread: List[int] = size_per_thread
         self.thread_per_warp: List[int] = thread_per_warp
         self.warps_per_block: List[int] = warps_per_block
+        self.layout_shape: List[int] = [
+            a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)
+        ]
+
+    @staticmethod
+    def from_shape(shape: List[int], num_warps: int) -> BlockLayout:
+        num_elements = prod(shape)
+        if not is_power_of_two(num_elements):
+            raise ValueError(f"The tensor must have a power of 2 number of elements, got {num_elements}")
+        size_per_thread = []
+        thread_per_warp = []
+        warps_per_block = []
+        remaining_threads = 32
+        remaining_warps = num_warps
+        for extent in shape:
+            size_per_thread.append(1)
+            if extent <= remaining_threads:
+                assert remaining_threads % extent == 0
+                thread_per_warp.append(extent)
+                warps_per_block.append(1)
+                remaining_threads //= extent
+            elif extent <= remaining_threads * remaining_warps:
+                assert extent % remaining_threads == 0
+                assert remaining_warps % (extent // remaining_threads) == 0
+                thread_per_warp.append(remaining_threads)
+                warps_per_block.append(extent // remaining_threads)
+                remaining_threads = 1
+                remaining_warps //= (extent // remaining_threads)
+            else:
+                thread_per_warp.append(remaining_threads)
+                warps_per_block.append(remaining_warps)
+                remaining_threads = 1
+                remaining_warps = 1
+
+        while remaining_threads > 1:
+            assert remaining_threads % 2 == 0
+            thread_per_warp[argmin(thread_per_warp)] *= 2
+            remaining_threads //= 2
+
+        while remaining_warps > 1:
+            assert remaining_warps % 2 == 0
+            warps_per_block[argmin(warps_per_block)] *= 2
+            remaining_warps //= 2
+
+        return block_layout(size_per_thread, thread_per_warp, warps_per_block)
+
+    def local_shape(self, shape: List[int]) -> List[int]:
+        l_shape: List[int] = []
+        for extent, size_per_thread, layout_extent in zip(shape, self.size_per_thread, self.layout_shape):
+            assert extent % layout_extent == 0 or layout_extent % extent == 0
+            if extent <= layout_extent:
+                local_extent = size_per_thread
+            else:
+                local_extent = size_per_thread * (extent // layout_extent)
+            l_shape.append(local_extent)
+        return l_shape
+
+    def local_to_global(self, local_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        from hidet.ir.dtypes import boolean
+        from hidet.ir.expr import logical_or
+        from .utils import unflatten_indices
+        assert len(global_shape) == len(self.layout_shape)
+
+        lane_index = tid % 32
+        warp_index = tid // 32
+        lane_indices: List[Expr] = unflatten_indices(lane_index, self.thread_per_warp)
+        warp_indices: List[Expr] = unflatten_indices(warp_index, self.warps_per_block)
+
+        global_indices: List[Expr] = []
+        is_repeated: Expr = boolean.false
+        for i in range(len(global_shape)):
+            local_index = local_indices[i]
+            if global_shape[i] <= self.layout_shape[i]:
+                layout_index = (
+                    local_index
+                    + lane_indices[i] * self.size_per_thread[i]
+                    + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
+                )
+                global_index = layout_index % global_shape[i]
+            else:
+                layout_index = (
+                    local_index % self.size_per_thread[i]
+                    + lane_indices[i] * self.size_per_thread[i]
+                    + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
+                )
+                global_index = layout_index * (local_index // self.size_per_thread[i])
+                is_repeated = logical_or(is_repeated, local_index < self.size_per_thread[i])
+            global_indices.append(global_index)
+        return global_indices, is_repeated
 
     def __eq__(self, other):
         return (

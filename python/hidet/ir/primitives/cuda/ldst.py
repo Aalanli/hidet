@@ -62,7 +62,7 @@ def register_functions():
     registered = set()
     for dtype in ['uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int32', 'int64', 'float16', 'float32']:
         for space in ['generic', 'global']:
-            for sync in ['acquire']:
+            for sync in ['acquire', None]:
                 for scope in ['gpu']:
                     inst_name = resolve_load_inst_name(dtype, space, sync, scope)
                     func_name = 'cuda_' + inst_name.replace('.', '_') + f'_{dtype}'
@@ -84,7 +84,7 @@ def register_functions():
 
     for dtype in ['uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int32', 'int64', 'float16', 'float32']:
         for space in ['generic', 'global']:
-            for sync in ['release']:
+            for sync in ['release', None]:
                 for scope in ['gpu']:
                     inst_name = resolve_store_inst_name(dtype, space, sync, scope)
                     func_name = 'cuda_' + inst_name.replace('.', '_') + f'_{dtype}'
@@ -193,7 +193,7 @@ def load(addr: Expr, space: str = 'generic', sync: Optional[str] = None, scope: 
     return call_primitive_func(func_name, [addr])
 
 
-def store(addr: Expr, value: Expr, space: str = 'generic', sync: Optional[str] = 'release', scope: str = 'gpu'):
+def store(addr: Expr, value: Expr, space: str = 'generic', sync: Optional[str] = None, scope: str = 'gpu'):
     """
     Store data to memory.
 

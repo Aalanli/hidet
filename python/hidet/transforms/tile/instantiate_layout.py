@@ -19,43 +19,14 @@ class InstantiateLayoutRewriter(IRRewriter):
         self.num_warps: int = num_warps
         self.type_infer = TypeInfer()
 
-    def block_layout_from_shape(self, shape: List[int]) -> BlockLayout:
-        num_elements = prod(shape)
-        if not is_power_of_two(num_elements):
-            raise ValueError(f"The tensor must have a power of 2 number of elements, got {num_elements}")
-        size_per_thread = []
-        thread_per_warp = []
-        warps_per_block = []
-        remaining_threads = 32
-        remaining_warps = self.num_warps
-        for extent in shape:
-            size_per_thread.append(1)
-            if extent <= remaining_threads:
-                assert remaining_threads % extent == 0
-                thread_per_warp.append(extent)
-                warps_per_block.append(1)
-                remaining_threads //= extent
-            elif extent <= remaining_threads * remaining_warps:
-                assert extent % remaining_threads == 0
-                assert remaining_warps % (extent // remaining_threads) == 0
-                thread_per_warp.append(remaining_threads)
-                warps_per_block.append(extent // remaining_threads)
-                remaining_threads = 1
-                remaining_warps //= (extent // remaining_threads)
-            else:
-                thread_per_warp.append(remaining_threads)
-                warps_per_block.append(remaining_warps)
-                remaining_threads = 1
-                remaining_warps = 1
-        return block_layout(size_per_thread, thread_per_warp, warps_per_block)
-
     def visit_Arange(self, e: Arange):
-        layout = self.block_layout_from_shape([e.end - e.begin])
+        layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)
         return Arange(e.begin, e.end, layout)
 
     def visit_Full(self, e: Full):
-        layout = self.block_layout_from_shape(e.shape)
-        return Full(e.value, e.shape, layout)
+        layout = BlockLayout.from_shape(e.shape, self.num_warps)
+        value = self.visit(e.value)
+        return Full(value, e.shape, layout)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         x = self.visit(e.x)
@@ -91,7 +62,7 @@ class InstantiateLayoutRewriter(IRRewriter):
         assert isinstance(x_type, TileType)
         if isinstance(x_type.layout, BlockLayout):
             y_shape = x_type.shape[:e.axis] + [1] + x_type.shape[e.axis:]
-            y_layout = self.block_layout_from_shape(y_shape)
+            y_layout = BlockLayout.from_shape(y_shape, self.num_warps)
             return ExpandDims(
                 x=convert_layout(x, layout=flatten_block_layout(y_layout, axis=e.axis)),
                 axis=e.axis,
@@ -133,7 +104,10 @@ class InstantiateLayoutPass(TileFunctionPass):
             block_dim = int(block_dim)
         except ValueError:
             raise ValueError(f"cuda.block_dim must be a constant integer, got {block_dim}")
-        rewriter = InstantiateLayoutRewriter(block_dim)
+        num_warps = block_dim // 32
+        if block_dim % 32 != 0:
+            raise ValueError(f"cuda.block_dim must be a multiple of 32, got {block_dim}")
+        rewriter = InstantiateLayoutRewriter(num_warps)
         return rewriter.visit(func)
 
 

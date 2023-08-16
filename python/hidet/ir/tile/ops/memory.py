@@ -6,10 +6,11 @@ from hidet.ir.tile.expr import TileOp, call_tile_op
 
 
 class Load(TileOp):
-    def __init__(self, ptr: Expr, mask: Optional[Expr] = None):
+    def __init__(self, ptr: Expr, mask: Optional[Expr] = None, other: Optional[Expr] = None):
         super().__init__()
         self.ptr: Expr = ptr
         self.mask: Optional[Expr] = mask
+        self.other: Optional[Expr] = other
 
         self.args = [ptr] + ([mask] if mask is not None else [])
 
@@ -44,13 +45,12 @@ class Store(TileOp):
         self.args = [ptr, value] + ([mask] if mask is not None else [])
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-
         return void
 
 
-def load(ptr: Expr, mask: Optional[Expr] = None):
+def load(ptr: Expr, mask: Optional[Union[Expr, bool]] = None):
     return Load(ptr, mask).make_call()
 
 
-def store(ptr: Expr, value: Expr, mask: Optional[Expr] = None):
+def store(ptr: Expr, value: Expr, mask: Optional[Union[Expr, bool]] = None):
     return Store(ptr, value, mask).make_call()

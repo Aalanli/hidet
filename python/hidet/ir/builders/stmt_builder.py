@@ -81,15 +81,9 @@ class StmtBuilder:
         assert if_stmt.else_body is None
         return StmtScope(self, stmts=if_stmt, ret=None)
 
-    def for_mapping(self, iter_names: Sequence[str], mapping: TaskMapping, worker: Expr) -> StmtScope:
-        iter_names = [var(name) for name in iter_names]
-        return StmtScope(self, stmts=ForMappingStmt(iter_names, mapping, worker, None), ret=iter_names)
-
-    # def for_task(self, worker_index: Expr, task_layout: TaskMapping):
-    #     # replaced by for_mapping, todo: remove this function and rewrite all its usage
-    #     expander = TaskMappingExpander()
-    #     fields = expander.expand(worker_index, task_layout)
-    #     return StmtScope(self, stmts=expander.stmts, ret=fields)
+    def for_mapping(self, iter_names: Sequence[str], mapping: TaskMapping, worker: Union[Expr, int] = 0) -> StmtScope:
+        iter_vars = [var(name) for name in iter_names]
+        return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, worker, None), ret=iter_vars)
 
     def append(self, stmt: Union[Stmt, Expr, Sequence[Stmt]]):
         if stmt is None:

@@ -37,6 +37,22 @@ def prod(seq: Iterable):
         return c
 
 
+def argmin(seq: Iterable):
+    seq = list(seq)
+    if len(seq) == 0:
+        return None
+    else:
+        return min(range(len(seq)), key=seq.__getitem__)
+
+
+def argmax(seq: Iterable):
+    seq = list(seq)
+    if len(seq) == 0:
+        return None
+    else:
+        return max(range(len(seq)), key=seq.__getitem__)
+
+
 def is_power_of_two(n: int) -> bool:
     return (n & (n - 1)) == 0
 
@@ -47,6 +63,10 @@ def median(seq: Iterable):
         return None
     else:
         return sorted(seq)[len(seq) // 2]
+
+
+def iter_grid(shape: List[int]) -> List[int]:
+    return itertools.product(*[range(d) for d in shape])
 
 
 def clip(

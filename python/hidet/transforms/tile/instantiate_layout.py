@@ -1,19 +1,15 @@
-from typing import Type, Dict, Union, List
+from typing import List
 
-from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr, var
-from hidet.ir.stmt import LetStmt, DeclareStmt
-from hidet.ir.functors import IRRewriter
+from hidet.ir.expr import var
 from hidet.ir.func import Function
-from hidet.ir import expr
-from hidet.ir.type import PointerType, DataType
-from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.type import TileType, BlockLayout, block_layout, tile_type, flatten_block_layout
-from hidet.ir.tile.expr import TileOp, CallTileOp
-from hidet.utils import same_list
-from hidet.ir.tile.ops import Arange, Full, Broadcast, Reshape, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
+from hidet.ir.functors import IRRewriter
+from hidet.ir.stmt import LetStmt, DeclareStmt
+from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp
 from hidet.ir.tile.ops import ExpandDims, convert_layout
+from hidet.ir.tile.type import TileType, BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tools import TypeInfer
 from hidet.utils import prod, is_power_of_two
-
+from hidet.utils import same_list
 from .base import TileFunctionPass
 
 

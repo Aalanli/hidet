@@ -68,6 +68,13 @@ class BaseType(Node):
             return None
         return self
 
+    def as_tile_type(self):
+        from hidet.ir.tile.type import TileType
+
+        if not isinstance(self, TileType):
+            return None
+        return self
+
 
 class DataType(BaseType):
     """
@@ -175,7 +182,7 @@ class TensorType(BaseType):
 
         Parameters
         ----------
-        dtype: DataType
+        dtype: DataType or PointerType
             The data type of the tensor.
         shape: Tuple[Expr, ...]
             The shape of the tensor.
@@ -184,7 +191,7 @@ class TensorType(BaseType):
         """
         from hidet.ir.layout import DataLayout
 
-        self.dtype: DataType = dtype
+        self.dtype: Union[DataType, PointerType] = dtype
         self.shape: Tuple[Expr, ...] = shape
         self.layout: DataLayout = layout
 
@@ -304,7 +311,7 @@ def tensor_type(dtype, shape: Optional[Sequence[Union[int, Expr]]] = None, layou
 
     Parameters
     ----------
-    dtype: str or DataType
+    dtype: str or DataType or PointerType
         The scalar type of this tensor.
 
     shape: Sequence[Union[int, Expr]] or none
@@ -324,7 +331,7 @@ def tensor_type(dtype, shape: Optional[Sequence[Union[int, Expr]]] = None, layou
 
     if isinstance(dtype, str):
         dtype = data_type(dtype)
-    if not isinstance(dtype, DataType):
+    if not isinstance(dtype, (DataType, PointerType)):
         raise ValueError('Scalar type expect a "str" or "ScalarType", but got {}'.format(type(dtype)))
     if shape is None and layout is None:
         raise ValueError('Tensor type must give either shape or layout')

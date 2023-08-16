@@ -667,7 +667,7 @@ def scalar_var(hint: str, dtype: Union[str, DataType] = 'float32') -> Var:
     return Var(hint, dtype)
 
 
-def tensor_var(hint: str, shape=None, dtype: Union[str, DataType] = 'float32', layout=None) -> Var:
+def tensor_var(hint: str, shape=None, dtype: Union[str, DataType, PointerType] = 'float32', layout=None) -> Var:
     return Var(hint, tensor_type(dtype, shape, layout))
 
 

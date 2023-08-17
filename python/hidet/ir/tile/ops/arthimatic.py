@@ -38,6 +38,15 @@ class BinaryTileOp(TileOp):
         else:
             raise NotImplementedError()
 
+    def apply_scalar(self, x: Expr, y: Expr) -> Expr:
+        import hidet.ir.expr
+
+        cls_name = self.__class__.__name__
+        if not hasattr(hidet.ir.expr, cls_name):
+            raise NotImplementedError(f'No implementation for {cls_name} binary op')
+        expr_cls = getattr(hidet.ir.expr, cls_name)
+        return Expr._binary(expr_cls, x, y)
+
 
 class Neg(UnaryTileOp):
     pass

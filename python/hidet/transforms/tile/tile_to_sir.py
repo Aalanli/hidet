@@ -3,7 +3,7 @@ from typing import List, Dict, Union, Optional, Callable
 import hidet.ir.expr
 from hidet.ir.type import DataType, PointerType, VoidType, void_p
 from hidet.ir.expr import Var, Expr, var, tensor_var, logical_not, if_then_else, logical_and
-from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt
+from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.layout import DataLayout
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
@@ -40,12 +40,37 @@ class Buffer:
     def __getitem__(self, item):
         return self.var[item]
 
+    @property
+    def block_layout(self) -> BlockLayout:
+        assert isinstance(self.layout, BlockLayout)
+        return self.layout
+
+    @property
+    def shared_layout(self) -> SharedLayout:
+        assert isinstance(self.layout, SharedLayout)
+        return self.layout
+
+    @property
+    def flatten_block_layout(self) -> FlattenBlockLayout:
+        assert isinstance(self.layout, FlattenBlockLayout)
+        return self.layout
+
+    def is_shared(self):
+        return isinstance(self.layout, SharedLayout)
+
+    def is_block(self):
+        return isinstance(self.layout, BlockLayout)
+
+    def is_flatten_block(self):
+        return isinstance(self.layout, FlattenBlockLayout)
+
+    def is_block_like(self):
+        return isinstance(self.layout, (BlockLayout, FlattenBlockLayout))
+
 
 class TileToSirRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
-        # used communicate between CallTileOp and all kinds of TileOp
-        self.op2buffer: Dict[TileOp, Buffer] = {}
         # the mapping from the defined var (with LetStmt or DeclareStmt) to the corresponding buffer
         self.var2buffer: Dict[Var, Buffer] = {}
         self.stmt_buffer: List[Stmt] = []
@@ -68,7 +93,10 @@ class TileToSirRewriter(IRRewriter):
             local_shape = layout.local_shape(shape)
         else:
             raise NotImplementedError()
-        return Buffer(hint, dtype, shape, local_shape, layout)
+        buf = Buffer(hint, dtype, shape, local_shape, layout)
+        self.var2buffer[buf.var] = buf
+        self.append_stmt(DeclareStmt(buf.var, scope=DeclareScope.Shared if buf.is_shared() else DeclareScope.Default))
+        return buf
 
     def append_stmt(self, stmt: Stmt):
         self.stmt_buffer.append(stmt)
@@ -81,8 +109,8 @@ class TileToSirRewriter(IRRewriter):
     def iterate_block_buffer_and_apply(
         self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]
     ):
-        assert isinstance(buf.layout, BlockLayout)
-        layout: BlockLayout = buf.layout
+        assert isinstance(buf.layout, (BlockLayout, FlattenBlockLayout))
+        layout: Union[BlockLayout, FlattenBlockLayout] = buf.layout
         local_shape: List[int] = layout.local_shape(buf.shape)
 
         sb = StmtBuilder()
@@ -94,13 +122,11 @@ class TileToSirRewriter(IRRewriter):
             f_apply(local_indices, global_indices, is_repeated, sb)
         self.append_stmt(sb.finish())
 
-    def declare_block_buffer_and_compute(
-        self, buf: Buffer, fcompute: Callable[[List[Expr], List[Expr], Expr], Expr]
+    def iterate_block_buffer_and_compute(
+        self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]
     ):
-        self.append_stmt(DeclareStmt(buf.var))
-
         def f_apply(local_indices, global_indices, is_repeated, sb):
-            value = fcompute(local_indices, global_indices, is_repeated)
+            value = f_compute(local_indices, global_indices, is_repeated)
             sb.append(BufferStoreStmt(buf.var, indices=local_indices, value=value))
 
         self.iterate_block_buffer_and_apply(buf, f_apply)
@@ -162,7 +188,7 @@ class TileToSirRewriter(IRRewriter):
 
         if isinstance(buf.layout, BlockLayout):
             assert len(buf.shape) == 1
-            self.declare_block_buffer_and_compute(
+            self.iterate_block_buffer_and_compute(
                 buf, lambda local_indices, global_indices, is_repeated: global_indices[0] + e.begin
             )
         else:
@@ -173,7 +199,7 @@ class TileToSirRewriter(IRRewriter):
         buf = self.alloc_buffer('full', e)
 
         if isinstance(buf.layout, BlockLayout):
-            self.declare_block_buffer_and_compute(
+            self.iterate_block_buffer_and_compute(
                 buf, lambda local_indices, global_indices, is_repeated: self.visit(e.value)
             )
         else:
@@ -181,26 +207,18 @@ class TileToSirRewriter(IRRewriter):
         return buf
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
-        # get the op func in low level ir
-        cls_name = type(e).__name__
-        if not hasattr(hidet.ir.expr, cls_name):
-            raise NotImplementedError(f'No implementation for {cls_name} binary op')
-        expr_cls = getattr(hidet.ir.expr, cls_name)
-
-        def op_func(a, b):
-            return Expr._binary(expr_cls, a, b)
-
         assert isinstance(e.x, Var) and isinstance(e.y, Var)
-        lhs_buf: Buffer = self.var2buffer[e.x]
-        rhs_buf: Buffer = self.var2buffer[e.y]
+        lhs: Buffer = self.var2buffer[e.x]
+        rhs: Buffer = self.var2buffer[e.y]
         buf = self.alloc_buffer(e.name, e)
-        if isinstance(buf.layout, BlockLayout):
-            assert isinstance(lhs_buf, Buffer) and isinstance(rhs_buf, Buffer)
-            assert buf.layout == lhs_buf.layout == rhs_buf.layout
-            self.declare_block_buffer_and_compute(
+        if (
+            lhs.is_block() and rhs.is_block() and lhs.layout == rhs.layout
+            or lhs.is_flatten_block() and rhs.is_flatten_block() and lhs.layout == rhs.layout
+        ):
+            self.iterate_block_buffer_and_compute(
                 buf,
-                lambda local_indices, global_indices, is_repeated: op_func(
-                    lhs_buf[local_indices], rhs_buf[local_indices]
+                lambda local_indices, global_indices, is_repeated: e.apply_scalar(
+                    lhs[local_indices], rhs[local_indices]
                 )
             )
         else:
@@ -240,7 +258,7 @@ class TileToSirRewriter(IRRewriter):
 
                     return if_then_else(mask_buf[local_indices], load(ptr_buf[local_indices]), other_value)
 
-            self.declare_block_buffer_and_compute(buf, f_compute)
+            self.iterate_block_buffer_and_compute(buf, f_compute)
         else:
             raise NotImplementedError()
         return buf
@@ -281,14 +299,76 @@ class TileToSirRewriter(IRRewriter):
         else:
             raise NotImplementedError()
 
-
     def visit_ConvertLayout(self, e: ConvertLayout):
-        src_buf: Buffer = self.get_buffer(e.x)
-        dst_buf: Buffer = self.alloc_buffer('cvt_layout', e)
-        raise NotImplementedError()
+        src: Buffer = self.get_buffer(e.x)
+        dst: Buffer = self.alloc_buffer('cvt_layout', e)
+
+        if src.is_block() and dst.is_block() and src.layout == dst.layout:
+            return src
+        elif src.is_block() and dst.is_flatten_block() and src.layout == dst.flatten_block_layout.parent:
+            raise NotImplementedError()
+        elif src.is_block() and dst.is_shared():
+            def f_apply(local_indices, global_indices, is_repeated, sb: StmtBuilder):
+                with sb.if_then(logical_not(is_repeated)):
+                    sb.append(
+                        BufferStoreStmt(
+                            dst.var,
+                            global_indices,
+                            value=src[local_indices]
+                        )
+                    )
+
+            self.iterate_block_buffer_and_apply(src, f_apply)
+        elif src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
+            raise NotImplementedError()
+        elif src.is_flatten_block() and dst.is_flatten_block() and src.layout == dst.layout:
+            raise NotImplementedError()
+        elif src.is_flatten_block() and dst.is_shared():
+            raise NotImplementedError()
+        elif src.is_shared() and dst.is_block_like():
+            def f_compute(local_indices, global_indices, is_repeated):
+                return src[global_indices]
+
+            self.iterate_block_buffer_and_compute(dst, f_compute)
+        elif src.is_shared() and dst.is_shared():
+            raise NotImplementedError()
+        else:
+            raise ValueError(
+                'can not convert the layout from {} to {}, please use canonicalize_convert_layout pass first.'.format(
+                    src.layout, dst.layout
+                )
+            )
+        return dst
 
     def visit_ExpandDims(self, e: ExpandDims):
-        raise NotImplementedError()
+        src: Buffer = self.get_buffer(e.x)
+        dst: Buffer = self.alloc_buffer('expand_dims', e)
+
+        if src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
+            assert src.flatten_block_layout.axis == e.axis
+
+            def f_compute(local_indices, global_indices, is_repeated):
+                return src[local_indices]
+
+            self.iterate_block_buffer_and_compute(dst, f_compute)
+        else:
+            raise NotImplementedError()
+        return dst
+
+    def visit_Broadcast(self, e: Broadcast):
+        src: Buffer = self.get_buffer(e.x)
+        dst: Buffer = self.alloc_buffer('broadcast', e)
+
+        broadcast_dims = [i for i in range(len(dst.shape)) if dst.shape[i] != src.shape[i]]
+
+        if src.is_block_like() and dst.is_block_like() and src.layout == dst.layout:
+            def f_compute(local_indices, global_indices, is_repeated):
+                local_indices = [idx if i not in broadcast_dims else 0 for i, idx in enumerate(local_indices)]
+                return src[local_indices]
+            self.iterate_block_buffer_and_compute(dst, f_compute)
+        else:
+            raise NotImplementedError()
+        return dst
 
     def visit_DebugPrint(self, e: DebugPrint):
         from hidet.ir.primitives.debug import printf

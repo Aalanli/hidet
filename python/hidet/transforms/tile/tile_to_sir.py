@@ -4,40 +4,41 @@ import hidet.ir.expr
 from hidet.ir.type import DataType, PointerType, VoidType, void_p
 from hidet.ir.expr import Var, Expr, var, tensor_var, logical_not, if_then_else, logical_and
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt
+from hidet.ir.layout import DataLayout
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, BufferStoreStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load, DebugPrint
-from hidet.ir.tile.ops import ExpandDims, convert_layout
-from hidet.ir.tile.type import TileType, BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.ops import ExpandDims, ConvertLayout
+from hidet.ir.tile.type import TileType
+from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout
+from hidet.ir.tile.layout import block_layout, flatten_block_layout
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tools import TypeInfer
 from hidet.ir.mapping import repeat_map
 from hidet.ir.builders import StmtBuilder
-from hidet.utils import prod, is_power_of_two
-from hidet.utils import same_list
 from hidet.ir.primitives.cuda import threadIdx
 from .base import TileFunctionPass
 
 
 class Buffer:
-    def __init__(self, base_type: Union[PointerType, DataType]):
-        self.base_type: Union[PointerType, DataType] = base_type
-
-    def __getitem__(self, item):
-        raise NotImplementedError()
-
-
-class BlockBuffer(Buffer):
-    def __init__(self, buf_var: Var, shape: List[int], local_shape: List[int], layout: BlockLayout):
-        super().__init__(buf_var.type.as_tensor_type().dtype)
-        self.buf_var: Var = buf_var
-        self.layout: BlockLayout = layout
+    def __init__(
+        self,
+        hint: str,
+        dtype: Union[PointerType, DataType],
+        shape: List[int],
+        local_shape: List[int],
+        layout: TileLayout,
+        var_data_layout: Optional[DataLayout] = None
+    ):
+        self.var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype, layout=var_data_layout)
+        self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
         self.local_shape: List[int] = local_shape
+        self.layout: TileLayout = layout
 
     def __getitem__(self, item):
-        return self.buf_var[item]
+        return self.var[item]
 
 
 class TileToSirRewriter(IRRewriter):
@@ -50,11 +51,24 @@ class TileToSirRewriter(IRRewriter):
         self.stmt_buffer: List[Stmt] = []
         self.type_infer = TypeInfer()
 
-    def alloc_buffer(self, hint: str, ttype: TileType):
-        if isinstance(ttype.layout, BlockLayout):
-            return self.alloc_block_buffer(hint, ttype.type, ttype.shape, ttype.layout)
+    def get_buffer(self, e: Expr) -> Buffer:
+        assert isinstance(e, Var)
+        return self.var2buffer[e]
+
+    def alloc_buffer(self, hint: str, top: TileOp) -> Buffer:
+        ttype: TileType = self.type_infer(CallTileOp(top))
+        layout: TileLayout = ttype.layout
+        shape: List[int] = ttype.shape
+        dtype: Union[DataType, PointerType] = ttype.type
+        if isinstance(layout, BlockLayout):
+            local_shape = layout.local_shape(shape)
+        elif isinstance(layout, FlattenBlockLayout):
+            local_shape = layout.local_shape(shape)
+        elif isinstance(layout, SharedLayout):
+            local_shape = layout.local_shape(shape)
         else:
             raise NotImplementedError()
+        return Buffer(hint, dtype, shape, local_shape, layout)
 
     def append_stmt(self, stmt: Stmt):
         self.stmt_buffer.append(stmt)
@@ -64,20 +78,10 @@ class TileToSirRewriter(IRRewriter):
         self.stmt_buffer = []
         return stmts
 
-    @staticmethod
-    def alloc_block_buffer(
-        hint: str,
-        dtype: Union[DataType, PointerType],
-        shape: List[int],
-        layout: BlockLayout
-    ) -> BlockBuffer:
-        local_shape = layout.local_shape(shape)
-        buf_var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
-        return BlockBuffer(buf_var, shape, local_shape, layout)
-
     def iterate_block_buffer_and_apply(
-        self, buf: BlockBuffer, f_apply: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]
+        self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]
     ):
+        assert isinstance(buf.layout, BlockLayout)
         layout: BlockLayout = buf.layout
         local_shape: List[int] = layout.local_shape(buf.shape)
 
@@ -91,13 +95,13 @@ class TileToSirRewriter(IRRewriter):
         self.append_stmt(sb.finish())
 
     def declare_block_buffer_and_compute(
-        self, buf: BlockBuffer, fcompute: Callable[[List[Expr], List[Expr], Expr], Expr]
+        self, buf: Buffer, fcompute: Callable[[List[Expr], List[Expr], Expr], Expr]
     ):
-        self.append_stmt(DeclareStmt(buf.buf_var))
+        self.append_stmt(DeclareStmt(buf.var))
 
         def f_apply(local_indices, global_indices, is_repeated, sb):
             value = fcompute(local_indices, global_indices, is_repeated)
-            sb.append(BufferStoreStmt(buf.buf_var, indices=local_indices, value=value))
+            sb.append(BufferStoreStmt(buf.var, indices=local_indices, value=value))
 
         self.iterate_block_buffer_and_apply(buf, f_apply)
 
@@ -110,7 +114,7 @@ class TileToSirRewriter(IRRewriter):
             if isinstance(bind_value, CallTileOp):
                 # tile expression
                 buf = self.visit(bind_value)
-                assert isinstance(buf, Buffer)
+                assert isinstance(buf, Buffer), bind_value
                 self.var2buffer[bind_var] = buf
                 stmts.extend(self.flush_stmts())
             else:
@@ -138,7 +142,7 @@ class TileToSirRewriter(IRRewriter):
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):
         if isinstance(stmt.expr, CallTileOp):
             ret = self.visit(stmt.expr)
-            assert isinstance(ret, BlockBuffer) or ret is None
+            assert isinstance(ret, Buffer) or ret is None
             stmts = self.flush_stmts()
             if len(stmts) == 1:
                 return stmts[0]
@@ -154,10 +158,9 @@ class TileToSirRewriter(IRRewriter):
         return ret
 
     def visit_Arange(self, e: Arange):
-        out_type: TileType = self.type_infer(CallTileOp(e))
-        buf = self.alloc_buffer('arange', out_type)
+        buf = self.alloc_buffer('arange', e)
 
-        if isinstance(buf, BlockBuffer):
+        if isinstance(buf.layout, BlockLayout):
             assert len(buf.shape) == 1
             self.declare_block_buffer_and_compute(
                 buf, lambda local_indices, global_indices, is_repeated: global_indices[0] + e.begin
@@ -167,10 +170,9 @@ class TileToSirRewriter(IRRewriter):
         return buf
 
     def visit_Full(self, e: Full):
-        out_type: TileType = self.type_infer(CallTileOp(e))
-        buf = self.alloc_buffer('full', out_type)
+        buf = self.alloc_buffer('full', e)
 
-        if isinstance(buf, BlockBuffer):
+        if isinstance(buf.layout, BlockLayout):
             self.declare_block_buffer_and_compute(
                 buf, lambda local_indices, global_indices, is_repeated: self.visit(e.value)
             )
@@ -189,12 +191,11 @@ class TileToSirRewriter(IRRewriter):
             return Expr._binary(expr_cls, a, b)
 
         assert isinstance(e.x, Var) and isinstance(e.y, Var)
-        out_type: TileType = self.type_infer(CallTileOp(e))
         lhs_buf: Buffer = self.var2buffer[e.x]
         rhs_buf: Buffer = self.var2buffer[e.y]
-        buf = self.alloc_buffer(e.name, out_type)
+        buf = self.alloc_buffer(e.name, e)
         if isinstance(buf.layout, BlockLayout):
-            assert isinstance(lhs_buf, BlockBuffer) and isinstance(rhs_buf, BlockBuffer)
+            assert isinstance(lhs_buf, Buffer) and isinstance(rhs_buf, Buffer)
             assert buf.layout == lhs_buf.layout == rhs_buf.layout
             self.declare_block_buffer_and_compute(
                 buf,
@@ -217,17 +218,17 @@ class TileToSirRewriter(IRRewriter):
         ptr_buf: Buffer = self.var2buffer[e.ptr]
         mask_buf: Optional[Buffer] = self.var2buffer.get(e.mask, None)
         other_buf: Optional[Buffer] = self.var2buffer.get(e.other, None)
-        if isinstance(ptr_buf, BlockBuffer):
-            assert mask_buf is None or isinstance(mask_buf, BlockBuffer)
-            buf = self.alloc_buffer('load', self.type_infer(CallTileOp(e)))
+        if isinstance(ptr_buf.layout, BlockLayout):
+            assert mask_buf is None or isinstance(mask_buf, Buffer)
+            buf = self.alloc_buffer('load', e)
 
             def f_compute(local_indices, global_indices, is_repeated):
                 if mask_buf is None:
                     return load(ptr_buf[local_indices])
                 else:
                     if other_buf is None:
-                        assert isinstance(ptr_buf.base_type, PointerType)
-                        value_type = ptr_buf.base_type.base_type
+                        assert isinstance(ptr_buf.dtype, PointerType)
+                        value_type = ptr_buf.dtype.base_type
                         if isinstance(value_type, PointerType):
                             other_value = void_p(0)
                         elif isinstance(value_type, DataType):
@@ -250,15 +251,15 @@ class TileToSirRewriter(IRRewriter):
         ptr_buf: Buffer = self.var2buffer[e.ptr]
         value_buf: Buffer = self.var2buffer[e.value]
         mask_buf: Optional[Buffer] = self.var2buffer.get(e.mask, None)
-        if isinstance(ptr_buf, BlockBuffer):
-            assert isinstance(value_buf, BlockBuffer) and (mask_buf is None or isinstance(mask_buf, BlockBuffer))
+        if isinstance(ptr_buf.layout, BlockLayout):
+            assert isinstance(value_buf, Buffer) and (mask_buf is None or isinstance(mask_buf, Buffer))
 
             def f_apply(local_indices, global_indices, is_repeated, sb: StmtBuilder):
-                assert isinstance(ptr_buf, BlockBuffer) and isinstance(value_buf, BlockBuffer)
+                assert isinstance(ptr_buf, Buffer) and isinstance(value_buf, Buffer)
                 assert ptr_buf.layout == value_buf.layout
 
                 if mask_buf:
-                    assert isinstance(mask_buf, BlockBuffer) and ptr_buf.layout == mask_buf.layout
+                    assert isinstance(mask_buf, Buffer) and ptr_buf.layout == mask_buf.layout
                     mask_value = mask_buf[local_indices]
                 else:
                     mask_value = True
@@ -268,8 +269,8 @@ class TileToSirRewriter(IRRewriter):
                     # ensures that only one thread stores the value
                     sb.append(
                         store(
-                            addr=ptr_buf.buf_var[local_indices],
-                            value=value_buf.buf_var[local_indices]
+                            addr=ptr_buf.var[local_indices],
+                            value=value_buf.var[local_indices]
                         )
                     )
 
@@ -280,8 +281,14 @@ class TileToSirRewriter(IRRewriter):
         else:
             raise NotImplementedError()
 
+
+    def visit_ConvertLayout(self, e: ConvertLayout):
+        src_buf: Buffer = self.get_buffer(e.x)
+        dst_buf: Buffer = self.alloc_buffer('cvt_layout', e)
+        raise NotImplementedError()
+
     def visit_ExpandDims(self, e: ExpandDims):
-        pass
+        raise NotImplementedError()
 
     def visit_DebugPrint(self, e: DebugPrint):
         from hidet.ir.primitives.debug import printf
@@ -290,7 +297,7 @@ class TileToSirRewriter(IRRewriter):
 
         assert isinstance(e.x, Var)
         buf: Buffer = self.var2buffer[e.x]
-        if isinstance(buf, BlockBuffer):
+        if isinstance(buf.layout, BlockLayout):
             layout: BlockLayout = buf.layout
 
             sb = StmtBuilder()
@@ -318,7 +325,7 @@ class TileToSirRewriter(IRRewriter):
                         with sb.otherwise():
                             with sb.if_then(indices[-1] == 0):
                                 sb.append(printf(' ['))
-                    sb.append(printf(f'{dtype2fmt[buf.base_type]}', buf[local_indices]))
+                    sb.append(printf(f'{dtype2fmt[buf.dtype]}', buf[local_indices]))
                     with sb.if_then(indices[-1] == shape[-1] - 1):
                         if len(shape) == 1:
                             sb.append(printf(']\n'))

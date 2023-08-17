@@ -24,6 +24,7 @@ from hidet.ir.expr import BitwiseAnd, Neg, Cast, NotEqual, BitwiseXor, Reference
 from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt, EvaluateStmt, AssertStmt
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
+from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.type import TileType, TileLayout
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
@@ -312,8 +313,8 @@ class IRPrinter(IRFunctor):
         doc = Doc()
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             doc += NewLine() + 'let ' + self(bind_var) + ': ' + self(bind_var.type) + ' = ' + self(bind_value)
-        doc += self(stmt.body)
-        # doc += self(stmt.body).indent()
+        # doc += self(stmt.body)
+        doc += self(stmt.body).indent()
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
@@ -596,20 +597,20 @@ class IRPrinter(IRFunctor):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
 
     def visit_TileLayout(self, layout: TileLayout):
-        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout
+        from hidet.ir.tile.layout import VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout
         if isinstance(layout, VoidLayout):
             doc = Doc()
-        elif isinstance(layout, SharedLayout):
-            raise NotImplementedError()
         elif isinstance(layout, BlockLayout):
             sub_items = {
                 'size_per_thread': self(layout.size_per_thread),
                 'thread_per_warp': self(layout.thread_per_warp),
                 'warps_per_block': self(layout.warps_per_block),
             }
-            doc = 'block(' + doc_join([k + '=' + v for k, v in sub_items.items()], ', ') + ')'
+            doc = 'block(' + doc_join([k + '=[' + v + ']' for k, v in sub_items.items()], ', ') + ')'
         elif isinstance(layout, FlattenBlockLayout):
-            return 'flatten_block(' + self.visit_TileLayout(layout.parent) + ', axis=' + self(layout.axis) + ')'
+            doc = 'flatten_block(' + self.visit_TileLayout(layout.parent) + ', axis=' + self(layout.axis) + ')'
+        elif isinstance(layout, SharedLayout):
+            doc = 'shared(' + self.visit(layout.data_layout) + ')'
         else:
             raise NotImplementedError()
         attr_string = str(doc)
@@ -630,7 +631,7 @@ class IRPrinter(IRFunctor):
         return call.op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
 
     def visit_TileType(self, t: TileType):
-        from hidet.ir.tile.type import VoidLayout
+        from hidet.ir.tile.layout import VoidLayout
         shape_items = [self(v) for v in t.shape]
         if t.layout and not isinstance(t.layout, VoidLayout):
             shape_items.append(self.visit_TileLayout(t.layout))

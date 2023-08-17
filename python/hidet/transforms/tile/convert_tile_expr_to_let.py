@@ -2,12 +2,14 @@ from typing import Type, Dict, Union, List
 
 from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr, Let, var
 from hidet.ir.stmt import LetStmt
+from hidet.ir.module import IRModule
 from hidet.ir.functors import IRRewriter
 from hidet.ir.func import Function
 from hidet.ir import expr
 from hidet.ir.type import PointerType, DataType
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.type import TileType, BlockLayout, block_layout, tile_type, flatten_block_layout
+from hidet.ir.tile.layout import BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list
 from hidet.ir.tile.ops import Arange, Full, Broadcast, Reshape, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
@@ -62,15 +64,18 @@ class FlattenLetChainRewriter(IRRewriter):
 
 class ConvertTileExprToLetPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewrites = [
-            DeclareToLetRewriter(),
-            ConvertTileExprToLetRewriter(),
-            LetExprExpander(),
-            FlattenLetChainRewriter(),
-        ]
-        for r in rewrites:
-            func = r(func)
-        return func
+        return convert_to_let(func)
+
+def convert_to_let(node: Union[IRModule, Function]):
+    rewrites = [
+        DeclareToLetRewriter(),
+        ConvertTileExprToLetRewriter(),
+        LetExprExpander(),
+        FlattenLetChainRewriter(),
+    ]
+    for r in rewrites:
+        node = r(node)
+    return node
 
 
 def convert_tile_expr_to_let_pass() -> TileFunctionPass:

@@ -11,7 +11,7 @@
 # limitations under the License.
 from hidet.ir.expr import Let
 from hidet.ir.stmt import LetStmt, EvaluateStmt, BufferStoreStmt, AssignStmt, ForStmt, IfStmt, AssertStmt, AsmStmt
-from hidet.ir.stmt import BlackBoxStmt, DeclareStmt
+from hidet.ir.stmt import BlackBoxStmt, DeclareStmt, SeqStmt
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.transforms import Pass, FunctionPass
@@ -47,6 +47,38 @@ class LetExprExpander(IRRewriter):
         self.stmt_stack[-1].append(LetStmt(var, value))
         return self(e.body)
 
+    def visit_LetStmt(self, stmt: LetStmt):
+        stmts = []
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            self.stmt_stack.append([])
+            self.memo.clear()
+            bind_var = self(bind_var)
+            bind_value = self(bind_value)
+            stmts.extend(self.stmt_stack.pop())
+            stmts.append(LetStmt(bind_var, bind_value))
+
+        self.stmt_stack.append([])
+        self.memo.clear()
+        body = self(stmt.body)
+        stmts.extend(self.stmt_stack.pop())
+
+        for stmt in reversed(stmts):
+            if isinstance(stmt, LetStmt) and stmt.body is None:
+                if isinstance(body, LetStmt):
+                    stmt.bind_vars = stmt.bind_vars + body.bind_vars
+                    stmt.bind_values = stmt.bind_values + body.bind_values
+                    stmt.body = body.body
+                    body = stmt
+                else:
+                    stmt.body = body
+                    body = stmt
+            else:
+                if isinstance(stmt, SeqStmt):
+                    body = SeqStmt([body] + list(stmt.seq))
+                else:
+                    body = SeqStmt([body, stmt])
+        return body
+
     @wrapper
     def visit_DeclareStmt(self, stmt: DeclareStmt):
         return IRRewriter.visit_DeclareStmt(self, stmt)
@@ -62,10 +94,6 @@ class LetExprExpander(IRRewriter):
     @wrapper
     def visit_AssignStmt(self, stmt: AssignStmt):
         return IRRewriter.visit_AssignStmt(self, stmt)
-
-    @wrapper
-    def visit_LetStmt(self, stmt: LetStmt):
-        return IRRewriter.visit_LetStmt(self, stmt)
 
     @wrapper
     def visit_ForStmt(self, stmt: ForStmt):

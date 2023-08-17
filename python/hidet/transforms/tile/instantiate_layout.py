@@ -6,11 +6,13 @@ from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp
 from hidet.ir.tile.ops import ExpandDims, convert_layout
-from hidet.ir.tile.type import TileType, BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
 from .base import TileFunctionPass
+from .convert_tile_expr_to_let import convert_to_let
 
 
 class InstantiateLayoutRewriter(IRRewriter):
@@ -95,8 +97,6 @@ class InstantiateLayoutRewriter(IRRewriter):
 
 class InstantiateLayoutPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        if func.kind != 'cuda_tile':
-            return func
         if 'cuda.block_dim' not in func.attrs:
             raise ValueError("cuda.block_dim must be specified for 'cuda_tile' function")
         block_dim = func.attrs['cuda.block_dim']
@@ -108,7 +108,7 @@ class InstantiateLayoutPass(TileFunctionPass):
         if block_dim % 32 != 0:
             raise ValueError(f"cuda.block_dim must be a multiple of 32, got {block_dim}")
         rewriter = InstantiateLayoutRewriter(num_warps)
-        return rewriter.visit(func)
+        return convert_to_let(rewriter.visit(func))
 
 
 def instantiate_layout_pass() -> TileFunctionPass:

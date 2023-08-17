@@ -16,7 +16,8 @@ from hidet.ir.expr import BinaryExpr, Add, Sub, Multiply, Div, Mod, FloorDiv, Co
 from hidet.ir.expr import TensorSlice, LogicalNot, LogicalOr, LogicalAnd, LessEqual, Let, RightShift, LeftShift
 from hidet.ir.expr import BitwiseAnd, Neg, NotEqual, BitwiseXor, Dereference, Reference, Address, BitwiseNot, BitwiseOr
 from hidet.ir.expr import Var, Constant, TensorElement, Call, Cast
-from hidet.ir.tile.type import TileType, VoidLayout, tile_type, void_layout
+from hidet.ir.tile.layout import VoidLayout
+from hidet.ir.tile.type import TileType, tile_type, void_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.compute import ArgReduceCompute, ReduceCompute, GridCompute, TensorInput, ScalarInput
 from hidet.ir.functors import IRFunctor

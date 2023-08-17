@@ -75,8 +75,10 @@ class TileToSirRewriter(IRRewriter):
         buf_var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
         return BlockBuffer(buf_var, shape, local_shape, layout)
 
-    def iterate_buffer_and_apply(self, buf, f_apply: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]):
-        layout = buf.layout
+    def iterate_block_buffer_and_apply(
+        self, buf: BlockBuffer, f_apply: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]
+    ):
+        layout: BlockLayout = buf.layout
         local_shape: List[int] = layout.local_shape(buf.shape)
 
         sb = StmtBuilder()
@@ -88,18 +90,15 @@ class TileToSirRewriter(IRRewriter):
             f_apply(local_indices, global_indices, is_repeated, sb)
         self.append_stmt(sb.finish())
 
-    def declare_and_do(self, buf, do_func: Callable[[List[Expr], List[Expr], Expr, StmtBuilder], None]):
-        if isinstance(buf, BlockBuffer):
-            self.append_stmt(DeclareStmt(buf.buf_var))
-        else:
-            raise NotImplementedError()
-        self.iterate_buffer_and_apply(buf, do_func)
+    def declare_block_buffer_and_compute(
+        self, buf: BlockBuffer, fcompute: Callable[[List[Expr], List[Expr], Expr], Expr]
+    ):
+        self.append_stmt(DeclareStmt(buf.buf_var))
 
-    def declare_and_compute(self, buf, fcompute: Callable[[List[Expr], List[Expr], Expr], Expr]):
-        def do_func(local_indices, global_indices, is_repeated, sb):
+        def f_apply(local_indices, global_indices, is_repeated, sb):
             value = fcompute(local_indices, global_indices, is_repeated)
             sb.append(BufferStoreStmt(buf.buf_var, indices=local_indices, value=value))
-        self.declare_and_do(buf, do_func)
+        self.iterate_block_buffer_and_apply(buf, f_apply)
 
     def visit_CallTileOp(self, call: CallTileOp):
         return self.visit(call.op)
@@ -159,7 +158,7 @@ class TileToSirRewriter(IRRewriter):
 
         if isinstance(buf, BlockBuffer):
             assert len(buf.shape) == 1
-            self.declare_and_compute(
+            self.declare_block_buffer_and_compute(
                 buf, lambda local_indices, global_indices, is_repeated: global_indices[0] + e.begin
             )
         else:
@@ -171,32 +170,40 @@ class TileToSirRewriter(IRRewriter):
         buf = self.alloc_buffer('full', out_type)
 
         if isinstance(buf, BlockBuffer):
-            self.declare_and_compute(buf, lambda local_indices, global_indices, is_repeated: self.visit(e.value))
+            self.declare_block_buffer_and_compute(
+                buf, lambda local_indices, global_indices, is_repeated: self.visit(e.value)
+            )
         else:
             raise NotImplementedError()
         return buf
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
-        out_type: TileType = self.type_infer(CallTileOp(e))
-        buf = self.alloc_buffer(e.name, out_type)
+        # get the op func in low level ir
         cls_name = type(e).__name__
         if not hasattr(hidet.ir.expr, cls_name):
             raise NotImplementedError(f'No implementation for {cls_name} binary op')
         expr_cls = getattr(hidet.ir.expr, cls_name)
+
+        def op_func(a, b):
+            return Expr._binary(expr_cls, a, b)
+
         assert isinstance(e.x, Var) and isinstance(e.y, Var)
+        out_type: TileType = self.type_infer(CallTileOp(e))
         lhs_buf: Buffer = self.var2buffer[e.x]
         rhs_buf: Buffer = self.var2buffer[e.y]
-        if isinstance(lhs_buf, BlockBuffer) and isinstance(rhs_buf, BlockBuffer):
-            lhs_var = lhs_buf.buf_var
-            rhs_var = rhs_buf.buf_var
-            self.declare_and_compute(
+        buf = self.alloc_buffer(e.name, out_type)
+        if isinstance(buf.layout, BlockLayout):
+            assert isinstance(lhs_buf, BlockBuffer) and isinstance(rhs_buf, BlockBuffer)
+            assert buf.layout == lhs_buf.layout == rhs_buf.layout
+            self.declare_block_buffer_and_compute(
                 buf,
-                lambda local_indices, global_indices, is_repeated: Expr._binary(
-                    expr_cls, lhs_var[local_indices], rhs_var[local_indices]
+                lambda local_indices, global_indices, is_repeated: op_func(
+                    lhs_buf[local_indices], rhs_buf[local_indices]
                 )
             )
         else:
             raise NotImplementedError()
+
         return buf
 
     def visit_Load(self, e: Load):
@@ -231,7 +238,7 @@ class TileToSirRewriter(IRRewriter):
 
                     return if_then_else(mask_buf[local_indices], load(ptr_buf[local_indices]), other_value)
 
-            self.declare_and_compute(buf, f_compute)
+            self.declare_block_buffer_and_compute(buf, f_compute)
         else:
             raise NotImplementedError()
         return buf
@@ -263,7 +270,7 @@ class TileToSirRewriter(IRRewriter):
                         value=value_buf.buf_var[local_indices]
                     ))
 
-            self.iterate_buffer_and_apply(
+            self.iterate_block_buffer_and_apply(
                 ptr_buf,
                 f_apply
             )

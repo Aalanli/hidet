@@ -43,7 +43,7 @@ from .tile.canonicalize_expressions import canonicalize_expressions_pass
 from .tile.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
 from .tile.instantiate_layout import instantiate_layout_pass
 from .tile.canonlicalize_convert_layout import canonicalize_convert_layout_pass
-from .tile.tile_to_sir import tile_to_sir_pass
+from .tile.lower_tile_dialect import lower_tile_dialect_pass
 from .tile.canonicalize_declare import canonicalize_declare_pass
 
 
@@ -68,7 +68,7 @@ def lower(ir_module: IRModule) -> IRModule:
         instantiate_layout_pass(),
         canonicalize_declare_pass(),
         canonicalize_convert_layout_pass(),
-        tile_to_sir_pass(),
+        lower_tile_dialect_pass(),
     ]
 
     transforms = [

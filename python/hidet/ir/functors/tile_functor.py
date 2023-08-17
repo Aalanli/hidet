@@ -1,7 +1,7 @@
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, Arange, Load, Store, Broadcast, Reshape, Full, ConvertLayout
-from hidet.ir.tile.ops import ExpandDims, DebugPrint
+from hidet.ir.tile.ops import ExpandDims, DebugPrint, ReduceOp
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 
 
@@ -33,6 +33,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_ExpandDims(node)
         elif isinstance(node, DebugPrint):
             return self.visit_DebugPrint(node)
+        elif isinstance(node, ReduceOp):
+            return self.visit_ReduceOp(node)
         else:
             return NotImplemented
 
@@ -70,6 +72,9 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_ConvertLayout(self, e: ConvertLayout):
+        raise NotImplementedError()
+
+    def visit_ReduceOp(self, e: ReduceOp):
         raise NotImplementedError()
 
     def visit_DebugPrint(self, e: DebugPrint):
@@ -115,6 +120,9 @@ class TileVisitor(TileFunctor, BaseVisitor):
         pass
 
     def visit_ConvertLayout(self, e: ConvertLayout):
+        self.visit(e.x)
+
+    def visit_ReduceOp(self, e: ReduceOp):
         self.visit(e.x)
 
     def visit_DebugPrint(self, e: DebugPrint):
@@ -196,6 +204,13 @@ class TileRewriter(TileFunctor, BaseRewriter):
         return e
 
     def visit_ConvertLayout(self, e: ConvertLayout):
+        x = self.visit(e.x)
+        if x is e.x:
+            return e
+        else:
+            return e.reforward([x])
+
+    def visit_ReduceOp(self, e: ReduceOp):
         x = self.visit(e.x)
         if x is e.x:
             return e

@@ -4,9 +4,10 @@ from hidet.ir.expr import Var, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp
+from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp
 from hidet.ir.tile.ops import ExpandDims, convert_layout
-from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, block_layout, VoidLayout, flatten_block_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.utils import prod, is_power_of_two
@@ -20,6 +21,20 @@ class InstantiateLayoutRewriter(IRRewriter):
         super().__init__()
         self.num_warps: int = num_warps
         self.type_infer = TypeInfer()
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        op = self.visit(call.op)
+        if op is call.op:
+            ret = call
+        else:
+            ret = op.make_call()
+        ttype = self.type_infer.visit(ret)
+        if isinstance(ttype, TileType) and isinstance(ttype.layout, VoidLayout):
+            raise NotImplementedError(
+                'The layout of the following tile op has not been instantiated:\n' +
+                '  {}\n'.format(type(call.op).__name__)
+            )
+        return ret
 
     def visit_Arange(self, e: Arange):
         layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)
@@ -67,6 +82,23 @@ class InstantiateLayoutRewriter(IRRewriter):
             y_layout = BlockLayout.from_shape(y_shape, self.num_warps)
             return ExpandDims(
                 x=convert_layout(x, layout=flatten_block_layout(y_layout, axis=e.axis)), axis=e.axis, layout=y_layout
+            )
+        else:
+            raise NotImplementedError()
+
+    def visit_ReduceOp(self, e: ReduceOp):
+        x = self.visit(e.x)
+        x_type = self.type_infer.visit(x)
+        assert isinstance(x_type, TileType)
+        if isinstance(x_type.layout, BlockLayout):
+            y_type = e.infer_type([x_type])
+            assert isinstance(y_type, TileType)
+            return ReduceOp(
+                x=x,
+                axis=e.axis,
+                keepdims=e.keepdims,
+                kind=e.kind,
+                layout=flatten_block_layout(x_type.layout, axis=e.axis)
             )
         else:
             raise NotImplementedError()

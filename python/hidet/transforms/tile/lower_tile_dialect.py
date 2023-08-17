@@ -9,66 +9,19 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, BufferStoreStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load, DebugPrint
-from hidet.ir.tile.ops import ExpandDims, ConvertLayout
+from hidet.ir.tile.ops import ExpandDims, ConvertLayout, ReduceOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout
-from hidet.ir.tile.layout import block_layout, flatten_block_layout
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tools import TypeInfer
 from hidet.ir.mapping import repeat_map
 from hidet.ir.builders import StmtBuilder
 from hidet.ir.primitives.cuda import threadIdx
 from .base import TileFunctionPass
+from .lower_ops import Buffer
 
 
-class Buffer:
-    def __init__(
-        self,
-        hint: str,
-        dtype: Union[PointerType, DataType],
-        shape: List[int],
-        local_shape: List[int],
-        layout: TileLayout,
-        var_data_layout: Optional[DataLayout] = None,
-    ):
-        self.var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype, layout=var_data_layout)
-        self.dtype: Union[PointerType, DataType] = dtype
-        self.shape: List[int] = shape
-        self.local_shape: List[int] = local_shape
-        self.layout: TileLayout = layout
-
-    def __getitem__(self, item):
-        return self.var[item]
-
-    @property
-    def block_layout(self) -> BlockLayout:
-        assert isinstance(self.layout, BlockLayout)
-        return self.layout
-
-    @property
-    def shared_layout(self) -> SharedLayout:
-        assert isinstance(self.layout, SharedLayout)
-        return self.layout
-
-    @property
-    def flatten_block_layout(self) -> FlattenBlockLayout:
-        assert isinstance(self.layout, FlattenBlockLayout)
-        return self.layout
-
-    def is_shared(self):
-        return isinstance(self.layout, SharedLayout)
-
-    def is_block(self):
-        return isinstance(self.layout, BlockLayout)
-
-    def is_flatten_block(self):
-        return isinstance(self.layout, FlattenBlockLayout)
-
-    def is_block_like(self):
-        return isinstance(self.layout, (BlockLayout, FlattenBlockLayout))
-
-
-class TileToSirRewriter(IRRewriter):
+class LowerTileDialectRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
         # the mapping from the defined var (within LetStmt or DeclareStmt and Buffer) to the corresponding buffer
@@ -143,7 +96,11 @@ class TileToSirRewriter(IRRewriter):
             if isinstance(bind_value, CallTileOp):
                 # tile expression
                 buf = self.visit(bind_value)
-                assert isinstance(buf, Buffer), bind_value
+                if not isinstance(buf, Buffer):
+                    raise NotImplementedError(
+                        'The following tile expression has not been lowered to Buffer:\n' +
+                        '  {}'.format(type(bind_value.op).__name__)
+                    )
                 self.var2buffer[bind_var] = buf
                 stmts.extend(self.flush_stmts())
             elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
@@ -389,6 +346,17 @@ class TileToSirRewriter(IRRewriter):
             raise NotImplementedError()
         return dst
 
+    def visit_ReduceOp(self, e: ReduceOp):
+        src: Buffer = self.get_buffer(e.x)
+        dst: Buffer = self.alloc_buffer('reduce_op', e)
+
+        if src.is_block() and dst.is_flatten_block() and dst.flatten_block_layout.parent == src.layout:
+            layout: BlockLayout = src.block_layout
+            axis: int = e.axis if e.axis >= 0 else len(src.shape) + e.axis
+            assert 0 <= axis < len(src.shape)
+        else:
+            raise NotImplementedError()
+
     def visit_DebugPrint(self, e: DebugPrint):
         from hidet.ir.primitives.debug import printf
         from hidet.ir.primitives.cuda import syncthreads
@@ -438,11 +406,11 @@ class TileToSirRewriter(IRRewriter):
             raise NotImplementedError()
 
 
-class TileToSirPass(TileFunctionPass):
+class LowerTileDialectPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewriter = TileToSirRewriter()
+        rewriter = LowerTileDialectRewriter()
         return rewriter.rewrite(func)
 
 
-def tile_to_sir_pass() -> TileFunctionPass:
-    return TileToSirPass()
+def lower_tile_dialect_pass() -> TileFunctionPass:
+    return LowerTileDialectPass()

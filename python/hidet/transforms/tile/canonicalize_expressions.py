@@ -57,7 +57,6 @@ class CanonicalizeExpressionsRewriter(IRRewriter):
             return super().visit_Binary(e)
 
 
-
 class CanonicalizeExpressionsPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         rewriter = CanonicalizeExpressionsRewriter()

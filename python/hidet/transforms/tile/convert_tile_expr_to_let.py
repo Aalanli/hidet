@@ -66,13 +66,9 @@ class ConvertTileExprToLetPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         return convert_to_let(func)
 
+
 def convert_to_let(node: Union[IRModule, Function]):
-    rewrites = [
-        DeclareToLetRewriter(),
-        ConvertTileExprToLetRewriter(),
-        LetExprExpander(),
-        FlattenLetChainRewriter(),
-    ]
+    rewrites = [DeclareToLetRewriter(), ConvertTileExprToLetRewriter(), LetExprExpander(), FlattenLetChainRewriter()]
     for r in rewrites:
         node = r(node)
     return node

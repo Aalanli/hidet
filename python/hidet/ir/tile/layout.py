@@ -33,23 +33,19 @@ class SharedLayout(TileLayout):
 
 
 class BlockLayout(TileLayout):
-    def __init__(
-        self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]
-    ):
+    def __init__(self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
         super().__init__()
         self.size_per_thread: List[int] = size_per_thread
         self.thread_per_warp: List[int] = thread_per_warp
         self.warps_per_block: List[int] = warps_per_block
-        self.layout_shape: List[int] = [
-            a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)
-        ]
+        self.layout_shape: List[int] = [a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)]
 
     def __eq__(self, other):
         return (
-            isinstance(other, BlockLayout) and
-            same_list(self.size_per_thread, other.size_per_thread) and
-            same_list(self.thread_per_warp, other.thread_per_warp) and
-            same_list(self.warps_per_block, other.warps_per_block)
+            isinstance(other, BlockLayout)
+            and same_list(self.size_per_thread, other.size_per_thread)
+            and same_list(self.thread_per_warp, other.thread_per_warp)
+            and same_list(self.warps_per_block, other.warps_per_block)
         )
 
     @staticmethod
@@ -113,6 +109,7 @@ class BlockLayout(TileLayout):
         from hidet.ir.dtypes import boolean
         from hidet.ir.expr import logical_or
         from .utils import unflatten_indices
+
         assert len(global_shape) == len(self.layout_shape)
 
         lane_index = tid % 32
@@ -144,7 +141,9 @@ class BlockLayout(TileLayout):
             global_indices.append(global_index)
         return global_indices, is_duplicated
 
-    def global_to_local(self, global_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+    def global_to_local(
+        self, global_indices: List[Expr], tid: Expr, global_shape: List[int]
+    ) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import boolean
         from hidet.ir.expr import logical_and
         from .utils import unflatten_indices
@@ -156,8 +155,7 @@ class BlockLayout(TileLayout):
 
         local_shape = self.local_shape(global_shape)
         local_indices: List[Expr] = []
-        is_valid: Expr = boolean.true   # whether the element is hold by the given tid
-        is_repeated: Expr = boolean.false
+        is_valid: Expr = boolean.true  # whether the element is hold by the given tid
         for i in range(len(global_shape)):
             global_index = global_indices[i]
             if global_shape[i] <= self.layout_shape[i]:
@@ -167,14 +165,17 @@ class BlockLayout(TileLayout):
                     - lane_indices[i] * self.size_per_thread[i]
                     - warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
                 )
+                is_valid = logical_and(is_valid, 0 <= local_index, local_index < local_shape[i])
             else:
                 layout_index = global_index % self.layout_shape[i]
-                local_index = (
-                                  layout_index
-                                  - lane_indices[i] * self.size_per_thread[i]
-                                  - warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
-                              ) + global_index // self.layout_shape[i] * self.size_per_thread[i]
-            is_valid = logical_and(is_valid, 0 <= local_index, local_index < local_shape[i])
+                local_index_part0 = (
+                    layout_index
+                    - lane_indices[i] * self.size_per_thread[i]
+                    - warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
+                )
+                local_index_part1 = global_index // self.layout_shape[i] * self.size_per_thread[i]
+                is_valid = logical_and(is_valid, 0 <= local_index_part0, local_index_part0 < self.size_per_thread[i])
+                local_index = local_index_part0 + local_index_part1
             local_indices.append(local_index)
         return local_indices, is_valid
 
@@ -189,28 +190,34 @@ class FlattenBlockLayout(TileLayout):
         return isinstance(other, FlattenBlockLayout) and self.parent == other.parent and self.axis == other.axis
 
     def expanded_shape(self, shape: List[int]):
-        return shape[:self.axis] + [1] + shape[self.axis:]
+        return shape[: self.axis] + [1] + shape[self.axis :]
 
     def local_shape(self, shape: List[int]) -> List[int]:
         return self.parent.local_shape(self.expanded_shape(shape))
 
     def local_to_global(self, local_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
-        global_indices, is_duplicated = self.parent.local_to_global(local_indices, tid, self.expanded_shape(global_shape))
-        global_indices = global_indices[:self.axis] + global_indices[self.axis + 1:]
+        global_indices, is_duplicated = self.parent.local_to_global(
+            local_indices, tid, self.expanded_shape(global_shape)
+        )
+        global_indices = global_indices[: self.axis] + global_indices[self.axis + 1 :]
         return global_indices, is_duplicated
 
-    def global_to_local(self, global_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+    def global_to_local(
+        self, global_indices: List[Expr], tid: Expr, global_shape: List[int]
+    ) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import int32
-        global_indices = global_indices[:self.axis] + [int32.zero] + global_indices[self.axis:]
+
+        global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis :]
         return self.parent.global_to_local(global_indices, tid, self.expanded_shape(global_shape))
 
 
 def void_layout():
     return VoidLayout()
 
+
 def block_layout(size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
     return BlockLayout(size_per_thread, thread_per_warp, warps_per_block)
 
+
 def flatten_block_layout(parent: BlockLayout, axis: int):
     return FlattenBlockLayout(parent, axis)
-

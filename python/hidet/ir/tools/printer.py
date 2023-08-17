@@ -598,6 +598,7 @@ class IRPrinter(IRFunctor):
 
     def visit_TileLayout(self, layout: TileLayout):
         from hidet.ir.tile.layout import VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout
+
         if isinstance(layout, VoidLayout):
             doc = Doc()
         elif isinstance(layout, BlockLayout):
@@ -607,14 +608,16 @@ class IRPrinter(IRFunctor):
                 'warps_per_block': self(layout.warps_per_block),
             }
             doc = 'block(' + doc_join([k + '=[' + v + ']' for k, v in sub_items.items()], ', ') + ')'
+            attr_string = str(doc)
+            return self.get_attr_abbr(hint='layout', attr_string=attr_string)
         elif isinstance(layout, FlattenBlockLayout):
             doc = 'flatten_block(' + self.visit_TileLayout(layout.parent) + ', axis=' + self(layout.axis) + ')'
+            return doc
         elif isinstance(layout, SharedLayout):
             doc = 'shared(' + self.visit(layout.data_layout) + ')'
+            return doc
         else:
             raise NotImplementedError()
-        attr_string = str(doc)
-        return self.get_attr_abbr(hint='layout', attr_string=attr_string)
 
     def visit_CallTileOp(self, call: CallTileOp):
         args_doc = [self(v) for v in call.op.args]
@@ -632,6 +635,7 @@ class IRPrinter(IRFunctor):
 
     def visit_TileType(self, t: TileType):
         from hidet.ir.tile.layout import VoidLayout
+
         shape_items = [self(v) for v in t.shape]
         if t.layout and not isinstance(t.layout, VoidLayout):
             shape_items.append(self.visit_TileLayout(t.layout))

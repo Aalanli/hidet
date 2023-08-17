@@ -47,14 +47,14 @@ def demo_debug_print():
             attrs.cuda.grid_dim = 1
             attrs.cuda.block_dim = 128
 
-            # a = ti.arange(0, 16)
-            # ti.debug_print(a)
-            #
-            # b = ti.full(1, [4, 4])
-            # ti.debug_print(b)
-            #
-            # c = ti.full(1, [4, 4, 4])
-            # ti.debug_print(c)
+            a = ti.arange(0, 16)
+            ti.debug_print(a)
+
+            b = ti.full(1, [4, 4])
+            ti.debug_print(b)
+
+            c = ti.full(1, [4, 4, 4])
+            ti.debug_print(c)
 
             d = ti.full(1, [16, 16])
             ti.debug_print(d)
@@ -117,11 +117,11 @@ def demo_expand_dims():
 def main():
     # demo_arange()
 
-    demo_debug_print()
+    # demo_debug_print()
 
     # demo_vector_add()
 
-    # demo_expand_dims()
+    demo_expand_dims()
 
 
 if __name__ == '__main__':

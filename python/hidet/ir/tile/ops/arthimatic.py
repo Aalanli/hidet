@@ -26,6 +26,7 @@ class BinaryTileOp(TileOp):
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         from hidet.ir.dtypes import boolean
+
         a_type = arg_types[0]
         b_type = arg_types[1]
         assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
@@ -94,4 +95,3 @@ class Equal(BinaryTileOp):
 
 class NotEqual(BinaryTileOp):
     pass
-

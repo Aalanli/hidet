@@ -13,11 +13,8 @@ class TileType(BaseType):
         self.layout: TileLayout = layout
 
 
-
 def tile_type(type_, shape: List[int], layout: Optional[TileLayout] = None):
     assert isinstance(type_, (PointerType, DataType))
     if layout is None:
         layout = void_layout()
     return TileType(type_, shape, layout)
-
-

@@ -36,7 +36,6 @@ def is_bool(tp: DataType):
 
 
 class BinaryTypeInfer:
-
     def infer(self, lhs: BaseType, rhs: BaseType, e: BinaryExpr):
         if isinstance(lhs, DataType) and isinstance(rhs, DataType):
             return self.dtype(lhs, rhs, e)
@@ -70,30 +69,19 @@ class BinaryTypeInfer:
 
     def tile(self, lhs: TileType, rhs: TileType, e):
         from hidet.ir.utils import broadcast_shape
+
         shape = broadcast_shape(lhs.shape, rhs.shape)
         if isinstance(lhs.layout, VoidLayout) and isinstance(rhs.layout, VoidLayout):
             layout = void_layout()
         else:
             raise NotImplementedError()
-        return tile_type(
-            self.infer(lhs.type, rhs.type, e),
-            shape,
-            layout
-        )
+        return tile_type(self.infer(lhs.type, rhs.type, e), shape, layout)
 
     def tile_dtype(self, ttype: TileType, dtype: DataType, e):
-        return tile_type(
-            self.infer(ttype.type, dtype, e),
-            ttype.shape,
-            ttype.layout
-        )
+        return tile_type(self.infer(ttype.type, dtype, e), ttype.shape, ttype.layout)
 
     def tile_pointer(self, ttype: TileType, pointer: PointerType, e):
-        return tile_type(
-            self.infer(ttype.type, pointer, e),
-            ttype.shape,
-            ttype.layout
-        )
+        return tile_type(self.infer(ttype.type, pointer, e), ttype.shape, ttype.layout)
 
     def fail(self, a, b, e):
         raise RuntimeError('can not infer type for: {} {} {}'.format(a, type(e).__name__, b))
@@ -102,6 +90,7 @@ class BinaryTypeInfer:
 class ArithBinaryInfer(BinaryTypeInfer):
     def dtype(self, lhs: DataType, rhs: DataType, e):
         from hidet.ir.dtypes.promotion import promote_type
+
         return promote_type(lhs, rhs)
 
     def pointer(self, lhs: PointerType, rhs: PointerType, e):
@@ -118,7 +107,6 @@ class ArithBinaryInfer(BinaryTypeInfer):
 
 
 class CompareBinaryInfer(BinaryTypeInfer):
-
     def dtype(self, lhs: DataType, rhs: DataType, e):
         return dtypes.boolean
 

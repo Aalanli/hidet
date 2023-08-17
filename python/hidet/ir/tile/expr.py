@@ -38,9 +38,9 @@ class TileOp(Node):
         return CallTileOp(self)
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-        raise NotImplementedError("'infer_type' method has not been implemented for '{}' tile operator".format(
-            type(self).__name__
-        ))
+        raise NotImplementedError(
+            "'infer_type' method has not been implemented for '{}' tile operator".format(type(self).__name__)
+        )
 
 
 class CallTileOp(Expr):

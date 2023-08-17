@@ -51,5 +51,6 @@ class CanonicalizeConvertLayoutPass(TileFunctionPass):
         rewriter = CanonicalizeConvertLayerRewriter()
         return convert_to_let(rewriter.visit(func))
 
+
 def canonicalize_convert_layout_pass() -> TileFunctionPass:
     return CanonicalizeConvertLayoutPass()

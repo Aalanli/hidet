@@ -29,7 +29,7 @@ class Buffer:
         shape: List[int],
         local_shape: List[int],
         layout: TileLayout,
-        var_data_layout: Optional[DataLayout] = None
+        var_data_layout: Optional[DataLayout] = None,
     ):
         self.var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype, layout=var_data_layout)
         self.dtype: Union[PointerType, DataType] = dtype
@@ -98,7 +98,9 @@ class TileToSirRewriter(IRRewriter):
         self.append_stmt(DeclareStmt(buf.var, scope=DeclareScope.Shared if buf.is_shared() else DeclareScope.Default))
         return buf
 
-    def append_stmt(self, stmt: Stmt):
+    def append_stmt(self, stmt: Union[Stmt, Expr]):
+        if isinstance(stmt, Expr):
+            stmt = EvaluateStmt(stmt)
         self.stmt_buffer.append(stmt)
 
     def flush_stmts(self):
@@ -115,16 +117,13 @@ class TileToSirRewriter(IRRewriter):
 
         sb = StmtBuilder()
         with sb.for_mapping(
-            iter_names=[f'i{i}' for i in range(len(local_shape))],
-            mapping=repeat_map(local_shape)
+            iter_names=[f'i{i}' for i in range(len(local_shape))], mapping=repeat_map(local_shape)
         ) as local_indices:
             global_indices, is_repeated = layout.local_to_global(local_indices, tid=threadIdx.x, global_shape=buf.shape)
             f_apply(local_indices, global_indices, is_repeated, sb)
         self.append_stmt(sb.finish())
 
-    def iterate_block_buffer_and_compute(
-        self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]
-    ):
+    def iterate_block_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]):
         def f_apply(local_indices, global_indices, is_repeated, sb):
             value = f_compute(local_indices, global_indices, is_repeated)
             sb.append(BufferStoreStmt(buf.var, indices=local_indices, value=value))
@@ -212,14 +211,18 @@ class TileToSirRewriter(IRRewriter):
         rhs: Buffer = self.var2buffer[e.y]
         buf = self.alloc_buffer(e.name, e)
         if (
-            lhs.is_block() and rhs.is_block() and lhs.layout == rhs.layout
-            or lhs.is_flatten_block() and rhs.is_flatten_block() and lhs.layout == rhs.layout
+            lhs.is_block()
+            and rhs.is_block()
+            and lhs.layout == rhs.layout
+            or lhs.is_flatten_block()
+            and rhs.is_flatten_block()
+            and lhs.layout == rhs.layout
         ):
             self.iterate_block_buffer_and_compute(
                 buf,
                 lambda local_indices, global_indices, is_repeated: e.apply_scalar(
                     lhs[local_indices], rhs[local_indices]
-                )
+                ),
             )
         else:
             raise NotImplementedError()
@@ -228,6 +231,7 @@ class TileToSirRewriter(IRRewriter):
 
     def visit_Load(self, e: Load):
         from hidet.ir.primitives.cuda.ldst import load
+
         assert (
             isinstance(e.ptr, Var)
             and (e.mask is None or isinstance(e.mask, Var))
@@ -265,6 +269,7 @@ class TileToSirRewriter(IRRewriter):
 
     def visit_Store(self, e: Store):
         from hidet.ir.primitives.cuda.ldst import store
+
         assert isinstance(e.ptr, Var) and (e.mask is None or isinstance(e.mask, Var)) and isinstance(e.value, Var)
         ptr_buf: Buffer = self.var2buffer[e.ptr]
         value_buf: Buffer = self.var2buffer[e.value]
@@ -285,21 +290,15 @@ class TileToSirRewriter(IRRewriter):
                 with sb.if_then(logical_and(logical_not(is_repeated), mask_value)):
                     # the same element in the tile might be stored in multiple threads, this if statement
                     # ensures that only one thread stores the value
-                    sb.append(
-                        store(
-                            addr=ptr_buf.var[local_indices],
-                            value=value_buf.var[local_indices]
-                        )
-                    )
+                    sb.append(store(addr=ptr_buf.var[local_indices], value=value_buf.var[local_indices]))
 
-            self.iterate_block_buffer_and_apply(
-                ptr_buf,
-                f_apply
-            )
+            self.iterate_block_buffer_and_apply(ptr_buf, f_apply)
         else:
             raise NotImplementedError()
 
     def visit_ConvertLayout(self, e: ConvertLayout):
+        from hidet.ir.primitives.cuda import syncthreads
+
         src: Buffer = self.get_buffer(e.x)
         dst: Buffer = self.alloc_buffer('cvt_layout', e)
 
@@ -308,17 +307,13 @@ class TileToSirRewriter(IRRewriter):
         elif src.is_block() and dst.is_flatten_block() and src.layout == dst.flatten_block_layout.parent:
             raise NotImplementedError()
         elif src.is_block() and dst.is_shared():
+
             def f_apply(local_indices, global_indices, is_repeated, sb: StmtBuilder):
                 with sb.if_then(logical_not(is_repeated)):
-                    sb.append(
-                        BufferStoreStmt(
-                            dst.var,
-                            global_indices,
-                            value=src[local_indices]
-                        )
-                    )
+                    sb.append(BufferStoreStmt(dst.var, global_indices, value=src[local_indices]))
 
             self.iterate_block_buffer_and_apply(src, f_apply)
+            self.append_stmt(syncthreads())
         elif src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
             raise NotImplementedError()
         elif src.is_flatten_block() and dst.is_flatten_block() and src.layout == dst.layout:
@@ -326,10 +321,12 @@ class TileToSirRewriter(IRRewriter):
         elif src.is_flatten_block() and dst.is_shared():
             raise NotImplementedError()
         elif src.is_shared() and dst.is_block_like():
+
             def f_compute(local_indices, global_indices, is_repeated):
                 return src[global_indices]
 
             self.iterate_block_buffer_and_compute(dst, f_compute)
+            self.append_stmt(syncthreads())
         elif src.is_shared() and dst.is_shared():
             raise NotImplementedError()
         else:
@@ -362,9 +359,11 @@ class TileToSirRewriter(IRRewriter):
         broadcast_dims = [i for i in range(len(dst.shape)) if dst.shape[i] != src.shape[i]]
 
         if src.is_block_like() and dst.is_block_like() and src.layout == dst.layout:
+
             def f_compute(local_indices, global_indices, is_repeated):
                 local_indices = [idx if i not in broadcast_dims else 0 for i, idx in enumerate(local_indices)]
                 return src[local_indices]
+
             self.iterate_block_buffer_and_compute(dst, f_compute)
         else:
             raise NotImplementedError()
@@ -383,16 +382,10 @@ class TileToSirRewriter(IRRewriter):
             sb = StmtBuilder()
             shape = buf.shape
             with sb.for_mapping(
-                iter_names=[f'i{i}' for i in range(len(shape))],
-                mapping=repeat_map(buf.shape)
+                iter_names=[f'i{i}' for i in range(len(shape))], mapping=repeat_map(buf.shape)
             ) as indices:
-                local_indices, is_valid = layout.global_to_local(
-                    indices, threadIdx.x, shape
-                )
-                dtype2fmt = {
-                    float32: '%.2f',
-                    int32: '%d'
-                }
+                local_indices, is_valid = layout.global_to_local(indices, threadIdx.x, shape)
+                dtype2fmt = {float32: '%.2f', int32: '%d'}
                 with sb.if_then(is_valid):
                     assert len(shape) >= 1
 

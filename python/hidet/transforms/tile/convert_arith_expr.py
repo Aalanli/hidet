@@ -15,7 +15,6 @@ _convert_table: Dict[Type[Expr], Type[Union[UnaryTileOp, BinaryTileOp]]] = {
     expr.Neg: arith.Neg,
     expr.LogicalNot: arith.LogicalNot,
     expr.BitwiseNot: arith.BitwiseNot,
-
     # binary arithmetic
     expr.Add: arith.Add,
     expr.Sub: arith.Sub,

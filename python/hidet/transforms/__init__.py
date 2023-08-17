@@ -66,7 +66,7 @@ def lower(ir_module: IRModule) -> IRModule:
         convert_tile_expr_to_let_pass(),
         instantiate_layout_pass(),
         canonicalize_convert_layout_pass(),
-        tile_to_sir_pass()
+        tile_to_sir_pass(),
     ]
 
     transforms = [
@@ -100,8 +100,5 @@ def lower(ir_module: IRModule) -> IRModule:
         simplify_stmt_pass(),
         annotate_header_and_libs_pass(),
     ]
-    ir_module = lower_with(
-        ir_module,
-        tile_dialect_transforms + transforms
-    )
+    ir_module = lower_with(ir_module, tile_dialect_transforms + transforms)
     return ir_module

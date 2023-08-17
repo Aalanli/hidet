@@ -596,7 +596,7 @@ class IRPrinter(IRFunctor):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
 
     def visit_TileLayout(self, layout: TileLayout):
-        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout
+        from hidet.ir.tile.type import VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout
         if isinstance(layout, VoidLayout):
             doc = Doc()
         elif isinstance(layout, SharedLayout):
@@ -608,6 +608,8 @@ class IRPrinter(IRFunctor):
                 'warps_per_block': self(layout.warps_per_block),
             }
             doc = 'block(' + doc_join([k + '=' + v for k, v in sub_items.items()], ', ') + ')'
+        elif isinstance(layout, FlattenBlockLayout):
+            return 'flatten_block(' + self.visit_TileLayout(layout.parent) + ', axis=' + self(layout.axis) + ')'
         else:
             raise NotImplementedError()
         attr_string = str(doc)

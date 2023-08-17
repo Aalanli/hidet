@@ -1,5 +1,6 @@
-from typing import Optional, List
+from typing import Optional, List, Union, Sequence
 from hidet.ir.type import BaseType
+from hidet.ir.expr import convert
 from hidet.ir.tile.type import tile_type, void_layout, TileLayout
 from hidet.ir.tile.expr import TileOp, Expr
 
@@ -36,5 +37,7 @@ def arange(begin: int, end: int):
     return Arange(begin, end).make_call()
 
 
-def full(value: Expr, shape: List[int]):
+def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
+    shape = list(shape)
+    value = convert(value)
     return Full(value, shape).make_call()

@@ -13,7 +13,9 @@ class Broadcast(TileOp):
         self.layout: Optional[TileLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-        return tile_type(type_=arg_types[0], shape=self.shape, layout=self.layout)
+        x_type = arg_types[0]
+        assert isinstance(x_type, TileType)
+        return tile_type(type_=x_type.type, shape=self.shape, layout=self.layout)
 
 
 class Reshape(TileOp):
@@ -24,7 +26,9 @@ class Reshape(TileOp):
         self.layout: Optional[BlockLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-        return tile_type(type_=arg_types[0], shape=self.shape, layout=self.layout)
+        x_type = arg_types[0]
+        assert isinstance(x_type, TileType)
+        return tile_type(type_=x_type.type, shape=self.shape, layout=self.layout)
 
 
 class ExpandDims(TileOp):
@@ -40,7 +44,7 @@ class ExpandDims(TileOp):
         x_shape = x_type.shape
         axis = self.axis if self.axis >= 0 else len(x_shape) + self.axis + 1
         y_shape = x_shape[:axis] + [1] + x_shape[axis:]
-        return tile_type(type_=arg_types[0], shape=y_shape, layout=self.layout)
+        return tile_type(type_=x_type.type, shape=y_shape, layout=self.layout)
 
 
 def broadcast(x: Expr, shape: List[int]):

@@ -58,10 +58,11 @@ class BlockLayout(TileLayout):
             elif extent <= remaining_threads * remaining_warps:
                 assert extent % remaining_threads == 0
                 assert remaining_warps % (extent // remaining_threads) == 0
+                allocated_warps = extent // remaining_threads
                 thread_per_warp.append(remaining_threads)
-                warps_per_block.append(extent // remaining_threads)
+                warps_per_block.append(allocated_warps)
                 remaining_threads = 1
-                remaining_warps //= (extent // remaining_threads)
+                remaining_warps //= allocated_warps
             else:
                 thread_per_warp.append(remaining_threads)
                 warps_per_block.append(remaining_warps)
@@ -77,6 +78,9 @@ class BlockLayout(TileLayout):
             assert remaining_warps % 2 == 0
             warps_per_block[argmin(warps_per_block)] *= 2
             remaining_warps //= 2
+
+        assert prod(warps_per_block) == num_warps
+        assert prod(thread_per_warp) == 32
 
         return block_layout(size_per_thread, thread_per_warp, warps_per_block)
 
@@ -103,7 +107,9 @@ class BlockLayout(TileLayout):
         warp_indices: List[Expr] = unflatten_indices(warp_index, self.warps_per_block)
 
         global_indices: List[Expr] = []
-        is_repeated: Expr = boolean.false
+        # when the same element of the tensor is stored in multiple places, only one of them is not duplicated
+        # (e.g., is_duplicated = false for the first element of the tensor)
+        is_duplicated: Expr = boolean.false
         for i in range(len(global_shape)):
             local_index = local_indices[i]
             if global_shape[i] <= self.layout_shape[i]:
@@ -113,16 +119,50 @@ class BlockLayout(TileLayout):
                     + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
                 )
                 global_index = layout_index % global_shape[i]
+                is_duplicated = logical_or(is_duplicated, layout_index < global_shape[i])
             else:
                 layout_index = (
                     local_index % self.size_per_thread[i]
                     + lane_indices[i] * self.size_per_thread[i]
                     + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
                 )
-                global_index = layout_index * (local_index // self.size_per_thread[i])
-                is_repeated = logical_or(is_repeated, local_index < self.size_per_thread[i])
+                global_index = layout_index + self.layout_shape[i] * (local_index // self.size_per_thread[i])
             global_indices.append(global_index)
-        return global_indices, is_repeated
+        return global_indices, is_duplicated
+
+    def global_to_local(self, global_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        from hidet.ir.dtypes import boolean
+        from hidet.ir.expr import logical_and
+        from .utils import unflatten_indices
+
+        lane_index = tid % 32
+        warp_index = tid // 32
+        lane_indices: List[Expr] = unflatten_indices(lane_index, self.thread_per_warp)
+        warp_indices: List[Expr] = unflatten_indices(warp_index, self.warps_per_block)
+
+        local_shape = self.local_shape(global_shape)
+        local_indices: List[Expr] = []
+        is_valid: Expr = boolean.true   # whether the element is hold by the given tid
+        is_repeated: Expr = boolean.false
+        for i in range(len(global_shape)):
+            global_index = global_indices[i]
+            if global_shape[i] <= self.layout_shape[i]:
+                layout_index = global_index
+                local_index = (
+                    layout_index
+                    - lane_indices[i] * self.size_per_thread[i]
+                    - warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
+                )
+            else:
+                layout_index = global_index % self.layout_shape[i]
+                local_index = (
+                    layout_index
+                    - lane_indices[i] * self.size_per_thread[i]
+                    - warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
+                ) + global_index // self.layout_shape[i] * self.size_per_thread[i]
+            is_valid = logical_and(is_valid, 0 <= local_index, local_index < local_shape[i])
+            local_indices.append(local_index)
+        return local_indices, is_valid
 
     def __eq__(self, other):
         return (

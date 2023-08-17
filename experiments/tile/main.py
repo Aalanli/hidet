@@ -7,17 +7,6 @@ hidet.option.save_lower_ir()
 hidet.utils.clear_cache_dir()
 
 
-def lower_script_module(script_module):
-    ir_module = script_module.ir_module()
-    with PassContext(
-        instruments=[
-            instruments.SaveIRInstrument('./outs/ir')
-        ]
-    ) as ctx:
-        ir_module = lower(ir_module)
-    print(ir_module)
-
-
 def demo_arange():
     from hidet.lang.types import f32, int32
     from hidet.lang import attrs
@@ -40,14 +29,39 @@ def demo_arange():
     func = script_module.build()
     n = 16
     a = hidet.randn([16], dtype=hidet.float32, device='cuda')
-    b = hidet.randn([16], dtype=hidet.float32, device='cuda')
+    b = hidet.empty([16], dtype=hidet.float32, device='cuda')
 
-    print(a)
     func(a, b, n)
-    print(b)
+    hidet.utils.assert_close(b, a + 1)
 
 
-def vector_add(n: int):
+def demo_debug_print():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def use_arange():
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.grid_dim = 1
+            attrs.cuda.block_dim = 128
+
+            a = ti.arange(0, 16)
+            ti.debug_print(a)
+
+            b = ti.full(1, [4, 4])
+            ti.debug_print(b)
+
+            c = ti.full(1, [4, 4, 4])
+            ti.debug_print(c)
+
+    # lower_script_module(script_module)
+    func = script_module.build()
+    func()
+
+
+def demo_vector_add(n: int = 128):
     from hidet.lang.types import f32
     from hidet.lang import attrs
     from hidet.lang import tile as ti
@@ -73,24 +87,38 @@ def vector_add(n: int):
     c = hidet.zeros([n], dtype=hidet.float32, device='cuda')
     func = script_module.build()
     func(a, b, c)
-    print(a)
-    print(b)
-    print(c)
-    print(c - (a + b))
+    hidet.utils.assert_close(c, a + b)
+
+
+def demo_expand_dims():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def use_arange():
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.grid_dim = 1
+            attrs.cuda.block_dim = 128
+
+            a = ti.arange(0, 16)
+            b = ti.arange(0, 16)
+            c = ti.expand_dims(a, 1) * 16 + ti.expand_dims(b, 0)
+            ti.debug_print(c)
+
+    func = script_module.build()
+    func()
 
 
 def main():
     # demo_arange()
 
-    n = 128
-    vector_add(n)
+    # demo_debug_print()
 
-    # a = hidet.randn([n], dtype=hidet.float32, device='cuda')
-    # b = hidet.randn([n], dtype=hidet.float32, device='cuda')
-    # c = hidet.zeros([n], dtype=hidet.float32, device='cuda')
-    # kernel = vector_add(n)
-    # kernel(a, b, c)
-    # print(c)
+    # demo_vector_add()
+
+    demo_expand_dims()
 
 
 if __name__ == '__main__':

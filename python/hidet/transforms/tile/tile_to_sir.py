@@ -7,7 +7,7 @@ from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, BufferStoreStmt
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load
+from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load, DebugPrint
 from hidet.ir.tile.ops import ExpandDims, convert_layout
 from hidet.ir.tile.type import TileType, BlockLayout, block_layout, flatten_block_layout
 from hidet.ir.tile.expr import TileOp, CallTileOp
@@ -98,6 +98,7 @@ class TileToSirRewriter(IRRewriter):
         def f_apply(local_indices, global_indices, is_repeated, sb):
             value = fcompute(local_indices, global_indices, is_repeated)
             sb.append(BufferStoreStmt(buf.buf_var, indices=local_indices, value=value))
+
         self.iterate_block_buffer_and_apply(buf, f_apply)
 
     def visit_CallTileOp(self, call: CallTileOp):
@@ -109,7 +110,7 @@ class TileToSirRewriter(IRRewriter):
             if isinstance(bind_value, CallTileOp):
                 # tile expression
                 buf = self.visit(bind_value)
-                assert isinstance(buf, BlockBuffer)
+                assert isinstance(buf, Buffer)
                 self.var2buffer[bind_var] = buf
                 stmts.extend(self.flush_stmts())
             else:
@@ -124,7 +125,7 @@ class TileToSirRewriter(IRRewriter):
     def visit_DeclareStmt(self, stmt: DeclareStmt):
         if isinstance(stmt.init, CallTileOp):
             buf = self.visit(stmt.init)
-            assert isinstance(buf, BlockBuffer)
+            assert isinstance(buf, Buffer)
             self.var2buffer[stmt.var] = buf
             stmts = self.flush_stmts()
             if len(stmts) == 1:
@@ -265,15 +266,74 @@ class TileToSirRewriter(IRRewriter):
                 with sb.if_then(logical_and(logical_not(is_repeated), mask_value)):
                     # the same element in the tile might be stored in multiple threads, this if statement
                     # ensures that only one thread stores the value
-                    sb.append(store(
-                        addr=ptr_buf.buf_var[local_indices],
-                        value=value_buf.buf_var[local_indices]
-                    ))
+                    sb.append(
+                        store(
+                            addr=ptr_buf.buf_var[local_indices],
+                            value=value_buf.buf_var[local_indices]
+                        )
+                    )
 
             self.iterate_block_buffer_and_apply(
                 ptr_buf,
                 f_apply
             )
+        else:
+            raise NotImplementedError()
+
+    def visit_ExpandDims(self, e: ExpandDims):
+        pass
+
+    def visit_DebugPrint(self, e: DebugPrint):
+        from hidet.ir.primitives.debug import printf
+        from hidet.ir.primitives.cuda import syncthreads
+        from hidet.ir.dtypes import float32, int32
+
+        assert isinstance(e.x, Var)
+        buf: Buffer = self.var2buffer[e.x]
+        if isinstance(buf, BlockBuffer):
+            layout: BlockLayout = buf.layout
+
+            sb = StmtBuilder()
+            shape = buf.shape
+            with sb.for_mapping(
+                iter_names=[f'i{i}' for i in range(len(shape))],
+                mapping=repeat_map(buf.shape)
+            ) as indices:
+                local_indices, is_valid = layout.global_to_local(
+                    indices, threadIdx.x, shape
+                )
+                dtype2fmt = {
+                    float32: '%.2f',
+                    int32: '%d'
+                }
+                with sb.if_then(is_valid):
+                    assert len(shape) >= 1
+
+                    if len(shape) == 1:
+                        with sb.if_then(indices[0] == 0):
+                            sb.append(printf('['))
+                    else:
+                        with sb.if_then(logical_and(indices[-2] == 0, indices[-1] == 0)):
+                            sb.append(printf('[['))
+                        with sb.otherwise():
+                            with sb.if_then(indices[-1] == 0):
+                                sb.append(printf(' ['))
+                    sb.append(printf(f'{dtype2fmt[buf.base_type]}', buf[local_indices]))
+                    with sb.if_then(indices[-1] == shape[-1] - 1):
+                        if len(shape) == 1:
+                            sb.append(printf(']\n'))
+                        else:
+                            with sb.if_then(indices[-2] != shape[-2] - 1):
+                                sb.append(printf(']\n'))
+                            with sb.otherwise():
+                                sb.append(printf(']]\n'))
+                                if len(shape) > 2:
+                                    sb.append(printf('\n'))
+                    with sb.otherwise():
+                        sb.append(printf(', '))
+                sb.append(syncthreads())
+
+            self.append_stmt(sb.finish())
         else:
             raise NotImplementedError()
 

@@ -114,6 +114,27 @@ def demo_expand_dims():
     func()
 
 
+def demo_for_and_increment():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def use_arange():
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.grid_dim = 1
+            attrs.cuda.block_dim = 128
+
+            a = ti.arange(0, 16)
+            for k in range(10):
+                a += 1
+            ti.debug_print(a)
+
+    func = script_module.build()
+    func()
+
+
 def main():
     # demo_arange()
 
@@ -121,7 +142,9 @@ def main():
 
     # demo_vector_add()
 
-    demo_expand_dims()
+    # demo_expand_dims()
+
+    demo_for_and_increment()
 
 
 if __name__ == '__main__':

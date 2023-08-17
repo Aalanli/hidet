@@ -1,9 +1,9 @@
 from typing import List
 
-from hidet.ir.expr import var
+from hidet.ir.expr import Var, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
-from hidet.ir.stmt import LetStmt, DeclareStmt
+from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp
 from hidet.ir.tile.ops import ExpandDims, convert_layout
 from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, block_layout, flatten_block_layout
@@ -91,6 +91,19 @@ class InstantiateLayoutRewriter(IRRewriter):
             stmt_var = var(stmt.var.hint, self.type_infer(init))
             self.memo[stmt.var] = stmt_var
             return DeclareStmt(stmt_var, init)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        value = self.visit(stmt.value)
+        stmt_var: Var = self.visit(stmt.var)
+        value_type = self.type_infer.visit(value)
+        if isinstance(value_type, TileType):
+            assert isinstance(stmt_var.type, TileType)
+            if value_type.layout != stmt_var.type.layout:
+                value = convert_layout(value, stmt_var.type.layout)
+            return AssignStmt(stmt_var, value)
+        else:
+            assert not isinstance(stmt_var.type, TileType)
+            super().visit_AssignStmt(stmt)
 
 
 class InstantiateLayoutPass(TileFunctionPass):

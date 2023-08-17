@@ -39,11 +39,12 @@ from .lower_special_cast import lower_special_cast_pass
 from .annotate_header_and_libs import annotate_header_and_libs_pass
 
 from .tile.inject_explicit_broadcast import inject_explicit_broadcast_pass
-from .tile.convert_arith_expr import convert_arith_expr_pass
+from .tile.canonicalize_expressions import canonicalize_expressions_pass
 from .tile.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
 from .tile.instantiate_layout import instantiate_layout_pass
 from .tile.canonlicalize_convert_layout import canonicalize_convert_layout_pass
 from .tile.tile_to_sir import tile_to_sir_pass
+from .tile.canonicalize_declare import canonicalize_declare_pass
 
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
@@ -62,9 +63,10 @@ def lower(ir_module: IRModule) -> IRModule:
 
     tile_dialect_transforms = [
         inject_explicit_broadcast_pass(),
-        convert_arith_expr_pass(),
+        canonicalize_expressions_pass(),
         convert_tile_expr_to_let_pass(),
         instantiate_layout_pass(),
+        canonicalize_declare_pass(),
         canonicalize_convert_layout_pass(),
         tile_to_sir_pass(),
     ]

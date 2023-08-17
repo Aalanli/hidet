@@ -1,8 +1,9 @@
 from typing import Type, Dict, Union, List
 
 from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr
-from hidet.ir.functors import IRRewriter
+from hidet.ir.stmt import AssignStmt
 from hidet.ir.func import Function
+from hidet.ir.functors import IRRewriter
 from hidet.ir import expr
 from hidet.ir.type import PointerType, DataType
 from hidet.ir.tile.type import TileType
@@ -42,6 +43,20 @@ class InjectExplicitBroadcastRewriter(IRRewriter):
             return e.__class__(a, b)
         else:
             return super().visit_Binary(e)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        rhs = self.visit(stmt.value)
+        lhs = self.visit(stmt.var)
+        rhs_type = self.type_infer.visit(rhs)
+        lhs_type = self.type_infer.visit(lhs)
+
+        if isinstance(lhs_type, TileType) and isinstance(rhs_type, (PointerType, DataType)):
+            rhs = full(rhs, lhs_type.shape)
+            return AssignStmt(lhs, rhs)
+        elif isinstance(lhs_type, (PointerType, DataType)) and isinstance(rhs_type, TileType):
+            raise ValueError('Cannot assign a tile to a non-tile variable')
+        else:
+            return super().visit_AssignStmt(stmt)
 
 
 class InjectExplicitBroadcastPass(TileFunctionPass):

@@ -3,7 +3,7 @@ from typing import List, Dict, Union, Optional, Callable
 import hidet.ir.expr
 from hidet.ir.type import DataType, PointerType, VoidType, void_p
 from hidet.ir.expr import Var, Expr, var, tensor_var, logical_not, if_then_else, logical_and
-from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
+from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope, AssignStmt
 from hidet.ir.layout import DataLayout
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
@@ -71,7 +71,8 @@ class Buffer:
 class TileToSirRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
-        # the mapping from the defined var (with LetStmt or DeclareStmt) to the corresponding buffer
+        # the mapping from the defined var (within LetStmt or DeclareStmt and Buffer) to the corresponding buffer
+        # the defined var can be either the var in LetStmt/DeclareStmt, or the one created in Buffer
         self.var2buffer: Dict[Var, Buffer] = {}
         self.stmt_buffer: List[Stmt] = []
         self.type_infer = TypeInfer()
@@ -80,8 +81,11 @@ class TileToSirRewriter(IRRewriter):
         assert isinstance(e, Var)
         return self.var2buffer[e]
 
-    def alloc_buffer(self, hint: str, top: TileOp) -> Buffer:
-        ttype: TileType = self.type_infer(CallTileOp(top))
+    def alloc_buffer(self, hint: str, tile_op_or_type: Union[TileOp, TileType]) -> Buffer:
+        if isinstance(tile_op_or_type, TileOp):
+            ttype: TileType = self.type_infer(CallTileOp(tile_op_or_type))
+        else:
+            ttype: TileType = tile_op_or_type
         layout: TileLayout = ttype.layout
         shape: List[int] = ttype.shape
         dtype: Union[DataType, PointerType] = ttype.type
@@ -142,8 +146,10 @@ class TileToSirRewriter(IRRewriter):
                 assert isinstance(buf, Buffer), bind_value
                 self.var2buffer[bind_var] = buf
                 stmts.extend(self.flush_stmts())
+            elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
+                self.memo[bind_var] = bind_value
             else:
-                # scalar expression
+                # scalar expression, or pure tile var to var binding
                 stmts.append(DeclareStmt(bind_var, self.visit(bind_value)))
         stmts.append(self.visit(stmt.body))
         if len(stmts) == 1:
@@ -152,17 +158,31 @@ class TileToSirRewriter(IRRewriter):
             return SeqStmt(stmts)
 
     def visit_DeclareStmt(self, stmt: DeclareStmt):
-        if isinstance(stmt.init, CallTileOp):
-            buf = self.visit(stmt.init)
-            assert isinstance(buf, Buffer)
+        if isinstance(stmt.var.type, TileType):
+            assert stmt.init is None, 'canonicalize_declare pass should have removed the init value for tile var'
+            buf = self.alloc_buffer(stmt.var.name, stmt.var.type)
             self.var2buffer[stmt.var] = buf
-            stmts = self.flush_stmts()
-            if len(stmts) == 1:
-                return stmts[0]
-            else:
-                return SeqStmt(stmts)
+            return DeclareStmt(buf.var)
         else:
             return super().visit_DeclareStmt(stmt)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        lhs_var: Var = self.visit(stmt.var)
+        rhs_expr: Expr = self.visit(stmt.value)
+        if isinstance(lhs_var.type, TileType):
+            assert isinstance(rhs_expr, Var), 'All call to tile op should in LetStmt'
+            lhs: Buffer = self.get_buffer(lhs_var)
+            rhs: Buffer = self.get_buffer(rhs_expr)
+
+            assert lhs.layout == rhs.layout and lhs.is_block_like()
+
+            def f_compute(local_indices, global_indices, is_repeated):
+                return rhs[local_indices]
+
+            self.iterate_block_buffer_and_compute(lhs, f_compute)
+            return SeqStmt(self.flush_stmts())
+        else:
+            return super().visit_AssignStmt(stmt)
 
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):
         if isinstance(stmt.expr, CallTileOp):

@@ -5,12 +5,34 @@ from hidet.ir.type import BaseType, PointerType, DataType, void
 from hidet.ir.tile.layout import TileLayout
 from hidet.ir.tile.type import TileType, PointerType, tile_type
 from hidet.ir.tile.expr import TileOp, call_tile_op
+from hidet.ir import primitives
 
 
 class ReduceKind(Enum):
     min = 'min'
     max = 'max'
     sum = 'sum'
+
+    def default_value(self, dtype: DataType):
+        if self.name == 'min':
+            return dtype.max_value
+        elif self.name == 'max':
+            return dtype.min_value
+        elif self.name == 'sum':
+            return dtype.zero
+        else:
+            raise RuntimeError(f"Unknown reduce kind {self.name}")
+
+    def combine(self, lhs: Expr, rhs: Expr):
+        if self.name == 'min':
+            return primitives.min(lhs, rhs)
+        elif self.name == 'max':
+            return primitives.max(lhs, rhs)
+        elif self.name == 'sum':
+            return lhs + rhs
+        else:
+            raise RuntimeError(f"Unknown reduce kind {self.name}")
+
 
 
 class ReduceOp(TileOp):

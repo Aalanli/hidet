@@ -8,6 +8,7 @@ from hidet.ir.layout import DataLayout
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, BufferStoreStmt
+from hidet.ir.primitives.cuda.tile import alloc_shared
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load, DebugPrint
 from hidet.ir.tile.ops import ExpandDims, ConvertLayout, ReduceOp
 from hidet.ir.tile.type import TileType
@@ -18,7 +19,7 @@ from hidet.ir.mapping import repeat_map
 from hidet.ir.builders import StmtBuilder
 from hidet.ir.primitives.cuda import threadIdx
 from .base import TileFunctionPass
-from .lower_ops import Buffer
+from .lower_ops import Buffer, implement_tile_op
 
 
 class LowerTileDialectRewriter(IRRewriter):
@@ -350,12 +351,9 @@ class LowerTileDialectRewriter(IRRewriter):
         src: Buffer = self.get_buffer(e.x)
         dst: Buffer = self.alloc_buffer('reduce_op', e)
 
-        if src.is_block() and dst.is_flatten_block() and dst.flatten_block_layout.parent == src.layout:
-            layout: BlockLayout = src.block_layout
-            axis: int = e.axis if e.axis >= 0 else len(src.shape) + e.axis
-            assert 0 <= axis < len(src.shape)
-        else:
-            raise NotImplementedError()
+        self.append_stmt(implement_tile_op(e, args=[src], output=dst))
+
+        return dst
 
     def visit_DebugPrint(self, e: DebugPrint):
         from hidet.ir.primitives.debug import printf

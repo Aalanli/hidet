@@ -9,11 +9,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union, Sequence
+from typing import Union, Sequence, List, cast
 
 from hidet.ir.stmt import Stmt, ForStmt, IfStmt, EvaluateStmt, SeqStmt, LetStmt, ForMappingStmt, ForStmtAttr
 from hidet.ir.expr import Expr, Var, var, convert
-from hidet.ir.mapping import TaskMapping
+from hidet.ir.dtypes import int32
+from hidet.ir.mapping import TaskMapping, repeat_map
 
 ScopedStmt = Union[IfStmt, ForStmt, LetStmt, ForMappingStmt]
 
@@ -83,7 +84,16 @@ class StmtBuilder:
 
     def for_mapping(self, iter_names: Sequence[str], mapping: TaskMapping, worker: Union[Expr, int] = 0) -> StmtScope:
         iter_vars = [var(name) for name in iter_names]
-        return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, worker, None), ret=iter_vars)
+        return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, worker, cast(Stmt, None)), ret=iter_vars)
+
+    def for_grid(self, shape: List[Union[Expr, int]]) -> StmtScope:
+        iter_vars = [var(f'i{idx}') for idx in range(len(shape))]
+        mapping = repeat_map(*shape)
+        return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, int32(0), cast(Stmt, None)), ret=iter_vars)
+
+    def for_range(self, extent: Union[Expr, int]):
+        iter_var = var('i')
+        return StmtScope(self, stmts=ForStmt(iter_var, extent), ret=iter_var)
 
     def append(self, stmt: Union[Stmt, Expr, Sequence[Stmt]]):
         if stmt is None:

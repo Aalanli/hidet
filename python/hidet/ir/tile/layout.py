@@ -105,17 +105,24 @@ class BlockLayout(TileLayout):
             l_shape.append(local_extent)
         return l_shape
 
-    def local_to_global(self, local_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+    def warp_indices(self) -> List[Expr]:
+        from hidet.ir.primitives.cuda import threadIdx
+        from .utils import unflatten_indices
+        return unflatten_indices(threadIdx.x // 32, self.warps_per_block)
+
+    def lane_indices(self) -> List[Expr]:
+        from hidet.ir.primitives.cuda import threadIdx
+        from .utils import unflatten_indices
+        return unflatten_indices(threadIdx.x % 32, self.thread_per_warp)
+
+    def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import boolean
         from hidet.ir.expr import logical_or
-        from .utils import unflatten_indices
 
         assert len(global_shape) == len(self.layout_shape)
 
-        lane_index = tid % 32
-        warp_index = tid // 32
-        lane_indices: List[Expr] = unflatten_indices(lane_index, self.thread_per_warp)
-        warp_indices: List[Expr] = unflatten_indices(warp_index, self.warps_per_block)
+        lane_indices: List[Expr] = self.lane_indices()
+        warp_indices: List[Expr] = self.warp_indices()
 
         global_indices: List[Expr] = []
         # when the same element of the tensor is stored in multiple places, only one of them is not duplicated
@@ -142,16 +149,13 @@ class BlockLayout(TileLayout):
         return global_indices, is_duplicated
 
     def global_to_local(
-        self, global_indices: List[Expr], tid: Expr, global_shape: List[int]
+        self, global_indices: List[Expr], global_shape: List[int]
     ) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import boolean
         from hidet.ir.expr import logical_and
-        from .utils import unflatten_indices
 
-        lane_index = tid % 32
-        warp_index = tid // 32
-        lane_indices: List[Expr] = unflatten_indices(lane_index, self.thread_per_warp)
-        warp_indices: List[Expr] = unflatten_indices(warp_index, self.warps_per_block)
+        lane_indices: List[Expr] = self.lane_indices()
+        warp_indices: List[Expr] = self.warp_indices()
 
         local_shape = self.local_shape(global_shape)
         local_indices: List[Expr] = []
@@ -190,25 +194,27 @@ class FlattenBlockLayout(TileLayout):
         return isinstance(other, FlattenBlockLayout) and self.parent == other.parent and self.axis == other.axis
 
     def expanded_shape(self, shape: List[int]):
-        return shape[: self.axis] + [1] + shape[self.axis :]
+        return shape[: self.axis] + [1] + shape[self.axis:]
 
     def local_shape(self, shape: List[int]) -> List[int]:
         return self.parent.local_shape(self.expanded_shape(shape))
 
-    def local_to_global(self, local_indices: List[Expr], tid: Expr, global_shape: List[int]) -> Tuple[List[Expr], Expr]:
-        global_indices, is_duplicated = self.parent.local_to_global(
-            local_indices, tid, self.expanded_shape(global_shape)
-        )
-        global_indices = global_indices[: self.axis] + global_indices[self.axis + 1 :]
+    def warp_indices(self) -> List[Expr]:
+        return self.parent.warp_indices()
+
+    def lane_indices(self) -> List[Expr]:
+        return self.parent.lane_indices()
+
+    def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        global_indices, is_duplicated = self.parent.local_to_global(local_indices, self.expanded_shape(global_shape))
+        global_indices = global_indices[: self.axis] + global_indices[self.axis + 1:]
         return global_indices, is_duplicated
 
-    def global_to_local(
-        self, global_indices: List[Expr], tid: Expr, global_shape: List[int]
-    ) -> Tuple[List[Expr], Expr]:
+    def global_to_local(self, global_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import int32
 
-        global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis :]
-        return self.parent.global_to_local(global_indices, tid, self.expanded_shape(global_shape))
+        global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis:]
+        return self.parent.global_to_local(global_indices, self.expanded_shape(global_shape))
 
 
 def void_layout():

@@ -9,9 +9,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union, Sequence, List, cast
+from typing import Union, Sequence, List, cast, Optional
 
+from hidet.ir.type import BaseType
 from hidet.ir.stmt import Stmt, ForStmt, IfStmt, EvaluateStmt, SeqStmt, LetStmt, ForMappingStmt, ForStmtAttr
+from hidet.ir.stmt import DeclareStmt, BufferStoreStmt
 from hidet.ir.expr import Expr, Var, var, convert
 from hidet.ir.dtypes import int32
 from hidet.ir.mapping import TaskMapping, repeat_map
@@ -58,6 +60,12 @@ class StmtBuilder:
         if isinstance(v, str):
             v = var(v)
         return StmtScope(self, stmts=LetStmt(v, value), ret=v)
+
+    def declare(self, v: Var, init: Optional[Expr] = None):
+        self.append(DeclareStmt(v, init))
+
+    def buffer_store(self, buf: Expr, indices: Sequence[Union[Expr, int]], value: Expr):
+        self.append(BufferStoreStmt(buf, indices, value))
 
     def lets(self, bind_vars: Sequence[Union[str, Var]], values: Sequence[Union[int, Expr]]) -> StmtScope:
         assert len(bind_vars) == len(values)

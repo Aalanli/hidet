@@ -389,6 +389,19 @@ def data_type(dtype: Union[str, DataType]) -> DataType:
         raise ValueError('Expect a string or a DataType, but got {}'.format(type(dtype)))
 
 
+def sizeof(tp: BaseType) -> int:
+    from hidet.utils import prod
+
+    if isinstance(tp, DataType):
+        return tp.nbytes
+    elif isinstance(tp, (PointerType, TensorPointerType)):
+        return 8
+    elif isinstance(tp, TensorType):
+        return sizeof(tp.dtype) * prod(tp.shape)
+    else:
+        raise NotImplementedError()
+
+
 void_p = PointerType(VoidType())
 byte_p = PointerType(data_type('uint8'))
 void = VoidType()

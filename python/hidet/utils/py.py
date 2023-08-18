@@ -459,6 +459,16 @@ def is_power_of_two(n: int) -> bool:
     return n > 0 and (n & (n - 1)) == 0
 
 
+def log_two(n: int, exact=True) -> int:
+    if exact:
+        assert is_power_of_two(n)
+    ret = 0
+    while n > 1:
+        n >>= 1
+        ret += 1
+    return ret
+
+
 def cdiv(n: int, d: int) -> int:
     """
     Get the ceiling of n / d.

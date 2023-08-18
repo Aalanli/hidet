@@ -34,7 +34,6 @@ class ReduceKind(Enum):
             raise RuntimeError(f"Unknown reduce kind {self.name}")
 
 
-
 class ReduceOp(TileOp):
     def __init__(self, x: Expr, axis: int, keepdims: bool, kind: ReduceKind, layout: Optional[TileLayout] = None):
         super().__init__(args=[x], attrs={"axis": axis, "keepdims": keepdims, "kind": kind, "layout": layout})

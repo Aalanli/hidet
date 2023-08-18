@@ -16,5 +16,5 @@ def register_functions():
     )
 
 
-def alloc_shared(nbytes: int, is_temp: bool) -> Call:
+def alloc_shared(nbytes: int, is_temp: bool = True) -> Call:
     return call_primitive_func('cuda_alloc_shared', [int32(nbytes), boolean(is_temp)])

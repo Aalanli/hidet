@@ -9,14 +9,13 @@ from hidet.ir.type import DataType, PointerType
 class Buffer:
     def __init__(
         self,
-        hint: str,
+        buf_var: Var,
         dtype: Union[PointerType, DataType],
         shape: List[int],
         local_shape: List[int],
-        layout: TileLayout,
-        var_data_layout: Optional[DataLayout] = None,
+        layout: TileLayout
     ):
-        self.var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype, layout=var_data_layout)
+        self.var: Var = buf_var
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
         self.local_shape: List[int] = local_shape

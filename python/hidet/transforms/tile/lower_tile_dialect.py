@@ -1,8 +1,8 @@
 from typing import List, Dict, Union, Optional, Callable
 
 import hidet.ir.expr
-from hidet.ir.type import DataType, PointerType, VoidType, void_p
-from hidet.ir.expr import Var, Expr, var, tensor_var, logical_not, if_then_else, logical_and
+from hidet.ir.type import DataType, PointerType, VoidType, void_p, tensor_pointer_type, sizeof
+from hidet.ir.expr import Var, Expr, var, tensor_var, logical_not, if_then_else, logical_and, tensor_pointer_var
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope, AssignStmt
 from hidet.ir.layout import DataLayout
 from hidet.ir.func import Function
@@ -45,15 +45,20 @@ class LowerTileDialectRewriter(IRRewriter):
         dtype: Union[DataType, PointerType] = ttype.type
         if isinstance(layout, BlockLayout):
             local_shape = layout.local_shape(shape)
+            buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
+            self.append_stmt(DeclareStmt(buf_var))
         elif isinstance(layout, FlattenBlockLayout):
             local_shape = layout.local_shape(shape)
+            buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
+            self.append_stmt(DeclareStmt(buf_var))
         elif isinstance(layout, SharedLayout):
             local_shape = layout.local_shape(shape)
+            buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
+            self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
         else:
             raise NotImplementedError()
-        buf = Buffer(hint, dtype, shape, local_shape, layout)
-        self.var2buffer[buf.var] = buf
-        self.append_stmt(DeclareStmt(buf.var, scope=DeclareScope.Shared if buf.is_shared() else DeclareScope.Default))
+        buf = Buffer(buf_var, dtype, shape, local_shape, layout)
+        self.var2buffer[buf_var] = buf
         return buf
 
     def append_stmt(self, stmt: Union[Stmt, Expr]):
@@ -77,7 +82,7 @@ class LowerTileDialectRewriter(IRRewriter):
         with sb.for_mapping(
             iter_names=[f'i{i}' for i in range(len(local_shape))], mapping=repeat_map(local_shape)
         ) as local_indices:
-            global_indices, is_repeated = layout.local_to_global(local_indices, tid=threadIdx.x, global_shape=buf.shape)
+            global_indices, is_repeated = layout.local_to_global(local_indices, global_shape=buf.shape)
             f_apply(local_indices, global_indices, is_repeated, sb)
         self.append_stmt(sb.finish())
 
@@ -370,7 +375,7 @@ class LowerTileDialectRewriter(IRRewriter):
             with sb.for_mapping(
                 iter_names=[f'i{i}' for i in range(len(shape))], mapping=repeat_map(buf.shape)
             ) as indices:
-                local_indices, is_valid = layout.global_to_local(indices, threadIdx.x, shape)
+                local_indices, is_valid = layout.global_to_local(indices, shape)
                 dtype2fmt = {float32: '%.2f', int32: '%d'}
                 with sb.if_then(is_valid):
                     assert len(shape) >= 1

@@ -53,8 +53,10 @@ class LowerTileDialectRewriter(IRRewriter):
             self.append_stmt(DeclareStmt(buf_var))
         elif isinstance(layout, SharedLayout):
             local_shape = layout.local_shape(shape)
-            buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
-            self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
+            # buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
+            # self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
+            buf_var: Var = tensor_var(hint, shape, dtype, layout=layout.data_layout)
+            self.append_stmt(DeclareStmt(buf_var, scope=DeclareScope.Shared))
         else:
             raise NotImplementedError()
         buf = Buffer(buf_var, dtype, shape, local_shape, layout)
@@ -79,16 +81,14 @@ class LowerTileDialectRewriter(IRRewriter):
         local_shape: List[int] = layout.local_shape(buf.shape)
 
         sb = StmtBuilder()
-        with sb.for_mapping(
-            iter_names=[f'i{i}' for i in range(len(local_shape))], mapping=repeat_map(local_shape)
-        ) as local_indices:
-            global_indices, is_repeated = layout.local_to_global(local_indices, global_shape=buf.shape)
-            f_apply(local_indices, global_indices, is_repeated, sb)
+        with sb.for_mapping(repeat_map(local_shape)) as local_indices:
+            global_indices, not_duplicated = layout.local_to_global(local_indices, global_shape=buf.shape)
+            f_apply(local_indices, global_indices, not_duplicated, sb)
         self.append_stmt(sb.finish())
 
     def iterate_block_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]):
-        def f_apply(local_indices, global_indices, is_repeated, sb):
-            value = f_compute(local_indices, global_indices, is_repeated)
+        def f_apply(local_indices, global_indices, not_duplicated, sb):
+            value = f_compute(local_indices, global_indices, not_duplicated)
             sb.append(BufferStoreStmt(buf.var, indices=local_indices, value=value))
 
         self.iterate_block_buffer_and_apply(buf, f_apply)
@@ -139,7 +139,7 @@ class LowerTileDialectRewriter(IRRewriter):
 
             assert lhs.layout == rhs.layout and lhs.is_block_like()
 
-            def f_compute(local_indices, global_indices, is_repeated):
+            def f_compute(local_indices, global_indices, not_duplicated):
                 return rhs[local_indices]
 
             self.iterate_block_buffer_and_compute(lhs, f_compute)
@@ -171,7 +171,7 @@ class LowerTileDialectRewriter(IRRewriter):
         if isinstance(buf.layout, BlockLayout):
             assert len(buf.shape) == 1
             self.iterate_block_buffer_and_compute(
-                buf, lambda local_indices, global_indices, is_repeated: global_indices[0] + e.begin
+                buf, lambda local_indices, global_indices, not_duplicated: global_indices[0] + e.begin
             )
         else:
             raise NotImplementedError()
@@ -182,7 +182,7 @@ class LowerTileDialectRewriter(IRRewriter):
 
         if isinstance(buf.layout, BlockLayout):
             self.iterate_block_buffer_and_compute(
-                buf, lambda local_indices, global_indices, is_repeated: self.visit(e.value)
+                buf, lambda local_indices, global_indices, not_duplicated: self.visit(e.value)
             )
         else:
             raise NotImplementedError()
@@ -203,7 +203,7 @@ class LowerTileDialectRewriter(IRRewriter):
         ):
             self.iterate_block_buffer_and_compute(
                 buf,
-                lambda local_indices, global_indices, is_repeated: e.apply_scalar(
+                lambda local_indices, global_indices, not_duplicated: e.apply_scalar(
                     lhs[local_indices], rhs[local_indices]
                 ),
             )
@@ -227,7 +227,7 @@ class LowerTileDialectRewriter(IRRewriter):
             assert mask_buf is None or isinstance(mask_buf, Buffer)
             buf = self.alloc_buffer('load', e)
 
-            def f_compute(local_indices, global_indices, is_repeated):
+            def f_compute(local_indices, global_indices, not_duplicated):
                 if mask_buf is None:
                     return load(ptr_buf[local_indices])
                 else:
@@ -260,7 +260,7 @@ class LowerTileDialectRewriter(IRRewriter):
         if isinstance(ptr_buf.layout, BlockLayout):
             assert isinstance(value_buf, Buffer) and (mask_buf is None or isinstance(mask_buf, Buffer))
 
-            def f_apply(local_indices, global_indices, is_repeated, sb: StmtBuilder):
+            def f_apply(local_indices, global_indices, not_duplicated, sb: StmtBuilder):
                 assert isinstance(ptr_buf, Buffer) and isinstance(value_buf, Buffer)
                 assert ptr_buf.layout == value_buf.layout
 
@@ -270,7 +270,7 @@ class LowerTileDialectRewriter(IRRewriter):
                 else:
                     mask_value = True
 
-                with sb.if_then(logical_and(logical_not(is_repeated), mask_value)):
+                with sb.if_then(logical_and(not_duplicated, mask_value)):
                     # the same element in the tile might be stored in multiple threads, this if statement
                     # ensures that only one thread stores the value
                     sb.append(store(addr=ptr_buf.var[local_indices], value=value_buf.var[local_indices]))
@@ -291,8 +291,8 @@ class LowerTileDialectRewriter(IRRewriter):
             raise NotImplementedError()
         elif src.is_block() and dst.is_shared():
 
-            def f_apply(local_indices, global_indices, is_repeated, sb: StmtBuilder):
-                with sb.if_then(logical_not(is_repeated)):
+            def f_apply(local_indices, global_indices, not_duplicated, sb: StmtBuilder):
+                with sb.if_then(not_duplicated):
                     sb.append(BufferStoreStmt(dst.var, global_indices, value=src[local_indices]))
 
             self.iterate_block_buffer_and_apply(src, f_apply)
@@ -305,7 +305,7 @@ class LowerTileDialectRewriter(IRRewriter):
             raise NotImplementedError()
         elif src.is_shared() and dst.is_block_like():
 
-            def f_compute(local_indices, global_indices, is_repeated):
+            def f_compute(local_indices, global_indices, not_duplicated):
                 return src[global_indices]
 
             self.iterate_block_buffer_and_compute(dst, f_compute)
@@ -327,7 +327,7 @@ class LowerTileDialectRewriter(IRRewriter):
         if src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
             assert src.flatten_block_layout.axis == e.axis
 
-            def f_compute(local_indices, global_indices, is_repeated):
+            def f_compute(local_indices, global_indices, not_duplicated):
                 return src[local_indices]
 
             self.iterate_block_buffer_and_compute(dst, f_compute)
@@ -343,7 +343,7 @@ class LowerTileDialectRewriter(IRRewriter):
 
         if src.is_block_like() and dst.is_block_like() and src.layout == dst.layout:
 
-            def f_compute(local_indices, global_indices, is_repeated):
+            def f_compute(local_indices, global_indices, not_duplicated):
                 local_indices = [idx if i not in broadcast_dims else 0 for i, idx in enumerate(local_indices)]
                 return src[local_indices]
 
@@ -367,14 +367,13 @@ class LowerTileDialectRewriter(IRRewriter):
 
         assert isinstance(e.x, Var)
         buf: Buffer = self.var2buffer[e.x]
-        if isinstance(buf.layout, BlockLayout):
-            layout: BlockLayout = buf.layout
+        if buf.is_block_like():
+            assert isinstance(buf.layout, (BlockLayout, FlattenBlockLayout))
+            layout: Union[BlockLayout, FlattenBlockLayout] = buf.block_like_layout
 
             sb = StmtBuilder()
             shape = buf.shape
-            with sb.for_mapping(
-                iter_names=[f'i{i}' for i in range(len(shape))], mapping=repeat_map(buf.shape)
-            ) as indices:
+            with sb.for_mapping(repeat_map(buf.shape)) as indices:
                 local_indices, is_valid = layout.global_to_local(indices, shape)
                 dtype2fmt = {float32: '%.2f', int32: '%d'}
                 with sb.if_then(is_valid):

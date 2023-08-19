@@ -1,6 +1,6 @@
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp
-from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, Arange, Load, Store, Broadcast, Reshape, Full, ConvertLayout
+from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, Arange, Load, Store, Broadcast, Full, ConvertLayout
 from hidet.ir.tile.ops import ExpandDims, DebugPrint, ReduceOp
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 
@@ -23,8 +23,6 @@ class TileFunctor(BaseFunctor):
             return self.visit_Store(node)
         elif isinstance(node, Broadcast):
             return self.visit_Broadcast(node)
-        elif isinstance(node, Reshape):
-            return self.visit_Reshape(node)
         elif isinstance(node, Full):
             return self.visit_Full(node)
         elif isinstance(node, ConvertLayout):
@@ -60,9 +58,6 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_Broadcast(self, e: Broadcast):
-        raise NotImplementedError()
-
-    def visit_Reshape(self, e: Reshape):
         raise NotImplementedError()
 
     def visit_ExpandDims(self, e: ExpandDims):
@@ -108,9 +103,6 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.value)
 
     def visit_Broadcast(self, e: Broadcast):
-        self.visit(e.x)
-
-    def visit_Reshape(self, e: Reshape):
         self.visit(e.x)
 
     def visit_ExpandDims(self, e: ExpandDims):
@@ -180,13 +172,6 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e.reforward([ptr, value, mask])
 
     def visit_Broadcast(self, e: Broadcast):
-        x = self.visit(e.x)
-        if x is e.x:
-            return e
-        else:
-            return e.reforward([x])
-
-    def visit_Reshape(self, e: Reshape):
         x = self.visit(e.x)
         if x is e.x:
             return e

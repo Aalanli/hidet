@@ -1,7 +1,7 @@
 from typing import List, Dict, Type, Union
 from hidet.ir.type import DataType, PointerType, TensorPointerType, tensor_pointer_type, sizeof
-from hidet.ir.expr import Expr, Var
-from hidet.ir.stmt import AssignStmt, DeclareStmt
+from hidet.ir.expr import Expr, Var, tensor_var
+from hidet.ir.stmt import AssignStmt, DeclareStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.primitives.cuda import syncthreads
@@ -21,9 +21,10 @@ class TileOpImpl(StmtBuilder):
         hint: str,
         data_layout=None
     ) -> Buffer:
-        from hidet.ir.primitives.cuda.tile import alloc_shared
-        buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape))
-        self.declare(buf_var, init=alloc_shared(nbytes=sizeof(dtype) * prod(shape)))
+        # from hidet.ir.primitives.cuda.tile import alloc_shared
+        # buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape))
+        # self.declare(buf_var, init=alloc_shared(nbytes=sizeof(dtype) * prod(shape)))
+        buf_var = self.declare(tensor_var(hint, shape, dtype, layout=data_layout), scope=DeclareScope.Shared)
         return Buffer(
             buf_var=buf_var,
             dtype=dtype,

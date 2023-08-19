@@ -39,6 +39,11 @@ class Buffer:
         assert isinstance(self.layout, FlattenBlockLayout)
         return self.layout
 
+    @property
+    def block_like_layout(self) -> Union[BlockLayout, FlattenBlockLayout]:
+        assert isinstance(self.layout, (BlockLayout, FlattenBlockLayout))
+        return self.layout
+
     def is_shared(self):
         return isinstance(self.layout, SharedLayout)
 

@@ -26,6 +26,7 @@ class SharedLayout(TileLayout):
 
     def __eq__(self, other):
         # todo: compare data_layout
+        assert isinstance(other, TileLayout)
         return isinstance(other, SharedLayout)
 
     def local_shape(self, shape: List[int]) -> List[int]:
@@ -41,6 +42,7 @@ class BlockLayout(TileLayout):
         self.layout_shape: List[int] = [a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)]
 
     def __eq__(self, other):
+        assert isinstance(other, TileLayout)
         return (
             isinstance(other, BlockLayout)
             and same_list(self.size_per_thread, other.size_per_thread)
@@ -126,8 +128,8 @@ class BlockLayout(TileLayout):
 
         global_indices: List[Expr] = []
         # when the same element of the tensor is stored in multiple places, only one of them is not duplicated
-        # (e.g., is_duplicated = false for the first element of the tensor)
-        is_duplicated: Expr = boolean.false
+        # (e.g., not_duplicated = true for the first element of the tensor)
+        not_duplicated: Expr = boolean.false
         for i in range(len(global_shape)):
             local_index = local_indices[i]
             if global_shape[i] <= self.layout_shape[i]:
@@ -137,7 +139,7 @@ class BlockLayout(TileLayout):
                     + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
                 )
                 global_index = layout_index % global_shape[i]
-                is_duplicated = logical_or(is_duplicated, layout_index < global_shape[i])
+                not_duplicated = logical_or(not_duplicated, layout_index >= global_shape[i])
             else:
                 layout_index = (
                     local_index % self.size_per_thread[i]
@@ -146,7 +148,7 @@ class BlockLayout(TileLayout):
                 )
                 global_index = layout_index + self.layout_shape[i] * (local_index // self.size_per_thread[i])
             global_indices.append(global_index)
-        return global_indices, is_duplicated
+        return global_indices, not_duplicated
 
     def global_to_local(
         self, global_indices: List[Expr], global_shape: List[int]
@@ -191,6 +193,7 @@ class FlattenBlockLayout(TileLayout):
         self.axis: int = axis
 
     def __eq__(self, other):
+        assert isinstance(other, TileLayout)
         return isinstance(other, FlattenBlockLayout) and self.parent == other.parent and self.axis == other.axis
 
     def expanded_shape(self, shape: List[int]):
@@ -206,9 +209,9 @@ class FlattenBlockLayout(TileLayout):
         return self.parent.lane_indices()
 
     def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
-        global_indices, is_duplicated = self.parent.local_to_global(local_indices, self.expanded_shape(global_shape))
+        global_indices, not_duplicated = self.parent.local_to_global(local_indices, self.expanded_shape(global_shape))
         global_indices = global_indices[: self.axis] + global_indices[self.axis + 1:]
-        return global_indices, is_duplicated
+        return global_indices, not_duplicated
 
     def global_to_local(self, global_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import int32

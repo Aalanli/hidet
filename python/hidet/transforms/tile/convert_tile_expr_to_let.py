@@ -12,7 +12,7 @@ from hidet.ir.tile.layout import BlockLayout, block_layout, flatten_block_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list
-from hidet.ir.tile.ops import Arange, Full, Broadcast, Reshape, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops import Arange, Full, Broadcast, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
 from hidet.ir.tile.ops import ExpandDims, convert_layout
 from hidet.utils import prod, is_power_of_two
 from hidet.transforms.expand_let_expr import LetExprExpander

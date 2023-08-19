@@ -280,7 +280,7 @@ def auto_map(
 
     Returns
     -------
-    ret: Optional[TaskMapping]
+    ret:
         The task mapping. If the task shape cannot be mapped to the number of workers and on_fail returns, None will be
         returned.
     """

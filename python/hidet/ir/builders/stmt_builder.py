@@ -13,7 +13,7 @@ from typing import Union, Sequence, List, cast, Optional
 
 from hidet.ir.type import BaseType
 from hidet.ir.stmt import Stmt, ForStmt, IfStmt, EvaluateStmt, SeqStmt, LetStmt, ForMappingStmt, ForStmtAttr
-from hidet.ir.stmt import DeclareStmt, BufferStoreStmt
+from hidet.ir.stmt import DeclareStmt, BufferStoreStmt, AssignStmt
 from hidet.ir.expr import Expr, Var, var, convert
 from hidet.ir.dtypes import int32
 from hidet.ir.mapping import TaskMapping, repeat_map
@@ -61,8 +61,9 @@ class StmtBuilder:
             v = var(v)
         return StmtScope(self, stmts=LetStmt(v, value), ret=v)
 
-    def declare(self, v: Var, init: Optional[Expr] = None):
-        self.append(DeclareStmt(v, init))
+    def declare(self, v: Var, init: Optional[Expr] = None, scope=None):
+        self.append(DeclareStmt(v, init, scope))
+        return v
 
     def buffer_store(self, buf: Expr, indices: Sequence[Union[Expr, int]], value: Expr):
         self.append(BufferStoreStmt(buf, indices, value))
@@ -90,14 +91,21 @@ class StmtBuilder:
         assert if_stmt.else_body is None
         return StmtScope(self, stmts=if_stmt, ret=None)
 
-    def for_mapping(self, iter_names: Sequence[str], mapping: TaskMapping, worker: Union[Expr, int] = 0) -> StmtScope:
+    def for_mapping(
+        self, mapping: TaskMapping, iter_names: Optional[Sequence[str]] = None, worker: Union[Expr, int] = 0
+    ) -> StmtScope:
+        if iter_names is None:
+            iter_names = [f'i{idx}' for idx in range(len(mapping.task_shape))]
         iter_vars = [var(name) for name in iter_names]
         return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, worker, cast(Stmt, None)), ret=iter_vars)
 
     def for_grid(self, shape: List[Union[Expr, int]]) -> StmtScope:
         iter_vars = [var(f'i{idx}') for idx in range(len(shape))]
-        mapping = repeat_map(*shape)
+        mapping = repeat_map(shape)
         return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, int32(0), cast(Stmt, None)), ret=iter_vars)
+
+    def assign(self, dst: Var, value: Expr):
+        self.append(AssignStmt(dst, value))
 
     def for_range(self, extent: Union[Expr, int]):
         iter_var = var('i')

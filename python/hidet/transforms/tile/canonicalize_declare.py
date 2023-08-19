@@ -4,10 +4,10 @@ from hidet.ir import expr
 from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr
 from hidet.ir.functors import IRRewriter
 from hidet.ir.tile.type import TileType
-from hidet.ir.stmt import DeclareStmt, SeqStmt, AssignStmt
+from hidet.ir.stmt import DeclareStmt, SeqStmt, AssignStmt, EvaluateStmt
 from hidet.ir.func import Function
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops.assign import assign
 import hidet.ir.tile.ops.arthimatic as arith
 from .base import TileFunctionPass
 
@@ -24,7 +24,11 @@ class CanonicalizeDeclareRewriter(IRRewriter):
         # a = b (AssignStmt)
         init = self.visit(stmt.init)
         if isinstance(stmt.var.type, TileType) and init is not None:
-            return SeqStmt([DeclareStmt(stmt.var, init=None, scope=stmt.scope), AssignStmt(stmt.var, value=init)])
+            seq = [
+                DeclareStmt(stmt.var, init=None, scope=stmt.scope),
+                EvaluateStmt(assign(stmt.var, init)),
+            ]
+            return SeqStmt(seq)
         else:
             return super().visit_DeclareStmt(stmt)
 

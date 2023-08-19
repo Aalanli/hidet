@@ -178,26 +178,24 @@ def demo_dot_simt():
             b = ti.ones([16, 16])
             c = ti.dot(a, b)
 
-
     func = script_module.build()
     func()
 
 
-
 def main():
-    demo_arange()
+    # demo_arange()
+    #
+    # demo_debug_print()
+    #
+    # demo_vector_add()
+    #
+    # demo_expand_dims()
 
-    demo_debug_print()
+    # demo_for_and_increment()
 
-    demo_vector_add()
+    # demo_reduce()
 
-    demo_expand_dims()
-
-    demo_for_and_increment()
-
-    demo_reduce()
-
-    # demo_dot_simt()
+    demo_dot_simt()
 
 
 if __name__ == '__main__':

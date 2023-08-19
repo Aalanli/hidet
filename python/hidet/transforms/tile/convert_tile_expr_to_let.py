@@ -1,24 +1,34 @@
 from typing import Type, Dict, Union, List
 
-from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr, Let, var
+from hidet.ir.expr import Expr, Call, BinaryExpr, UnaryExpr, Let, var
 from hidet.ir.stmt import LetStmt
 from hidet.ir.module import IRModule
 from hidet.ir.functors import IRRewriter
 from hidet.ir.func import Function
 from hidet.ir import expr
 from hidet.ir.type import PointerType, DataType
-from hidet.ir.tools import TypeInfer
+from hidet.ir.tools import TypeInfer, collect
 from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list
-from hidet.ir.tile.ops import Arange, Full, Broadcast, Load, Store, ConvertLayout, UnaryTileOp, BinaryTileOp
-from hidet.ir.tile.ops import ExpandDims, convert_layout
-from hidet.utils import prod, is_power_of_two
 from hidet.transforms.expand_let_expr import LetExprExpander
 from hidet.transforms.declare_to_let import DeclareToLetRewriter
 
 from .base import TileFunctionPass
+
+
+class TileDeclareToLetRewriter(DeclareToLetRewriter):
+    def update_assigns(self, node):
+        from hidet.ir.tile.ops import Assign
+        super().update_assigns(node)
+
+        # mark the dst of all Assign ops
+        # so that their definition will not be converted to LetStmt from DeclareStmt
+        calls: List[CallTileOp] = collect(node, node_types=[CallTileOp])
+        for call in calls:
+            if isinstance(call.op, Assign):
+                self.assigns[call.op.dst] += 1
 
 
 class ConvertTileExprToLetRewriter(IRRewriter):
@@ -68,7 +78,9 @@ class ConvertTileExprToLetPass(TileFunctionPass):
 
 
 def convert_to_let(node: Union[IRModule, Function]):
-    rewrites = [DeclareToLetRewriter(), ConvertTileExprToLetRewriter(), LetExprExpander(), FlattenLetChainRewriter()]
+    rewrites = [
+        TileDeclareToLetRewriter(), ConvertTileExprToLetRewriter(), LetExprExpander(), FlattenLetChainRewriter()
+    ]
     for r in rewrites:
         node = r(node)
     return node

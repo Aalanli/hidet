@@ -34,7 +34,7 @@ class DeclareToLetRewriter(IRRewriter):
         super().__init__()
         self.assigns: Dict[Var, int] = defaultdict(int)
 
-    def __call__(self, node):
+    def update_assigns(self, node):
         for potential_usage in collect(node, (DeclareStmt, AssignStmt, AsmStmt, Address, Reference)):
             if isinstance(potential_usage, Stmt):
                 stmt = potential_usage
@@ -61,6 +61,9 @@ class DeclareToLetRewriter(IRRewriter):
                     assert False
             else:
                 assert False
+
+    def __call__(self, node):
+        self.update_assigns(node)
         return self.visit(node)
 
     def visit_SeqStmt(self, seq_stmt: SeqStmt):

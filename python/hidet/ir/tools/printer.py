@@ -24,7 +24,6 @@ from hidet.ir.expr import BitwiseAnd, Neg, Cast, NotEqual, BitwiseXor, Reference
 from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt, EvaluateStmt, AssertStmt
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
-from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.type import TileType, TileLayout
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
@@ -633,6 +632,9 @@ class IRPrinter(IRFunctor):
         args_doc = [self(v) for v in call.op.args]
         attrs_doc = []
         for k, v in call.op.attrs.items():
+            if v is None:
+                # skip None attrs
+                continue
             if isinstance(v, (list, tuple)):
                 attrs_doc.append(self(k) + '=' + '[' + self(v) + ']')
             elif isinstance(v, dict):

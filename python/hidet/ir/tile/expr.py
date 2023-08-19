@@ -1,5 +1,5 @@
 from typing import List, Dict, Union
-from enum import Enum
+from functools import lru_cache
 from hidet.ir.node import Node
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Expr
@@ -20,13 +20,9 @@ class TileOp(Node):
 
     @classmethod
     def op_name(cls):
-        if hasattr(cls, "_name"):
-            return cls._name
-
         # camel to snake (e.g., CamelName -> camel_name)
         camel_name = cls.__name__
         snake_name = "".join(["_" + c.lower() if c.isupper() else c for c in camel_name]).lstrip("_")
-        setattr(cls, "_name", snake_name)
         return snake_name
 
     @property

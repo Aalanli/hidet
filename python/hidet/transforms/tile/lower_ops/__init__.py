@@ -10,3 +10,4 @@ from . import memory
 from . import transform
 from . import debug
 from . import assign
+from . import dot

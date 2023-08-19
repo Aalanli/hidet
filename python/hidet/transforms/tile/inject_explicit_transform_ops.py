@@ -9,16 +9,30 @@ from hidet.ir.type import PointerType, DataType
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.ops import broadcast, full
+from hidet.ir.tile.ops import broadcast, full, expand_dims
 from hidet.ir.utils.broadcast_utils import broadcast_shape
 from .base import TileFunctionPass
 from hidet.utils import same_list
 
 
-class InjectExplicitBroadcastRewriter(IRRewriter):
+class InjectExplicitTransformOpsRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
         self.type_infer = TypeInfer()
+
+    def transform_to(self, src: Expr, src_shape: List[int], dst_shape: List[int]) -> Expr:
+        src_shape = list(src_shape)  # copy to avoid modifying the original list
+        while len(src_shape) < len(dst_shape):
+            src_shape.insert(0, 1)
+            src = expand_dims(src, 0)
+        for a, b in zip(src_shape, dst_shape):
+            if a != b and a != 1:
+                raise ValueError('Cannot transform from shape {} to shape {} with expand_dims and broadcast'.format(
+                    src_shape, dst_shape
+                ))
+        if not same_list(src_shape, dst_shape):
+            src = broadcast(src, dst_shape)
+        return src
 
     def visit_Binary(self, e: BinaryExpr):
         a = self.visit(e.a)
@@ -28,10 +42,8 @@ class InjectExplicitBroadcastRewriter(IRRewriter):
         if isinstance(a_type, TileType) and isinstance(b_type, TileType):
             if not same_list(a_type.shape, b_type.shape):
                 shape: List[int] = broadcast_shape(a_type.shape, b_type.shape)
-                if not same_list(a_type.shape, shape):
-                    a = broadcast(a, shape)
-                if not same_list(b_type.shape, shape):
-                    b = broadcast(b, shape)
+                a = self.transform_to(a, a_type.shape, shape)
+                b = self.transform_to(b, b_type.shape, shape)
                 return e.__class__(a, b)
             else:
                 return super().visit_Binary(e)
@@ -59,11 +71,11 @@ class InjectExplicitBroadcastRewriter(IRRewriter):
             return super().visit_AssignStmt(stmt)
 
 
-class InjectExplicitBroadcastPass(TileFunctionPass):
+class InjectExplicitTransformOpsPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewriter = InjectExplicitBroadcastRewriter()
+        rewriter = InjectExplicitTransformOpsRewriter()
         return rewriter.visit(func)
 
 
-def inject_explicit_broadcast_pass() -> TileFunctionPass:
-    return InjectExplicitBroadcastPass()
+def inject_explicit_transform_ops_pass() -> TileFunctionPass:
+    return InjectExplicitTransformOpsPass()

@@ -142,6 +142,7 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_Dot(self, e: Dot):
         self.visit(e.a)
         self.visit(e.b)
+        self.visit(e.c)
 
     def visit_Assign(self, e: Assign):
         self.visit(e.src)
@@ -235,10 +236,11 @@ class TileRewriter(TileFunctor, BaseRewriter):
     def visit_Dot(self, e: Dot):
         a = self.visit(e.a)
         b = self.visit(e.b)
-        if a is e.a and b is e.b:
+        c = self.visit(e.c)
+        if a is e.a and b is e.b and c is e.c:
             return e
         else:
-            return e.reforward([a, b])
+            return e.reforward([a, b, c])
 
     def visit_Assign(self, e: Assign):
         src = self.visit(e.src)

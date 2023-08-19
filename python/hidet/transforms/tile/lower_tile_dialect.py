@@ -1,11 +1,9 @@
-from typing import List, Dict, Union, Optional, Callable
+from typing import List, Dict, Union, Optional
 
-from hidet.ir.builders import StmtBuilder
 from hidet.ir.expr import Var, Expr, tensor_var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
-from hidet.ir.mapping import repeat_map
-from hidet.ir.stmt import LetStmt, DeclareStmt, BufferStoreStmt
+from hidet.ir.stmt import LetStmt, DeclareStmt
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DistributedLayout

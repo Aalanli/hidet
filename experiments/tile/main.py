@@ -177,9 +177,66 @@ def demo_dot_simt():
             a = ti.ones([16, 16])
             b = ti.ones([16, 16])
             c = ti.dot(a, b)
+            ti.debug_print(c)
 
     func = script_module.build()
     func()
+
+
+def demo_matmul():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    m_size = 1024
+    n_size = 1024
+    k_size = 1024
+
+    block_m = 32
+    block_n = 32
+    block_k = 8
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def use_arange(a_ptr: ~f32, b_ptr: ~f32, c_ptr: ~f32):
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.block_dim = 128
+            attrs.cuda.grid_dim = (m_size // block_m) * (n_size // block_n)
+
+            pid = ti.program_id()
+            num_n_blocks = n_size // block_n
+            pid_m = pid // num_n_blocks
+            pid_n = pid % num_n_blocks
+
+            m_offsets = pid_m * block_m + ti.arange(0, block_m)
+            n_offsets = pid_n * block_n + ti.arange(0, block_n)
+
+            a_ptrs = a_ptr + ti.expand_dims(m_offsets * n_size, 1) + ti.arange(0, block_k)
+            b_ptrs = b_ptr + ti.expand_dims(ti.arange(0, block_k) * n_size, 1) + n_offsets
+            c = ti.zeros([block_m, block_n])
+
+            for k in range(k_size // block_k):
+                a = ti.load(a_ptrs)
+                b = ti.load(b_ptrs)
+                c += ti.dot(a, b)
+                a_ptrs += block_k
+                b_ptrs += block_k * n_size
+
+            c_ptrs = c_ptr + ti.expand_dims(m_offsets * n_size, 1) + n_offsets
+            ti.store(c_ptrs, c)
+
+    func = script_module.build()
+
+    a = hidet.randn([m_size, k_size], device='cuda')
+    b = hidet.randn([k_size, n_size], device='cuda')
+    c = hidet.empty([m_size, n_size], device='cuda')
+
+    func(a, b, c)
+    print('  tile: {:.2} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c))))
+
+    import torch
+    ta, tb, tc = a.torch(), b.torch(), c.torch()
+    print(' torch: {:.2f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc))))
 
 
 def main():
@@ -195,7 +252,9 @@ def main():
 
     # demo_reduce()
 
-    demo_dot_simt()
+    # demo_dot_simt()
+
+    demo_matmul()
 
 
 if __name__ == '__main__':

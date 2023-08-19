@@ -4,7 +4,9 @@ from hidet.ir.expr import Var, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, convert_layout
+from hidet.ir.tile.ops import (
+    Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, convert_layout
+)
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import (
     TileLayout,
@@ -142,24 +144,46 @@ class InstantiateLayoutRewriter(IRRewriter):
             raise NotImplementedError()
 
     def visit_Dot(self, e: Dot):
-        a = self.visit(e.a)
-        b = self.visit(e.b)
-        a_type = self.type_infer.visit(a)
-        b_type = self.type_infer.visit(b)
-        assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
-        m: int = a_type.shape[0]
-        n: int = b_type.shape[1]
-        num_threads = self.num_warps * 32
-        if m * n >= num_threads * 16:
-            size_per_thread = [4, 4]
-        elif m * n >= num_threads * 4:
-            size_per_thread = [2, 2]
+        if isinstance(e, SimtDot):
+            a = self.visit(e.a)
+            b = self.visit(e.b)
+            c = self.visit(e.c)
+            c_type = self.type_infer.visit(c)
+            m, n = c_type.shape
+            num_threads = self.num_warps * 32
+            if m * n >= num_threads * 16:
+                size_per_thread = [4, 4]
+            elif m * n >= num_threads * 4:
+                size_per_thread = [2, 2]
+            else:
+                size_per_thread = [1, 1]
+            layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
+            a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
+            b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
+            c = convert_layout(c, layout)
+            return SimtDot(a, b, c, layout)
         else:
-            size_per_thread = [1, 1]
-        layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
-        a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
-        b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
-        return Dot(a, b, e.kind, layout)
+            raise NotImplementedError()
+
+    def visit_Store(self, e: Store):
+        ptr = self.visit(e.ptr)
+        value = self.visit(e.value)
+        mask = self.visit(e.mask) if e.mask is not None else None
+
+        ptr_type: TileType = self.type_infer.visit(ptr)
+        value_type: TileType = self.type_infer.visit(value)
+        mask_type: TileType = self.type_infer.visit(mask) if mask is not None else None
+
+        # we use the layout of the value to determine the layout of the ptr and mask
+        layout = value_type.layout
+
+        if ptr_type.layout != layout:
+            ptr = convert_layout(ptr, layout)
+
+        if mask is not None and mask_type.layout != layout:
+            mask = convert_layout(mask, layout)
+
+        return Store(ptr, value, mask)
 
 
 class InstantiateLayoutPass(TileFunctionPass):

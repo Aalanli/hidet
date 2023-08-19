@@ -5,6 +5,7 @@ from .transform import broadcast, expand_dims
 from .convert_layout import convert_layout
 from .reduce import sum, min, max
 from .debug import debug_print
+from .assign import assign
 
 from .creation import Arange, Full
 from .memory import Load, Store
@@ -14,3 +15,4 @@ from .arthimatic import UnaryTileOp, BinaryTileOp
 from .reduce import ReduceOp
 from .dot import Dot
 from .debug import DebugPrint
+from .assign import Assign

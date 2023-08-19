@@ -19,7 +19,7 @@ class UnaryTileOpImpl(TileOpImpl):
 
         if src.is_distributed():
             self.iterate_dist_buffer_and_compute(
-                output, lambda local_indices, global_indices, not_duplicated: op.apply_scalar(src[local_indices]),
+                output, lambda local_indices, global_indices, not_duplicated: op.apply_scalar(src[local_indices])
             )
 
 
@@ -31,7 +31,8 @@ class BinaryTileOpImpl(TileOpImpl):
 
         if lhs.is_distributed() and rhs.is_distributed() and lhs.layout == rhs.layout:
             self.iterate_dist_buffer_and_compute(
-                output, lambda local_indices, global_indices, not_duplicated: op.apply_scalar(
+                output,
+                lambda local_indices, global_indices, not_duplicated: op.apply_scalar(
                     lhs[local_indices], rhs[local_indices]
                 ),
             )

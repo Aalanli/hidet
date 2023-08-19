@@ -24,6 +24,7 @@ class LoadImpl(TileOpImpl):
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 from hidet.ir.primitives.cuda.ldst import load
+
                 if mask is None:
                     return load(ptr[local_indices])
                 else:

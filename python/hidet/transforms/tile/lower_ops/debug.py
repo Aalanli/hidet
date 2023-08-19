@@ -52,4 +52,3 @@ class DebugPrintImpl(TileOpImpl):
                 self.sync_threads()
         else:
             raise NotImplementedError()
-

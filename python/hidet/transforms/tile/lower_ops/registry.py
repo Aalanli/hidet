@@ -15,13 +15,8 @@ from .buffer import Buffer
 
 
 class TileOpImpl(StmtBuilder):
-
     def alloc_shared_buffer(
-        self,
-        dtype: Union[DataType, PointerType],
-        shape: List[int],
-        hint: str,
-        data_layout=None
+        self, dtype: Union[DataType, PointerType], shape: List[int], hint: str, data_layout=None
     ) -> Buffer:
         # from hidet.ir.primitives.cuda.tile import alloc_shared
         # buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape))
@@ -38,9 +33,7 @@ class TileOpImpl(StmtBuilder):
     def sync_threads(self):
         self.append(syncthreads())
 
-    def iterate_dist_buffer_and_apply(
-        self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr], None]
-    ):
+    def iterate_dist_buffer_and_apply(self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr], None]):
         assert isinstance(buf.layout, DistributedLayout)
         layout: DistributedLayout = buf.layout
         local_shape: List[int] = layout.calc_local_shape(buf.shape)
@@ -53,6 +46,7 @@ class TileOpImpl(StmtBuilder):
         def f_apply(local_indices, global_indices, not_duplicated):
             value = f_compute(local_indices, global_indices, not_duplicated)
             self.buffer_store(buf.var, indices=local_indices, value=value)
+
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 
     def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):

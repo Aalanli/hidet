@@ -1,5 +1,6 @@
+from hidet.ir.node import Node
 from hidet.ir.tile.type import TileType
-from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.ops.creation import Arange, Full
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
@@ -8,6 +9,7 @@ from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
 from hidet.ir.tile.ops.reduce import ReduceOp
 from hidet.ir.tile.ops.debug import DebugPrint
 from hidet.ir.tile.ops.dot import Dot
+from hidet.ir.tile.ops.assign import Assign
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 
 
@@ -41,6 +43,12 @@ class TileFunctor(BaseFunctor):
             return self.visit_ReduceOp(node)
         elif isinstance(node, Dot):
             return self.visit_Dot(node)
+        elif isinstance(node, Assign):
+            return self.visit_Assign(node)
+        elif isinstance(node, TileOp):
+            raise NotImplementedError(
+                'Rewriter for the following tile op is not implemented: \n{}'.format(node.op_name())
+            )
         else:
             return NotImplemented
 
@@ -81,6 +89,9 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_Dot(self, e: Dot):
+        raise NotImplementedError()
+
+    def visit_Assign(self, e: Assign):
         raise NotImplementedError()
 
     def visit_DebugPrint(self, e: DebugPrint):
@@ -131,6 +142,10 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_Dot(self, e: Dot):
         self.visit(e.a)
         self.visit(e.b)
+
+    def visit_Assign(self, e: Assign):
+        self.visit(e.src)
+        self.visit(e.dst)
 
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
@@ -217,7 +232,6 @@ class TileRewriter(TileFunctor, BaseRewriter):
         else:
             return e.reforward([x])
 
-
     def visit_Dot(self, e: Dot):
         a = self.visit(e.a)
         b = self.visit(e.b)
@@ -226,6 +240,13 @@ class TileRewriter(TileFunctor, BaseRewriter):
         else:
             return e.reforward([a, b])
 
+    def visit_Assign(self, e: Assign):
+        src = self.visit(e.src)
+        dst = self.visit(e.dst)
+        if src is e.src and dst is e.dst:
+            return e
+        else:
+            return e.reforward([dst, src])
 
     def visit_DebugPrint(self, e: DebugPrint):
         x = self.visit(e.x)

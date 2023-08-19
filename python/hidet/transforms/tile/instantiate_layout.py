@@ -7,7 +7,12 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import (
-    TileLayout, SharedLayout, BlockLayout, DotOperandLayout, FlattenBlockLayout, BlockDotOperandLayout
+    TileLayout,
+    SharedLayout,
+    BlockLayout,
+    DotOperandLayout,
+    FlattenBlockLayout,
+    BlockDotOperandLayout,
 )
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
@@ -32,8 +37,8 @@ class InstantiateLayoutRewriter(IRRewriter):
         ttype = self.type_infer.visit(ret)
         if isinstance(ttype, TileType) and ttype.layout is None:
             raise NotImplementedError(
-                'The layout of the following tile op has not been instantiated:\n' +
-                '  {}\n'.format(type(call.op).__name__)
+                'The layout of the following tile op has not been instantiated:\n'
+                + '  {}\n'.format(type(call.op).__name__)
             )
         return ret
 
@@ -132,13 +137,7 @@ class InstantiateLayoutRewriter(IRRewriter):
             else:
                 layout = FlattenBlockLayout(x_type.layout, axis=e.axis)
             assert isinstance(y_type, TileType)
-            return ReduceOp(
-                x=x,
-                axis=e.axis,
-                keepdims=e.keepdims,
-                kind=e.kind,
-                layout=layout
-            )
+            return ReduceOp(x=x, axis=e.axis, keepdims=e.keepdims, kind=e.kind, layout=layout)
         else:
             raise NotImplementedError()
 

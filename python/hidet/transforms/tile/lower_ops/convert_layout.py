@@ -29,6 +29,7 @@ class ConvertLayoutImpl(TileOpImpl):
             raise NotImplementedError()
 
         if src.is_distributed() and dst.is_shared():
+
             def f_apply(local_indices, global_indices, not_duplicated):
                 with self.if_then(not_duplicated):
                     self.buffer_store(dst.var, global_indices, value=src[local_indices])

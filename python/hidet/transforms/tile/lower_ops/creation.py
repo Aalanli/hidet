@@ -17,6 +17,4 @@ class ArangeImpl(TileOpImpl):
 @register_impl(Full)
 class FullImpl(TileOpImpl):
     def implement(self, op: Full, args: List[Union[Buffer, Expr]], output: Buffer):
-        self.iterate_dist_buffer_and_compute(
-            output, lambda local_indices, global_indices, not_duplicated: args[0]
-        )
+        self.iterate_dist_buffer_and_compute(output, lambda local_indices, global_indices, not_duplicated: args[0])

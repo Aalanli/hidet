@@ -61,7 +61,7 @@ class StmtBuilder:
     def _name_index_vars(num_vars: int) -> List[str]:
         predefined_names = ['i', 'j', 'k', 'p', 'q', 'r', 's', 'u', 'v']
         if num_vars <= len(predefined_names):
-            iter_names = predefined_names[: num_vars]
+            iter_names = predefined_names[:num_vars]
         else:
             iter_names = [f'i{idx}' for idx in range(num_vars)]
         return iter_names
@@ -105,7 +105,7 @@ class StmtBuilder:
         self,
         mapping: TaskMapping,
         iter_names: Optional[Sequence[str]] = None,
-        worker: Optional[Union[Expr, int]] = None
+        worker: Optional[Union[Expr, int]] = None,
     ) -> StmtScope:
         if worker is None:
             if not isinstance(mapping, RepeatTaskMapping):

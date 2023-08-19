@@ -4,10 +4,11 @@ from hidet.ir import expr
 from hidet.ir.expr import Expr, BinaryExpr, UnaryExpr
 from hidet.ir.functors import IRRewriter
 from hidet.ir.tile.type import TileType
-from hidet.ir.stmt import DeclareStmt, SeqStmt, AssignStmt
+from hidet.ir.stmt import DeclareStmt, SeqStmt, AssignStmt, EvaluateStmt
 from hidet.ir.func import Function
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops.assign import assign
 import hidet.ir.tile.ops.arthimatic as arith
 from .base import TileFunctionPass
 
@@ -55,6 +56,12 @@ class CanonicalizeExpressionsRewriter(IRRewriter):
             return tile_op_cls(a, b).make_call()
         else:
             return super().visit_Binary(e)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        assign_var = self.visit(stmt.var)
+        assign_value = self.visit(stmt.value)
+        assert isinstance(assign_var, expr.Var)
+        return EvaluateStmt(assign(assign_var, assign_value))
 
 
 class CanonicalizeExpressionsPass(TileFunctionPass):

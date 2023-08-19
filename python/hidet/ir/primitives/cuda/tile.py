@@ -8,11 +8,7 @@ from hidet.utils import initialize
 @initialize()
 def register_functions():
     register_primitive_function(
-        f'cuda_alloc_shared',
-        func_or_type=FuncType(
-            param_types=[int32, boolean],
-            ret_type=void_p,
-        ),
+        f'cuda_alloc_shared', func_or_type=FuncType(param_types=[int32, boolean], ret_type=void_p)
     )
 
 

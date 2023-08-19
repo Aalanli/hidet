@@ -13,13 +13,12 @@ from .buffer import Buffer
 
 @register_impl(ReduceOp)
 class ReduceOpImpl(TileOpImpl):
-
     def intra_thread_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
         local_shape: List[int] = src.local_shape
         layout: BlockLayout = src.block_layout
         shape: List[int] = src.shape
 
-        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1:]
+        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1 :]
         default_value: Expr = rk.default_value(dst.dtype)
 
         # decompose layout_shape[axis]:
@@ -49,11 +48,7 @@ class ReduceOpImpl(TileOpImpl):
             self.buffer_store(dst.var, dst_indices, default_value)
             with self.for_range(reduce_extent) as reduce_index:
                 src_indices = spatial_indices[:axis] + [reduce_index] + spatial_indices[axis:]
-                self.buffer_store(
-                    dst.var,
-                    dst_indices,
-                    rk.combine(dst[dst_indices], src[src_indices])
-                )
+                self.buffer_store(dst.var, dst_indices, rk.combine(dst[dst_indices], src[src_indices]))
 
     def intra_warp_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
         layout: BlockLayout = src.block_layout
@@ -83,13 +78,13 @@ class ReduceOpImpl(TileOpImpl):
             num_elements: int = layout.thread_per_warp[axis]
         assert is_power_of_two(num_elements)
 
-        delta: int = prod(layout.thread_per_warp[axis + 1:])
+        delta: int = prod(layout.thread_per_warp[axis + 1 :])
         width: int = prod(layout.thread_per_warp[axis:])
         num_rounds: int = log_two(num_elements)
 
-        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1:]
+        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1 :]
         with self.for_grid(spatial_shape) as spatial_indices:
-            mask = 0xffffffff
+            mask = 0xFFFFFFFF
             with self.for_range(num_rounds) as i:
                 dst_indices = spatial_indices[:axis] + [0] + spatial_indices[axis:]
                 origin_value = dst[dst_indices]
@@ -123,8 +118,8 @@ class ReduceOpImpl(TileOpImpl):
         else:
             # case 3
             local_shape: List[int] = src.local_shape
-            spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1:]
-            smem_shape: List[int] = shape[:axis] + [layout.warps_per_block[axis]] + shape[axis + 1:]
+            spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1 :]
+            smem_shape: List[int] = shape[:axis] + [layout.warps_per_block[axis]] + shape[axis + 1 :]
             smem_buf = self.alloc_shared_buffer(dst.dtype, shape=smem_shape, hint='reduce_{}'.format(rk.name))
             # 1) regs -> smem
             lane_indices: List[Expr] = layout.lane_indices()
@@ -138,7 +133,7 @@ class ReduceOpImpl(TileOpImpl):
                         self.buffer_store(smem_buf.var, smem_indices, dst[dst_indices])
             self.sync_threads()
             # 2) reduce over smem
-            global_spatial_shape: List[int] = shape[:axis] + shape[axis + 1:]
+            global_spatial_shape: List[int] = shape[:axis] + shape[axis + 1 :]
             num_warps: int = prod(layout.warps_per_block)
             num_threads: int = num_warps * 32
             spatial_size: int = prod(global_spatial_shape)
@@ -177,15 +172,15 @@ class ReduceOpImpl(TileOpImpl):
 
         layout: BlockLayout = src.block_layout
         local_shape: List[int] = src.local_shape
-        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1:]
+        spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1 :]
 
-        delta: int = prod(layout.thread_per_warp[axis + 1:])
+        delta: int = prod(layout.thread_per_warp[axis + 1 :])
         width: int = prod(layout.thread_per_warp[axis:])
         num_rounds: int = log_two(layout.thread_per_warp[axis])
 
         with self.for_grid(spatial_shape) as spatial_indices:
             # step 1
-            mask = 0xffffffff
+            mask = 0xFFFFFFFF
             with self.for_range(num_rounds) as i:
                 indices = spatial_indices[:axis] + [0] + spatial_indices[axis:]
                 value = dst[indices]
@@ -202,9 +197,8 @@ class ReduceOpImpl(TileOpImpl):
         src: Buffer = args[0]
         dst: Buffer = output
 
-        if (
-            (src.is_block() and dst.is_flatten_block() and dst.flatten_block_layout.parent == src.layout)
-            or (op.keepdims and src.is_block() and dst.is_block() and src.block_layout == dst.block_layout)
+        if (src.is_block() and dst.is_flatten_block() and dst.flatten_block_layout.parent == src.layout) or (
+            op.keepdims and src.is_block() and dst.is_block() and src.block_layout == dst.block_layout
         ):
             # in-thread reduce
             self.intra_thread_reduce(src, dst, op.axis, op.kind)

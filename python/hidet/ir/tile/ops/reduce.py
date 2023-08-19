@@ -24,6 +24,7 @@ class ReduceKind(Enum):
 
     def combine(self, lhs: Expr, rhs: Expr):
         from hidet.ir import primitives
+
         if self.name == 'min':
             return primitives.min(lhs, rhs)
         elif self.name == 'max':
@@ -49,9 +50,9 @@ class ReduceOp(TileOp):
         x_shape = x_type.shape
         axis = self.axis if self.axis >= 0 else len(x_shape) + self.axis + 1
         if self.keepdims:
-            y_shape = x_shape[:axis] + [1] + x_shape[axis + 1:]
+            y_shape = x_shape[:axis] + [1] + x_shape[axis + 1 :]
         else:
-            y_shape = x_shape[:axis] + x_shape[axis + 1:]
+            y_shape = x_shape[:axis] + x_shape[axis + 1 :]
         return tile_type(type_=x_type.type, shape=y_shape, layout=self.layout)
 
 

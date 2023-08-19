@@ -36,6 +36,7 @@ class Namer:
         from hidet.ir.expr import Var
         from hidet.ir.compute import ScalarNode, TensorNode
         from hidet.graph.tensor import Tensor
+
         if hint:
             orig_name = hint
         elif isinstance(e, Var) and (e.name or e.hint):

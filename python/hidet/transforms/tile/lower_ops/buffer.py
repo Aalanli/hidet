@@ -12,7 +12,7 @@ class Buffer:
         dtype: Union[PointerType, DataType],
         shape: List[int],
         local_shape: List[int],
-        layout: TileLayout
+        layout: TileLayout,
     ):
         self.var: Var = buf_var
         self.dtype: Union[PointerType, DataType] = dtype

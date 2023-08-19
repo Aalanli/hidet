@@ -197,7 +197,7 @@ def main():
 
     demo_reduce()
 
-    demo_dot_simt()
+    # demo_dot_simt()
 
 
 if __name__ == '__main__':

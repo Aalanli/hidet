@@ -24,10 +24,7 @@ class CanonicalizeDeclareRewriter(IRRewriter):
         # a = b (AssignStmt)
         init = self.visit(stmt.init)
         if isinstance(stmt.var.type, TileType) and init is not None:
-            return SeqStmt([
-                DeclareStmt(stmt.var, init=None, scope=stmt.scope),
-                AssignStmt(stmt.var, value=init)
-            ])
+            return SeqStmt([DeclareStmt(stmt.var, init=None, scope=stmt.scope), AssignStmt(stmt.var, value=init)])
         else:
             return super().visit_DeclareStmt(stmt)
 

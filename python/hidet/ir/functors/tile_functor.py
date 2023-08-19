@@ -1,7 +1,13 @@
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp
-from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, Arange, Load, Store, Broadcast, Full, ConvertLayout
-from hidet.ir.tile.ops import ExpandDims, DebugPrint, ReduceOp
+from hidet.ir.tile.ops.creation import Arange, Full
+from hidet.ir.tile.ops.memory import Load, Store
+from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
+from hidet.ir.tile.ops.convert_layout import ConvertLayout
+from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops.reduce import ReduceOp
+from hidet.ir.tile.ops.debug import DebugPrint
+from hidet.ir.tile.ops.dot import Dot
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 
 
@@ -33,6 +39,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_DebugPrint(node)
         elif isinstance(node, ReduceOp):
             return self.visit_ReduceOp(node)
+        elif isinstance(node, Dot):
+            return self.visit_Dot(node)
         else:
             return NotImplemented
 
@@ -70,6 +78,9 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_ReduceOp(self, e: ReduceOp):
+        raise NotImplementedError()
+
+    def visit_Dot(self, e: Dot):
         raise NotImplementedError()
 
     def visit_DebugPrint(self, e: DebugPrint):
@@ -116,6 +127,10 @@ class TileVisitor(TileFunctor, BaseVisitor):
 
     def visit_ReduceOp(self, e: ReduceOp):
         self.visit(e.x)
+
+    def visit_Dot(self, e: Dot):
+        self.visit(e.a)
+        self.visit(e.b)
 
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
@@ -201,6 +216,16 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e
         else:
             return e.reforward([x])
+
+
+    def visit_Dot(self, e: Dot):
+        a = self.visit(e.a)
+        b = self.visit(e.b)
+        if a is e.a and b is e.b:
+            return e
+        else:
+            return e.reforward([a, b])
+
 
     def visit_DebugPrint(self, e: DebugPrint):
         x = self.visit(e.x)

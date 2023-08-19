@@ -157,7 +157,7 @@ class ReduceOpImpl(TileOpImpl):
                     with self.for_range(reduction_extent) as k:
                         indices = global_spatial_indices[:axis] + [k] + global_spatial_indices[axis:]
                         self.assign(v, rk.combine(v, smem_buf[indices]))
-                    indices = global_spatial_indices[:axis] + [0] + global_spatial_indices[axis + 1:]
+                    indices = global_spatial_indices[:axis] + [0] + global_spatial_indices[axis:]
                     self.buffer_store(smem_buf.var, indices, v)
             self.sync_threads()
             # 3) smem -> regs

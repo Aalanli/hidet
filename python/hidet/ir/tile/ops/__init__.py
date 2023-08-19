@@ -12,4 +12,5 @@ from .transform import Broadcast, ExpandDims
 from .convert_layout import ConvertLayout
 from .arthimatic import UnaryTileOp, BinaryTileOp
 from .reduce import ReduceOp
+from .dot import Dot
 from .debug import DebugPrint

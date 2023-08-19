@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from hidet.ir.expr import Expr
 from hidet.ir.layout import DataLayout
@@ -51,17 +51,21 @@ class BlockLayout(TileLayout):
         )
 
     @staticmethod
-    def from_shape(shape: List[int], num_warps: int) -> BlockLayout:
-        num_elements = prod(shape)
-        if not is_power_of_two(num_elements):
-            raise ValueError(f"The tensor must have a power of 2 number of elements, got {num_elements}")
-        size_per_thread = []
+    def from_shape(shape: List[int], num_warps: int, size_per_thread: Optional[List[int]] = None) -> BlockLayout:
+        if not is_power_of_two(prod(shape)):
+            raise ValueError(f"The tensor must have a power of 2 number of elements, got {prod(shape)}")
+        if size_per_thread is not None and not is_power_of_two(prod(size_per_thread)):
+            raise ValueError(f"size_per_thread must have a power of 2 number of elements, got {prod(size_per_thread)}")
+        if size_per_thread is None:
+            size_per_thread = [1] * len(shape)
+        if len(size_per_thread) != len(shape):
+            raise ValueError(f"size_per_thread must have the same length as shape, got {size_per_thread}")
+        shape = [max(extent // size, 1) for extent, size in zip(shape, size_per_thread)]
         thread_per_warp = []
         warps_per_block = []
         remaining_threads = 32
         remaining_warps = num_warps
         for extent in shape:
-            size_per_thread.append(1)
             if extent <= remaining_threads:
                 assert remaining_threads % extent == 0
                 thread_per_warp.append(extent)
@@ -219,6 +223,12 @@ class FlattenBlockLayout(TileLayout):
         global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis:]
         return self.parent.global_to_local(global_indices, self.expanded_shape(global_shape))
 
+
+class DotOperandLayout(TileLayout):
+    def __init__(self, parent: BlockLayout, id: int):
+        super().__init__()
+        self.parent: BlockLayout = parent
+        self.id: int = id
 
 def void_layout():
     return VoidLayout()

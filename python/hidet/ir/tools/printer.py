@@ -606,7 +606,9 @@ class IRPrinter(IRFunctor):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
 
     def visit_TileLayout(self, layout: TileLayout):
-        from hidet.ir.tile.layout import VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout
+        from hidet.ir.tile.layout import (
+            VoidLayout, SharedLayout, BlockLayout, FlattenBlockLayout, DotOperandLayout
+        )
 
         if isinstance(layout, VoidLayout):
             doc = Doc()
@@ -624,6 +626,9 @@ class IRPrinter(IRFunctor):
             return doc
         elif isinstance(layout, SharedLayout):
             doc = 'shared(' + self.visit(layout.data_layout) + ')'
+            return doc
+        elif isinstance(layout, DotOperandLayout):
+            doc = 'dot_operand(parent=' + self.visit_TileLayout(layout.parent) + ', id=' + self(layout.id) + ')'
             return doc
         else:
             raise NotImplementedError()

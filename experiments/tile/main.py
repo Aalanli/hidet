@@ -162,6 +162,28 @@ def demo_reduce():
     func()
 
 
+def demo_dot_simt():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def use_arange():
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.grid_dim = 1
+            attrs.cuda.block_dim = 128
+
+            a = ti.ones([16, 16])
+            b = ti.ones([16, 16])
+            c = ti.dot(a, b)
+
+
+    func = script_module.build()
+    func()
+
+
+
 def main():
     # demo_arange()
     #
@@ -173,7 +195,9 @@ def main():
     #
     # demo_for_and_increment()
 
-    demo_reduce()
+    # demo_reduce()
+
+    demo_dot_simt()
 
 
 if __name__ == '__main__':

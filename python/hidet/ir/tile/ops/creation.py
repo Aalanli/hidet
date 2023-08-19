@@ -1,5 +1,5 @@
 from typing import Optional, List, Union, Sequence
-from hidet.ir.type import BaseType
+from hidet.ir.type import BaseType, DataType, data_type
 from hidet.ir.expr import convert
 from hidet.ir.tile.type import tile_type, void_layout, TileLayout
 from hidet.ir.tile.expr import TileOp, Expr
@@ -41,3 +41,12 @@ def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
     shape = list(shape)
     value = convert(value)
     return Full(value, shape).make_call()
+
+
+def zeros(shape: List[int], dtype: Union[DataType,  str] = 'float32'):
+    dtype = data_type(dtype)
+    return full(dtype.zero, shape)
+
+def ones(shape: List[int], dtype: Union[DataType, str] = 'float32'):
+    dtype = data_type(dtype)
+    return full(dtype.one, shape)

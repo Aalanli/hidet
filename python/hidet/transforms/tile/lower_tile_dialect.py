@@ -12,7 +12,7 @@ from hidet.ir.primitives.cuda.tile import alloc_shared
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, Store, Load, DebugPrint
 from hidet.ir.tile.ops import ExpandDims, ConvertLayout, ReduceOp
 from hidet.ir.tile.type import TileType
-from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout
+from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout, DotOperandLayout
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tools import TypeInfer
 from hidet.ir.mapping import repeat_map
@@ -57,6 +57,8 @@ class LowerTileDialectRewriter(IRRewriter):
             # self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
             buf_var: Var = tensor_var(hint, shape, dtype, layout=layout.data_layout)
             self.append_stmt(DeclareStmt(buf_var, scope=DeclareScope.Shared))
+        elif isinstance(layout, DotOperandLayout):
+            raise NotImplementedError()
         else:
             raise NotImplementedError()
         buf = Buffer(buf_var, dtype, shape, local_shape, layout)
@@ -109,6 +111,7 @@ class LowerTileDialectRewriter(IRRewriter):
                     )
                 self.var2buffer[bind_var] = buf
                 stmts.extend(self.flush_stmts())
+                self.memo[bind_var] = buf.var
             elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
                 self.memo[bind_var] = bind_value
             else:

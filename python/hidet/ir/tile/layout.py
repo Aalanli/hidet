@@ -119,7 +119,7 @@ class BlockLayout(TileLayout):
 
     def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import boolean
-        from hidet.ir.expr import logical_or
+        from hidet.ir.expr import logical_and
 
         assert len(global_shape) == len(self.layout_shape)
 
@@ -129,7 +129,7 @@ class BlockLayout(TileLayout):
         global_indices: List[Expr] = []
         # when the same element of the tensor is stored in multiple places, only one of them is not duplicated
         # (e.g., not_duplicated = true for the first element of the tensor)
-        not_duplicated: Expr = boolean.false
+        not_duplicated: Expr = boolean.true
         for i in range(len(global_shape)):
             local_index = local_indices[i]
             if global_shape[i] <= self.layout_shape[i]:
@@ -139,7 +139,7 @@ class BlockLayout(TileLayout):
                     + warp_indices[i] * self.size_per_thread[i] * self.thread_per_warp[i]
                 )
                 global_index = layout_index % global_shape[i]
-                not_duplicated = logical_or(not_duplicated, layout_index >= global_shape[i])
+                not_duplicated = logical_and(not_duplicated, layout_index < global_shape[i])
             else:
                 layout_index = (
                     local_index % self.size_per_thread[i]

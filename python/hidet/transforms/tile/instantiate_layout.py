@@ -92,13 +92,17 @@ class InstantiateLayoutRewriter(IRRewriter):
         assert isinstance(x_type, TileType)
         if isinstance(x_type.layout, BlockLayout):
             y_type = e.infer_type([x_type])
+            if e.keepdims:
+                layout = x_type.layout
+            else:
+                layout = flatten_block_layout(x_type.layout, axis=e.axis)
             assert isinstance(y_type, TileType)
             return ReduceOp(
                 x=x,
                 axis=e.axis,
                 keepdims=e.keepdims,
                 kind=e.kind,
-                layout=flatten_block_layout(x_type.layout, axis=e.axis)
+                layout=layout
             )
         else:
             raise NotImplementedError()

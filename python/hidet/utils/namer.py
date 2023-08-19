@@ -9,14 +9,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Iterable
+from typing import Iterable, Dict, Any
 from collections import defaultdict
 
 
 class Namer:
     def __init__(self):
-        self.name_id_clock = defaultdict(int)
-        self.obj_name = {}
+        self.name_id_clock: Dict[str, int] = {}
+        self.obj_name: Dict[Any, str] = {}
+        self.existing_names = set()
         self.clear()
 
     def __call__(self, x):
@@ -30,13 +31,11 @@ class Namer:
         for kw in keywords:
             self.name_id_clock[kw] = 0
 
-    def get_name(self, e, hint=None):
+    @staticmethod
+    def _get_orig_name(e, hint=None):
         from hidet.ir.expr import Var
         from hidet.ir.compute import ScalarNode, TensorNode
         from hidet.graph.tensor import Tensor
-
-        if e in self.obj_name:
-            return self.obj_name[e]
         if hint:
             orig_name = hint
         elif isinstance(e, Var) and (e.name or e.hint):
@@ -48,18 +47,32 @@ class Namer:
         else:
             alias = {ScalarNode: 'scalar', TensorNode: 'tensor', Var: 'v', Tensor: 'x'}
             orig_name = alias[type(e)] if type(e) in alias else type(e).__name__
+        return orig_name
 
-        if orig_name in self.name_id_clock:
-            name = orig_name
-            while name in self.name_id_clock:
+    def get_name(self, e, hint=None):
+        if e in self.obj_name:
+            return self.obj_name[e]
+
+        orig_name = self._get_orig_name(e, hint)
+        name = orig_name
+
+        while name in self.existing_names:
+            if orig_name not in self.name_id_clock:
+                self.name_id_clock[orig_name] = 0
+            else:
                 self.name_id_clock[orig_name] += 1
-                name = orig_name + '_' + str(self.name_id_clock[orig_name])
-        else:
-            self.name_id_clock[orig_name] = 0
-            name = orig_name
+            name = orig_name + '_' + str(self.name_id_clock[orig_name])
 
         self.obj_name[e] = name
+        self.existing_names.add(name)
         return name
+
+    def remove_name_for(self, e, hint=None):
+        orig_name = self._get_orig_name(e, hint)
+        name = self.obj_name.pop(e)
+        self.existing_names.remove(name)
+        if orig_name in self.name_id_clock:
+            self.name_id_clock.pop(orig_name)
 
     @staticmethod
     def unique_name_among(name: str, existed_names: Iterable[str]) -> str:

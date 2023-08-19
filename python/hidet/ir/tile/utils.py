@@ -5,7 +5,7 @@ def flatten_indices():
 def unflatten_indices(global_index, shape):
     s = 1
     indices = []
-    for i, extent in enumerate(shape):
+    for extent in reversed(shape):
         indices.append(global_index // s % extent)
         s *= extent
-    return indices
+    return list(reversed(indices))

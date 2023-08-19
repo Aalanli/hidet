@@ -15,6 +15,7 @@ from hidet.ir.type import BaseType
 from hidet.ir.stmt import Stmt, ForStmt, IfStmt, EvaluateStmt, SeqStmt, LetStmt, ForMappingStmt, ForStmtAttr
 from hidet.ir.stmt import DeclareStmt, BufferStoreStmt, AssignStmt
 from hidet.ir.expr import Expr, Var, var, convert
+from hidet.ir.mapping import RepeatTaskMapping
 from hidet.ir.dtypes import int32
 from hidet.ir.mapping import TaskMapping, repeat_map
 
@@ -56,13 +57,22 @@ class StmtBuilder:
         self.append(other)
         return self
 
+    @staticmethod
+    def _name_index_vars(num_vars: int) -> List[str]:
+        predefined_names = ['i', 'j', 'k', 'p', 'q', 'r', 's', 'u', 'v']
+        if num_vars <= len(predefined_names):
+            iter_names = predefined_names[: num_vars]
+        else:
+            iter_names = [f'i{idx}' for idx in range(num_vars)]
+        return iter_names
+
     def let(self, v: Union[str, Var], value: Union[int, Expr]) -> StmtScope:
         if isinstance(v, str):
             v = var(v)
         return StmtScope(self, stmts=LetStmt(v, value), ret=v)
 
     def declare(self, v: Var, init: Optional[Expr] = None, scope=None):
-        self.append(DeclareStmt(v, init, scope))
+        self.append(DeclareStmt(v, init, scope=scope))
         return v
 
     def buffer_store(self, buf: Expr, indices: Sequence[Union[Expr, int]], value: Expr):
@@ -92,15 +102,23 @@ class StmtBuilder:
         return StmtScope(self, stmts=if_stmt, ret=None)
 
     def for_mapping(
-        self, mapping: TaskMapping, iter_names: Optional[Sequence[str]] = None, worker: Union[Expr, int] = 0
+        self,
+        mapping: TaskMapping,
+        iter_names: Optional[Sequence[str]] = None,
+        worker: Optional[Union[Expr, int]] = None
     ) -> StmtScope:
+        if worker is None:
+            if not isinstance(mapping, RepeatTaskMapping):
+                raise ValueError('worker must be specified for non-repeat mapping')
+            worker = 0
         if iter_names is None:
-            iter_names = [f'i{idx}' for idx in range(len(mapping.task_shape))]
+            iter_names = self._name_index_vars(len(mapping.task_shape))
         iter_vars = [var(name) for name in iter_names]
         return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, worker, cast(Stmt, None)), ret=iter_vars)
 
     def for_grid(self, shape: List[Union[Expr, int]]) -> StmtScope:
-        iter_vars = [var(f'i{idx}') for idx in range(len(shape))]
+        iter_names = self._name_index_vars(len(shape))
+        iter_vars = [var(name) for name in iter_names]
         mapping = repeat_map(shape)
         return StmtScope(self, stmts=ForMappingStmt(iter_vars, mapping, int32(0), cast(Stmt, None)), ret=iter_vars)
 

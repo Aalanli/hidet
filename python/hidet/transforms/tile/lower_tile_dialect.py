@@ -377,30 +377,31 @@ class LowerTileDialectRewriter(IRRewriter):
                 local_indices, is_valid = layout.global_to_local(indices, shape)
                 dtype2fmt = {float32: '%.2f', int32: '%d'}
                 with sb.if_then(is_valid):
-                    assert len(shape) >= 1
-
-                    if len(shape) == 1:
-                        with sb.if_then(indices[0] == 0):
-                            sb.append(printf('['))
+                    if len(shape) == 0:
+                        sb.append(printf(f'{dtype2fmt[buf.dtype]}\n', buf[local_indices]))
                     else:
-                        with sb.if_then(logical_and(indices[-2] == 0, indices[-1] == 0)):
-                            sb.append(printf('[['))
-                        with sb.otherwise():
-                            with sb.if_then(indices[-1] == 0):
-                                sb.append(printf(' ['))
-                    sb.append(printf(f'{dtype2fmt[buf.dtype]}', buf[local_indices]))
-                    with sb.if_then(indices[-1] == shape[-1] - 1):
                         if len(shape) == 1:
-                            sb.append(printf(']\n'))
+                            with sb.if_then(indices[0] == 0):
+                                sb.append(printf('['))
                         else:
-                            with sb.if_then(indices[-2] != shape[-2] - 1):
-                                sb.append(printf(']\n'))
+                            with sb.if_then(logical_and(indices[-2] == 0, indices[-1] == 0)):
+                                sb.append(printf('[['))
                             with sb.otherwise():
-                                sb.append(printf(']]\n'))
-                                if len(shape) > 2:
-                                    sb.append(printf('\n'))
-                    with sb.otherwise():
-                        sb.append(printf(', '))
+                                with sb.if_then(indices[-1] == 0):
+                                    sb.append(printf(' ['))
+                        sb.append(printf(f'{dtype2fmt[buf.dtype]}', buf[local_indices]))
+                        with sb.if_then(indices[-1] == shape[-1] - 1):
+                            if len(shape) == 1:
+                                sb.append(printf(']\n'))
+                            else:
+                                with sb.if_then(indices[-2] != shape[-2] - 1):
+                                    sb.append(printf(']\n'))
+                                with sb.otherwise():
+                                    sb.append(printf(']]\n'))
+                                    if len(shape) > 2:
+                                        sb.append(printf('\n'))
+                        with sb.otherwise():
+                            sb.append(printf(', '))
                 sb.append(syncthreads())
 
             self.append_stmt(sb.finish())

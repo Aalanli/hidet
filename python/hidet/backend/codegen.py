@@ -480,6 +480,8 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
             doc += NewLine() + self.local_var_declare(bind_var) + ' = ' + self(bind_value) + ';'
             # doc += NewLine() + self(bind_var.type) + ' ' + self(bind_var) + ' = ' + self(bind_value) + ';'
         doc += self(stmt.body)
+        for bind_var in stmt.bind_vars:
+            self.namer.remove_name_for(bind_var)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
@@ -504,6 +506,7 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
         doc += NewLine() + Text('for (') + init_doc + '; ' + cond_doc + '; ' + update_doc + ') '
         body_doc = self(stmt.body)
         doc += Text('{') + body_doc.indent() + NewLine() + Text('} ')
+        self.namer.remove_name_for(v)
         return doc
 
     def visit_ForTaskStmt(self, stmt: ForMappingStmt):

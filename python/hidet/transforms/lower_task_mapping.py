@@ -11,7 +11,7 @@
 # limitations under the License.
 from typing import List, Dict, Sequence, Union, Optional
 from hidet.ir import Var, ForMappingStmt, Stmt, ForStmt, Expr, SeqStmt
-from hidet.ir.expr import var
+from hidet.ir.expr import var, convert
 from hidet.ir.mapping import TaskMapping, SpatialTaskMapping, RepeatTaskMapping, ComposedTaskMapping
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
@@ -39,7 +39,7 @@ class TaskMappingExpander:
         tasks: List[TaskIndex] = self.visit(mapping, worker)
         seq = []
         for task in tasks:
-            remap: Dict[Var, Expr] = {a: b for a, b in zip(loop_vars, task)}
+            remap: Dict[Var, Expr] = {a: convert(b) for a, b in zip(loop_vars, task)}
             seq.append(rewrite(body, remap))
         body = SeqStmt(seq)
         for loop in reversed(self.loop_nests):

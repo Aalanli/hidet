@@ -95,9 +95,12 @@ class TypeVisitor(TypeFunctor, BaseVisitor):
         pass
 
     def visit_FuncType(self, t: FuncType):
-        self.visit(t.ret_type)
-        for param_type in t.param_types:
-            self.visit(param_type)
+        if t.type_infer_func is not None:
+            return
+        else:
+            self.visit(t.ret_type)
+            for param_type in t.param_types:
+                self.visit(param_type)
 
 
 class TypeRewriter(TypeFunctor, BaseRewriter):

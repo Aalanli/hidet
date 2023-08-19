@@ -65,6 +65,10 @@ class IRPrinter(IRFunctor):
             self.attributes[attr_string] = abbr
             return abbr
 
+    def var_exit_scope(self, v: Var):
+        assert v in self.namer.obj_name
+        self.namer.remove_name_for(v)
+
     def astext(self, node):
         body: Doc = self.visit(node)
         attrs_doc = Doc()
@@ -315,6 +319,8 @@ class IRPrinter(IRFunctor):
             doc += NewLine() + 'let ' + self(bind_var) + ': ' + self(bind_var.type) + ' = ' + self(bind_value)
         # doc += self(stmt.body)
         doc += self(stmt.body).indent()
+        for bind_var in stmt.bind_vars:
+            self.var_exit_scope(bind_var)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
@@ -323,11 +329,14 @@ class IRPrinter(IRFunctor):
         if stmt.attr.unroll or stmt.attr.parallel:
             doc += '  # ' + str(stmt.attr)
         doc += self(stmt.body).indent(4)
+        self.var_exit_scope(stmt.loop_var)
         return doc
 
     def visit_ForTaskStmt(self, stmt: ForMappingStmt):
         doc = NewLine() + Text('for ') + self(stmt.loop_vars) + ' in ' + self(stmt.mapping) + ' on ' + self(stmt.worker)
         doc += self(stmt.body).indent(4)
+        for loop_var in stmt.loop_vars:
+            self.var_exit_scope(loop_var)
         return doc
 
     def visit_WhileStmt(self, stmt: WhileStmt):

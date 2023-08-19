@@ -12,7 +12,12 @@ class Load(TileOp):
         self.mask: Optional[Expr] = mask
         self.other: Optional[Expr] = other
 
-        self.args = [ptr] + ([mask] if mask is not None else [])
+        self.args.extend([ptr])
+        if mask is not None:
+            self.args.append(mask)
+        if other is not None:
+            assert mask is not None
+            self.args.append(other)
 
     @staticmethod
     def _get_loaded_type(ptr_type: PointerType):
@@ -42,7 +47,9 @@ class Store(TileOp):
         self.value: Expr = value
         self.mask: Optional[Expr] = mask
 
-        self.args = [ptr, value] + ([mask] if mask is not None else [])
+        self.args.extend([ptr, value])
+        if mask is not None:
+            self.args.append(mask)
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         return void

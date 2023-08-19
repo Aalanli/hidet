@@ -1,16 +1,13 @@
-from typing import List, Union, Any
-from hidet.ir.type import DataType
-from hidet.ir.expr import Expr, logical_not, var, left_shift
-from hidet.ir.stmt import BufferStoreStmt
-from hidet.ir.builders import StmtBuilder
-from hidet.ir.primitives.cuda import shfl_down_sync, shfl_up_sync, shfl_sync, threadIdx
-from hidet.ir.primitives.cuda.tile import alloc_shared
-from hidet.ir.tile.ops.reduce import ReduceOp, ReduceKind
-from hidet.ir.tile.layout import BlockLayout
+from typing import List, Union
+
+from hidet.ir.expr import Expr, var, left_shift
+from hidet.ir.mapping import auto_map
 from hidet.ir.mapping import spatial_map
-from hidet.ir.mapping import repeat_map, auto_map
+from hidet.ir.primitives.cuda import shfl_down_sync, shfl_up_sync, threadIdx
+from hidet.ir.tile.layout import BlockLayout
+from hidet.ir.tile.ops.reduce import ReduceOp, ReduceKind
 from hidet.utils import prod, is_power_of_two, log_two
-from .base import TileOpImpl, register_impl
+from .registry import TileOpImpl, register_impl
 from .buffer import Buffer
 
 
@@ -204,7 +201,6 @@ class ReduceOpImpl(TileOpImpl):
     def implement(self, op: ReduceOp, args: List[Union[Buffer, Expr]], output: Buffer):
         src: Buffer = args[0]
         dst: Buffer = output
-
 
         if (
             (src.is_block() and dst.is_flatten_block() and dst.flatten_block_layout.parent == src.layout)

@@ -12,13 +12,6 @@ class TileLayout(Attribute):
     pass
 
 
-class VoidLayout(TileLayout):
-    """the layout has not been specified"""
-
-    def __eq__(self, other):
-        return isinstance(other, VoidLayout)
-
-
 class SharedLayout(TileLayout):
     def __init__(self, data_layout: DataLayout):
         super().__init__()
@@ -33,13 +26,69 @@ class SharedLayout(TileLayout):
         return shape
 
 
-class BlockLayout(TileLayout):
-    def __init__(self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
+class DistributedLayout(TileLayout):
+    def __init__(self, layout_shape: List[int]):
         super().__init__()
+        self.layout_shape: List[int] = layout_shape
+
+    def calc_local_shape(self, shape: List[int]) -> List[int]:
+        raise NotImplementedError()
+
+    def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        """
+        Map the local indices to global indices.
+
+        The local indices are the indices for the buffer defined by each thread.
+        The global indices are the logical indices for the whole buffer in the view of the whole block.
+
+        Parameters
+        ----------
+        local_indices: List[Expr]
+            The local indices.
+
+        global_shape: List[int]
+            The global shape of the buffer.
+
+        Returns
+        -------
+        global_indices, not_duplicated: List[Expr], Expr
+            - global_indices: The global indices corresponding to the given local indices.
+            - not_duplicated: a boolean expression indicating whether the global indices are duplicated. A global
+            indices is duplicated if the data is stored in multiple threads and the threadIdx.x that holding the data is
+            not the one with the smallest threadIdx.x and smallest local indices (if the data is stored multiple times
+            in the same thread).
+        """
+        raise NotImplementedError()
+
+    def global_to_local(self, global_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        """
+        Map the global indices to local indices.
+
+        Parameters
+        ----------
+        global_indices: List[Expr]
+            The global indices.
+
+        global_shape: List[int]
+            The global shape of the buffer.
+
+        Returns
+        -------
+        local_indices, is_valid: List[Expr], Expr
+            - local_indices: The local indices corresponding to the given global indices.
+            - is_valid: a boolean expression indicating whether the current thread is holding the data.
+        """
+        raise NotImplementedError()
+
+
+class BlockLayout(DistributedLayout):
+    def __init__(self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
+        super().__init__(
+            layout_shape=[a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)]
+        )
         self.size_per_thread: List[int] = size_per_thread
         self.thread_per_warp: List[int] = thread_per_warp
         self.warps_per_block: List[int] = warps_per_block
-        self.layout_shape: List[int] = [a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)]
 
     def __eq__(self, other):
         assert isinstance(other, TileLayout)
@@ -98,18 +147,7 @@ class BlockLayout(TileLayout):
         assert prod(warps_per_block) == num_warps
         assert prod(thread_per_warp) == 32
 
-        return block_layout(size_per_thread, thread_per_warp, warps_per_block)
-
-    def local_shape(self, shape: List[int]) -> List[int]:
-        l_shape: List[int] = []
-        for extent, size_per_thread, layout_extent in zip(shape, self.size_per_thread, self.layout_shape):
-            assert extent % layout_extent == 0 or layout_extent % extent == 0
-            if extent <= layout_extent:
-                local_extent = size_per_thread
-            else:
-                local_extent = size_per_thread * (extent // layout_extent)
-            l_shape.append(local_extent)
-        return l_shape
+        return BlockLayout(size_per_thread, thread_per_warp, warps_per_block)
 
     def warp_indices(self) -> List[Expr]:
         from hidet.ir.primitives.cuda import threadIdx
@@ -120,6 +158,17 @@ class BlockLayout(TileLayout):
         from hidet.ir.primitives.cuda import threadIdx
         from .utils import unflatten_indices
         return unflatten_indices(threadIdx.x % 32, self.thread_per_warp)
+
+    def calc_local_shape(self, shape: List[int]) -> List[int]:
+        l_shape: List[int] = []
+        for extent, size_per_thread, layout_extent in zip(shape, self.size_per_thread, self.layout_shape):
+            assert extent % layout_extent == 0 or layout_extent % extent == 0
+            if extent <= layout_extent:
+                local_extent = size_per_thread
+            else:
+                local_extent = size_per_thread * (extent // layout_extent)
+            l_shape.append(local_extent)
+        return l_shape
 
     def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import boolean
@@ -163,7 +212,7 @@ class BlockLayout(TileLayout):
         lane_indices: List[Expr] = self.lane_indices()
         warp_indices: List[Expr] = self.warp_indices()
 
-        local_shape = self.local_shape(global_shape)
+        local_shape = self.calc_local_shape(global_shape)
         local_indices: List[Expr] = []
         is_valid: Expr = boolean.true  # whether the element is hold by the given tid
         for i in range(len(global_shape)):
@@ -190,9 +239,9 @@ class BlockLayout(TileLayout):
         return local_indices, is_valid
 
 
-class FlattenBlockLayout(TileLayout):
+class FlattenBlockLayout(DistributedLayout):
     def __init__(self, parent: BlockLayout, axis: int):
-        super().__init__()
+        super().__init__(parent.layout_shape[:axis] + parent.layout_shape[axis + 1:])
         self.parent: BlockLayout = parent
         self.axis: int = axis
 
@@ -203,14 +252,14 @@ class FlattenBlockLayout(TileLayout):
     def expanded_shape(self, shape: List[int]):
         return shape[: self.axis] + [1] + shape[self.axis:]
 
-    def local_shape(self, shape: List[int]) -> List[int]:
-        return self.parent.local_shape(self.expanded_shape(shape))
-
     def warp_indices(self) -> List[Expr]:
         return self.parent.warp_indices()
 
     def lane_indices(self) -> List[Expr]:
         return self.parent.lane_indices()
+
+    def calc_local_shape(self, shape: List[int]) -> List[int]:
+        return self.parent.calc_local_shape(self.expanded_shape(shape))
 
     def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         global_indices, not_duplicated = self.parent.local_to_global(local_indices, self.expanded_shape(global_shape))
@@ -224,19 +273,104 @@ class FlattenBlockLayout(TileLayout):
         return self.parent.global_to_local(global_indices, self.expanded_shape(global_shape))
 
 
-class DotOperandLayout(TileLayout):
-    def __init__(self, parent: BlockLayout, id: int):
-        super().__init__()
+class DotOperandLayout(DistributedLayout):
+    pass
+
+
+class BlockDotOperandLayout(DotOperandLayout):
+    def __init__(self, parent: BlockLayout, op_idx: int):
+        super().__init__([])
         self.parent: BlockLayout = parent
-        self.id: int = id
+        self.op_idx: int = op_idx
+        self.axis: int = op_idx
 
-def void_layout():
-    return VoidLayout()
+        if op_idx == 0:
+            self.layout_shape = [parent.layout_shape[0], 1]
+        else:
+            self.layout_shape = [1, parent.layout_shape[1]]
 
+    def __eq__(self, other):
+        assert isinstance(other, TileLayout)
+        return isinstance(other, BlockDotOperandLayout) and self.parent == other.parent and self.op_idx == other.op_idx
 
-def block_layout(size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
-    return BlockLayout(size_per_thread, thread_per_warp, warps_per_block)
+    def calc_local_shape(self, shape: List[int]) -> List[int]:
+        assert len(shape) == 2
+        if shape[self.axis] >= self.layout_shape[self.axis]:
+            assert shape[self.axis] % self.layout_shape[self.axis] == 0
+            repeated: int = shape[self.axis] // self.layout_shape[self.axis]
+        else:
+            repeated: int = 1
+        if self.axis == 0:
+            return [self.parent.size_per_thread[self.axis] * repeated, shape[1]]
+        else:
+            return [shape[0], self.parent.size_per_thread[self.axis] * repeated]
 
+    def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        from hidet.ir.dtypes import boolean
 
-def flatten_block_layout(parent: BlockLayout, axis: int):
-    return FlattenBlockLayout(parent, axis)
+        local_index = local_indices[self.axis]
+
+        axis = self.op_idx
+        size_per_thread: List[int] = self.parent.size_per_thread
+        thread_per_warp: List[int] = self.parent.thread_per_warp
+        layout_shape: List[int] = self.layout_shape
+        warp_indices: List[Expr] = self.parent.warp_indices()
+        lane_indices: List[Expr] = self.parent.lane_indices()
+
+        if global_shape[axis] >= layout_shape[axis]:
+            repeat_idx = local_index // size_per_thread[axis]
+            inner_idx = local_index % size_per_thread[axis]
+            global_index = (
+                inner_idx
+                + lane_indices[axis] * size_per_thread[axis]
+                + warp_indices[axis] * size_per_thread[axis] * thread_per_warp[axis]
+                + repeat_idx * layout_shape[axis]
+            )
+            not_duplicated = boolean.true
+        else:
+            global_index = (
+                local_index
+                + lane_indices[axis] * size_per_thread[axis]
+                + warp_indices[axis] * size_per_thread[axis] * thread_per_warp[axis]
+            )
+            not_duplicated = global_index < global_shape[axis]
+            global_index = global_index % global_shape[axis]
+        if self.axis == 0:
+            return [global_index, local_indices[1]], not_duplicated
+        else:
+            return [local_indices[0], global_index], not_duplicated
+
+    def global_to_local(self, global_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
+        from hidet.ir.expr import logical_and
+
+        axis = self.op_idx
+        size_per_thread: List[int] = self.parent.size_per_thread
+        thread_per_warp: List[int] = self.parent.thread_per_warp
+        layout_shape: List[int] = self.layout_shape
+        warp_indices: List[Expr] = self.parent.warp_indices()
+        lane_indices: List[Expr] = self.parent.lane_indices()
+
+        if global_shape[0] >= layout_shape[0]:
+            repeat_idx = global_indices[0] // layout_shape[axis]
+            layout_idx = global_indices[0] % layout_shape[axis]
+            local_index_part0 = (
+                layout_idx
+                - lane_indices[axis] * size_per_thread[axis]
+                - warp_indices[axis] * size_per_thread[axis] * thread_per_warp[axis]
+            )
+            is_valid = logical_and(0 <= local_index_part0, local_index_part0 < size_per_thread[axis])
+            local_index_part1 = repeat_idx * size_per_thread[axis]
+            local_index = local_index_part0 + local_index_part1
+        else:
+            layout_idx = global_indices[0]
+            local_index = (
+                layout_idx
+                - lane_indices[axis] * size_per_thread[axis]
+                - warp_indices[axis] * size_per_thread[axis] * thread_per_warp[axis]
+            )
+            is_valid = logical_and(0 <= local_index, local_index < size_per_thread[axis])
+
+        if self.axis == 0:
+            return [local_index, global_indices[1]], is_valid
+        else:
+            return [global_indices[0], local_index], is_valid

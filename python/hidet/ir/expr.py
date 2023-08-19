@@ -563,6 +563,7 @@ class Var(Expr):
         self.name: Optional[str] = name
         self.type: Union[BaseType, TensorType, TensorPointerType, FuncType] = type
         self.id: int = self.new_id()
+        assert isinstance(hint, str) or hint is None
 
     @staticmethod
     def new_id():

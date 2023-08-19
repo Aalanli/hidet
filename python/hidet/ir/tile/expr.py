@@ -18,16 +18,20 @@ class TileOp(Node):
         self.args: List[Expr] = args if args is not None else []
         self.attrs: Dict[str, CConst] = attrs if attrs is not None else {}
 
-    @property
-    def name(self):
-        if hasattr(self, "_name"):
-            return self._name
+    @classmethod
+    def op_name(cls):
+        if hasattr(cls, "_name"):
+            return cls._name
 
         # camel to snake (e.g., CamelName -> camel_name)
-        camel_name = self.__class__.__name__
+        camel_name = cls.__name__
         snake_name = "".join(["_" + c.lower() if c.isupper() else c for c in camel_name]).lstrip("_")
-        setattr(self, "_name", snake_name)
+        setattr(cls, "_name", snake_name)
         return snake_name
+
+    @property
+    def name(self):
+        return self.op_name()
 
     def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
         if attrs is None:

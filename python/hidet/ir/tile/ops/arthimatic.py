@@ -1,9 +1,8 @@
 from typing import Union, Optional, List
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Var, Expr
-from hidet.ir.tile.type import tile_type, void_layout, TileLayout, TileType
+from hidet.ir.tile.type import tile_type, TileType
 from hidet.ir.tile.expr import TileOp
-from hidet.utils import same_list
 
 
 class UnaryTileOp(TileOp):
@@ -16,6 +15,16 @@ class UnaryTileOp(TileOp):
         assert isinstance(a_type, TileType)
 
         return arg_types[0]
+
+    def apply_scalar(self, x: Expr) -> Expr:
+        import hidet.ir.expr
+
+        cls_name = self.__class__.__name__
+        if not hasattr(hidet.ir.expr, cls_name):
+            raise NotImplementedError(f'No implementation for {cls_name} binary op')
+
+        expr_cls = getattr(hidet.ir.expr, cls_name)
+        return Expr._unary(expr_cls, x)
 
 
 class BinaryTileOp(TileOp):

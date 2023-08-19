@@ -16,8 +16,7 @@ from hidet.ir.expr import BinaryExpr, Add, Sub, Multiply, Div, Mod, FloorDiv, Co
 from hidet.ir.expr import TensorSlice, LogicalNot, LogicalOr, LogicalAnd, LessEqual, Let, RightShift, LeftShift
 from hidet.ir.expr import BitwiseAnd, Neg, NotEqual, BitwiseXor, Dereference, Reference, Address, BitwiseNot, BitwiseOr
 from hidet.ir.expr import Var, Constant, TensorElement, Call, Cast
-from hidet.ir.tile.layout import VoidLayout
-from hidet.ir.tile.type import TileType, tile_type, void_layout
+from hidet.ir.tile.type import TileType, tile_type
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.compute import ArgReduceCompute, ReduceCompute, GridCompute, TensorInput, ScalarInput
 from hidet.ir.functors import IRFunctor
@@ -71,8 +70,8 @@ class BinaryTypeInfer:
         from hidet.ir.utils import broadcast_shape
 
         shape = broadcast_shape(lhs.shape, rhs.shape)
-        if isinstance(lhs.layout, VoidLayout) and isinstance(rhs.layout, VoidLayout):
-            layout = void_layout()
+        if lhs.layout is None and rhs.layout is None:
+            layout = None
         else:
             raise NotImplementedError()
         return tile_type(self.infer(lhs.type, rhs.type, e), shape, layout)

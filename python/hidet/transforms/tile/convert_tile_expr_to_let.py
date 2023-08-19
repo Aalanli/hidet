@@ -8,7 +8,7 @@ from hidet.ir.func import Function
 from hidet.ir import expr
 from hidet.ir.type import PointerType, DataType
 from hidet.ir.tools import TypeInfer
-from hidet.ir.tile.layout import BlockLayout, block_layout, flatten_block_layout
+from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list

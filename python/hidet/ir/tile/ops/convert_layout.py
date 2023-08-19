@@ -1,7 +1,7 @@
 from typing import Union, Optional, List
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Var, Expr
-from hidet.ir.tile.type import tile_type, void_layout, TileLayout, TileType
+from hidet.ir.tile.type import tile_type, TileLayout, TileType
 from hidet.ir.tile.expr import TileOp
 from hidet.utils import same_list
 

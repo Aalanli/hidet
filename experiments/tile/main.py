@@ -185,17 +185,17 @@ def demo_dot_simt():
 
 
 def main():
-    # demo_arange()
-    #
-    # demo_debug_print()
-    #
-    # demo_vector_add()
-    #
-    # demo_expand_dims()
-    #
-    # demo_for_and_increment()
+    demo_arange()
 
-    # demo_reduce()
+    demo_debug_print()
+
+    demo_vector_add()
+
+    demo_expand_dims()
+
+    demo_for_and_increment()
+
+    demo_reduce()
 
     demo_dot_simt()
 

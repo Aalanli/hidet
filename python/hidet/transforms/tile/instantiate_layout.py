@@ -7,7 +7,7 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import (
-    TileLayout, SharedLayout, BlockLayout, VoidLayout, DotOperandLayout, FlattenBlockLayout
+    TileLayout, SharedLayout, BlockLayout, DotOperandLayout, FlattenBlockLayout, BlockDotOperandLayout
 )
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
@@ -30,7 +30,7 @@ class InstantiateLayoutRewriter(IRRewriter):
         else:
             ret = op.make_call()
         ttype = self.type_infer.visit(ret)
-        if isinstance(ttype, TileType) and isinstance(ttype.layout, VoidLayout):
+        if isinstance(ttype, TileType) and ttype.layout is None:
             raise NotImplementedError(
                 'The layout of the following tile op has not been instantiated:\n' +
                 '  {}\n'.format(type(call.op).__name__)
@@ -158,8 +158,8 @@ class InstantiateLayoutRewriter(IRRewriter):
         else:
             size_per_thread = [1, 1]
         layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
-        a = convert_layout(a, DotOperandLayout(parent=layout, id=0))
-        b = convert_layout(b, DotOperandLayout(parent=layout, id=1))
+        a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
+        b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
         return Dot(a, b, e.kind, layout)
 
 

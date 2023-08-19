@@ -1,9 +1,11 @@
-from typing import List, Dict, Type, Union
+from typing import List, Dict, Type, Union, Callable, Tuple, Any, Optional
+import inspect
 from hidet.ir.type import DataType, PointerType, TensorPointerType, tensor_pointer_type, sizeof
 from hidet.ir.expr import Expr, Var, tensor_var
 from hidet.ir.stmt import AssignStmt, DeclareStmt, DeclareScope
+from hidet.ir.mapping import spatial_map, repeat_map
 from hidet.ir.tile.expr import TileOp
-from hidet.ir.tile.layout import SharedLayout
+from hidet.ir.tile.layout import SharedLayout, DistributedLayout
 from hidet.ir.primitives.cuda import syncthreads
 from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
@@ -36,7 +38,24 @@ class TileOpImpl(StmtBuilder):
     def sync_threads(self):
         self.append(syncthreads())
 
-    def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Buffer):
+    def iterate_dist_buffer_and_apply(
+        self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr], None]
+    ):
+        assert isinstance(buf.layout, DistributedLayout)
+        layout: DistributedLayout = buf.layout
+        local_shape: List[int] = layout.calc_local_shape(buf.shape)
+
+        with self.for_mapping(repeat_map(local_shape)) as local_indices:
+            global_indices, not_duplicated = layout.local_to_global(local_indices, global_shape=buf.shape)
+            f_apply(local_indices, global_indices, not_duplicated)
+
+    def iterate_dist_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]):
+        def f_apply(local_indices, global_indices, not_duplicated):
+            value = f_compute(local_indices, global_indices, not_duplicated)
+            self.buffer_store(buf.var, indices=local_indices, value=value)
+        self.iterate_dist_buffer_and_apply(buf, f_apply)
+
+    def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         raise NotImplementedError()
 
 
@@ -53,8 +72,16 @@ def register_impl(op_cls: Type[TileOp]):
 
 def implement_tile_op(op: TileOp, args: List[Buffer], output: Buffer) -> Stmt:
     op_cls = type(op)
+
     if op_cls not in _registered_implementations:
-        raise RuntimeError(f"Cannot implement tile op {op_cls}")
+        parent_classes: Tuple = inspect.getmro(op_cls)
+        for cls in parent_classes:
+            if cls in _registered_implementations:
+                _registered_implementations[op_cls] = _registered_implementations[cls]
+                break
+        else:
+            raise RuntimeError(f"Cannot implement tile op:\n {op_cls.op_name()}")
+
     impl_cls = _registered_implementations[op_cls]
     impl = impl_cls()
     impl.implement(op, args, output)

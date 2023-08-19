@@ -1,8 +1,7 @@
-from typing import List, Union, Optional
+from typing import List, Union
 
-from hidet.ir.expr import Var, tensor_var
-from hidet.ir.layout import DataLayout
-from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout
+from hidet.ir.expr import Var
+from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, TileLayout, SharedLayout, DistributedLayout
 from hidet.ir.type import DataType, PointerType
 
 
@@ -40,8 +39,8 @@ class Buffer:
         return self.layout
 
     @property
-    def block_like_layout(self) -> Union[BlockLayout, FlattenBlockLayout]:
-        assert isinstance(self.layout, (BlockLayout, FlattenBlockLayout))
+    def distributed_layout(self) -> DistributedLayout:
+        assert isinstance(self.layout, DistributedLayout)
         return self.layout
 
     def is_shared(self):
@@ -53,5 +52,5 @@ class Buffer:
     def is_flatten_block(self):
         return isinstance(self.layout, FlattenBlockLayout)
 
-    def is_block_like(self):
-        return isinstance(self.layout, (BlockLayout, FlattenBlockLayout))
+    def is_distributed(self):
+        return isinstance(self.layout, DistributedLayout)

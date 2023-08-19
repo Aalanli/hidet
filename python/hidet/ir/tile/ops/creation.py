@@ -1,7 +1,7 @@
 from typing import Optional, List, Union, Sequence
 from hidet.ir.type import BaseType, DataType, data_type
 from hidet.ir.expr import convert
-from hidet.ir.tile.type import tile_type, void_layout, TileLayout
+from hidet.ir.tile.type import tile_type, TileLayout
 from hidet.ir.tile.expr import TileOp, Expr
 
 
@@ -17,8 +17,6 @@ class Arange(TileOp):
 
         extent = self.attrs["end"] - self.attrs["begin"]
         layout = self.attrs["layout"]
-        if layout is None:
-            layout = void_layout()
         return tile_type(type_=int32, shape=[extent], layout=layout)
 
 
@@ -43,9 +41,10 @@ def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
     return Full(value, shape).make_call()
 
 
-def zeros(shape: List[int], dtype: Union[DataType,  str] = 'float32'):
+def zeros(shape: List[int], dtype: Union[DataType, str] = 'float32'):
     dtype = data_type(dtype)
     return full(dtype.zero, shape)
+
 
 def ones(shape: List[int], dtype: Union[DataType, str] = 'float32'):
     dtype = data_type(dtype)

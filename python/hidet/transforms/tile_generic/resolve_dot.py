@@ -4,7 +4,7 @@ from hidet.ir.tile.ops.dot import Dot, SimtDot
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
-from .base import TileFunctionPass
+from hidet.transforms.base import TileFunctionPass
 
 
 class ResolveDotRewriter(IRRewriter):

@@ -45,6 +45,8 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
         self.namer = Namer()
         self.type_infer = TypeInfer()
 
+        self.scope_vars: List[List[Var]] = []
+
         self.require_immintrin = False
         self.require_complex = False
         self.require_fp16 = False
@@ -53,6 +55,18 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
 
     def __call__(self, node) -> Doc:
         return self.visit(node)
+
+    def enter_scope(self):
+        self.scope_vars.append([])
+
+    def add_scoped_var(self, var: Var):
+        assert len(self.scope_vars) > 0
+        self.scope_vars[-1].append(var)
+
+    def exit_scope(self):
+        scope_vars = self.scope_vars.pop()
+        for var in scope_vars:
+            self.namer.remove_name_for(var)
 
     def canonize_funcname(self, name: str):
         items = name.split('.')
@@ -453,6 +467,7 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
                 DeclareScope.Register: '',  # we can not force nvcc to use register, but it will do so if possible
             }
             doc += scope2specifier[stmt.scope]
+        self.add_scoped_var(stmt.var)
         doc += self.local_var_declare(stmt.var)
         if stmt.init is not None:
             doc += ' = ' + self(stmt.init)
@@ -477,14 +492,15 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
     def visit_LetStmt(self, stmt: LetStmt):
         doc = Doc()
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            self.add_scoped_var(bind_var)
             doc += NewLine() + self.local_var_declare(bind_var) + ' = ' + self(bind_value) + ';'
             # doc += NewLine() + self(bind_var.type) + ' ' + self(bind_var) + ' = ' + self(bind_value) + ';'
         doc += self(stmt.body)
-        for bind_var in stmt.bind_vars:
-            self.namer.remove_name_for(bind_var)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
+        self.enter_scope()
+        self.add_scoped_var(stmt.loop_var)
         v = stmt.loop_var
         init_doc = self(v.type) + ' ' + self(v) + ' = ' + self(convert(0))
         cond_doc = self(v < stmt.extent)
@@ -506,16 +522,18 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
         doc += NewLine() + Text('for (') + init_doc + '; ' + cond_doc + '; ' + update_doc + ') '
         body_doc = self(stmt.body)
         doc += Text('{') + body_doc.indent() + NewLine() + Text('} ')
-        self.namer.remove_name_for(v)
+        self.exit_scope()
         return doc
 
     def visit_ForTaskStmt(self, stmt: ForMappingStmt):
         raise ValueError('ForTaskStmt should be lowered to ForStmt in lower_task_mapping pass before code generation.')
 
     def visit_WhileStmt(self, stmt: WhileStmt):
+        self.enter_scope()
         doc = NewLine() + Text('while (') + self(stmt.cond) + ')'
         body_doc = self(stmt.body)
         doc += Text(' {') + body_doc.indent() + NewLine() + Text('} ')
+        self.exit_scope()
         return doc
 
     def visit_BreakStmt(self, stmt: BreakStmt):
@@ -529,10 +547,14 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
         if not (len(cond_doc.docs) > 0 and isinstance(cond_doc.docs[0], str) and cond_doc.docs[0].startswith('(')):
             cond_doc = Text('(') + cond_doc + ')'
         doc = NewLine() + Text('if ') + cond_doc + ' '
+        self.enter_scope()
         doc += Text('{') + self(stmt.then_body).indent() + NewLine() + Text('} ')
+        self.exit_scope()
         if stmt.else_body:
             doc += Text('else ')
+            self.enter_scope()
             doc += Text('{') + self(stmt.else_body).indent() + NewLine() + Text('} ')
+            self.exit_scope()
         return doc
 
     def visit_ReturnStmt(self, stmt: ReturnStmt):
@@ -710,6 +732,7 @@ class CUDACodegen(Codegen):
 
     def visit_Function(self, func: Function) -> Doc:
         self.namer.clear()
+        self.enter_scope()
 
         doc = NewLine()
 
@@ -764,6 +787,8 @@ class CUDACodegen(Codegen):
 
         doc += NewLine() + '}'
 
+        self.exit_scope()
+
         return doc
 
 
@@ -795,6 +820,8 @@ class CPUCodegen(Codegen):
 
     def visit_Function(self, func: Function) -> Doc:
         self.namer.clear()
+        self.enter_scope()
+
         doc = NewLine()
 
         if func.kind == 'public':
@@ -826,6 +853,7 @@ class CPUCodegen(Codegen):
 
         doc += NewLine() + '}'
 
+        self.exit_scope()
         return doc
 
 

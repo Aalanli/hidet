@@ -11,7 +11,7 @@ from hidet.ir.tile.expr import TileOp
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.ops import broadcast, full, expand_dims
 from hidet.ir.utils.broadcast_utils import broadcast_shape
-from .base import TileFunctionPass
+from hidet.transforms.base import TileFunctionPass
 from hidet.utils import same_list
 
 

@@ -83,10 +83,63 @@ class DeclareToLetRewriter(IRRewriter):
             return SeqStmt(seq)
 
 
+class UpliftLetBodyRewriter(IRRewriter):
+    """
+    Uplift the tail part of the stmt body of LetStmt that has not used the bind_vars
+
+    let a = foo()
+      use(a)
+      let b = goo()
+        use(b)
+
+    =>
+
+    let a = foo()
+      use(a)
+    let b = goo()
+      use(b)
+    """
+
+    def flatten_seq(self, seq_stmt: SeqStmt) -> List[Stmt]:
+        seq = []
+        for stmt in seq_stmt.seq:
+            if isinstance(stmt, SeqStmt):
+                seq.extend(self.flatten_seq(stmt))
+            else:
+                seq.append(stmt)
+        return seq
+
+    def visit_LetStmt(self, stmt: LetStmt):
+        body = stmt.body
+
+        if isinstance(body, SeqStmt):
+            seq: List[Stmt] = self.flatten_seq(body)
+
+            uplifted_stmts = []
+            while seq:
+                s = seq.pop()
+                s = self.visit(s)
+                if all(bind_var not in self.memo for bind_var in stmt.bind_vars):
+                    uplifted_stmts.append(s)
+                else:
+                    seq.append(s)
+                    break
+            if len(uplifted_stmts) > 0:
+                stmts: List[Stmt] = [LetStmt(stmt.bind_vars, stmt.bind_values, self.visit(SeqStmt(seq)))]
+                stmts.extend(list(reversed(uplifted_stmts)))
+                return SeqStmt(stmts)
+            else:
+                return LetStmt(stmt.bind_vars, stmt.bind_values, self.visit(SeqStmt(seq)))
+        else:
+            return super().visit_LetStmt(stmt)
+
+
 class DeclareToLetPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
-        rewriter = DeclareToLetRewriter()
-        return rewriter(func)
+        return self.apply_rewriter_list(func, [
+            DeclareToLetRewriter(),
+            UpliftLetBodyRewriter()
+        ])
 
 
 def declare_to_let_pass() -> Pass:

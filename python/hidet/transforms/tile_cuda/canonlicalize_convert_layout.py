@@ -13,8 +13,8 @@ from hidet.ir.layout import row_major
 from hidet.ir.tools import TypeInfer
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
-from .base import TileFunctionPass
-from .convert_tile_expr_to_let import convert_to_let
+from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
 
 
 class CanonicalizeConvertLayerRewriter(IRRewriter):

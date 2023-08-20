@@ -14,8 +14,7 @@ from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list
 from hidet.transforms.expand_let_expr import LetExprExpander
 from hidet.transforms.declare_to_let import DeclareToLetRewriter
-
-from .base import TileFunctionPass
+from hidet.transforms.base import TileFunctionPass
 
 
 class TileDeclareToLetRewriter(DeclareToLetRewriter):

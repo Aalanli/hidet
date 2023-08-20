@@ -9,7 +9,7 @@ from hidet.ir.func import Function
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.ops.assign import assign
 import hidet.ir.tile.ops.arthimatic as arith
-from .base import TileFunctionPass
+from hidet.transforms.base import TileFunctionPass
 
 
 class CanonicalizeDeclareRewriter(IRRewriter):

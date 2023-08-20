@@ -38,14 +38,16 @@ from .check_launch_configuration import check_launch_configuration_pass
 from .lower_special_cast import lower_special_cast_pass
 from .annotate_header_and_libs import annotate_header_and_libs_pass
 
-from .tile.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
-from .tile.resolve_dot import resolve_dot_pass
-from .tile.canonicalize_expressions import canonicalize_expressions_pass
-from .tile.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
-from .tile.instantiate_layout import instantiate_layout_pass
-from .tile.canonicalize_declare import canonicalize_declare_pass
-from .tile.canonlicalize_convert_layout import canonicalize_convert_layout_pass
-from .tile.lower_tile_dialect import lower_tile_dialect_pass
+from .tile_generic.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
+from .tile_generic.resolve_dot import resolve_dot_pass
+from .tile_generic.canonicalize_expressions import canonicalize_expressions_pass
+from .tile_generic.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
+from .tile_generic.fold_constant import fold_constant_pass
+
+from .tile_cuda.instantiate_layout import instantiate_layout_pass
+from .tile_cuda.canonicalize_declare import canonicalize_declare_pass
+from .tile_cuda.canonlicalize_convert_layout import canonicalize_convert_layout_pass
+from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
 
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
@@ -62,11 +64,15 @@ def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
 
 def lower(ir_module: IRModule) -> IRModule:
 
-    tile_dialect_transforms = [
+    tile_generic_transforms = [
         inject_explicit_transform_ops_pass(),
         resolve_dot_pass(),
         canonicalize_expressions_pass(),
         convert_tile_expr_to_let_pass(),
+        fold_constant_pass(),
+    ]
+
+    tile_cuda_transforms = [
         instantiate_layout_pass(),
         canonicalize_declare_pass(),
         canonicalize_convert_layout_pass(),
@@ -104,5 +110,5 @@ def lower(ir_module: IRModule) -> IRModule:
         simplify_stmt_pass(),
         annotate_header_and_libs_pass(),
     ]
-    ir_module = lower_with(ir_module, tile_dialect_transforms + transforms)
+    ir_module = lower_with(ir_module, tile_generic_transforms + tile_cuda_transforms + transforms)
     return ir_module

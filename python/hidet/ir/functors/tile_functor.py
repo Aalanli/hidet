@@ -1,7 +1,7 @@
 from hidet.ir.node import Node
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
-from hidet.ir.tile.ops.creation import Arange, Full
+from hidet.ir.tile.ops.creation import Arange, Full, Construct
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
@@ -33,6 +33,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_Broadcast(node)
         elif isinstance(node, Full):
             return self.visit_Full(node)
+        elif isinstance(node, Construct):
+            return self.visit_Construct(node)
         elif isinstance(node, ConvertLayout):
             return self.visit_ConvertLayout(node)
         elif isinstance(node, ExpandDims):
@@ -65,6 +67,9 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_Arange(self, e: Arange):
+        raise NotImplementedError()
+
+    def visit_Construct(self, e: Construct):
         raise NotImplementedError()
 
     def visit_Load(self, e: Load):
@@ -115,6 +120,9 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_Arange(self, e: Arange):
         pass
 
+    def visit_Construct(self, e: Construct):
+        self.visit(e.value)
+
     def visit_Load(self, e: Load):
         self.visit(e.ptr)
         self.visit(e.mask)
@@ -131,7 +139,7 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.x)
 
     def visit_Full(self, e: Full):
-        pass
+        self.visit(e.value)
 
     def visit_ConvertLayout(self, e: ConvertLayout):
         self.visit(e.x)
@@ -185,6 +193,13 @@ class TileRewriter(TileFunctor, BaseRewriter):
     def visit_Arange(self, e: Arange):
         return e
 
+    def visit_Construct(self, e: Construct):
+        value = self.visit(e.value)
+        if value is e.value:
+            return e
+        else:
+            return e.reforward([value])
+
     def visit_Load(self, e: Load):
         ptr = self.visit(e.ptr)
         mask = self.visit(e.mask)
@@ -217,7 +232,11 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e.reforward([x])
 
     def visit_Full(self, e: Full):
-        return e
+        value = self.visit(e.value)
+        if value is e.value:
+            return e
+        else:
+            return e.reforward([value])
 
     def visit_ConvertLayout(self, e: ConvertLayout):
         x = self.visit(e.x)

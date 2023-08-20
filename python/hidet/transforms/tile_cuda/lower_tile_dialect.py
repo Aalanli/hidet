@@ -1,6 +1,7 @@
 from typing import List, Dict, Union, Optional
 
-from hidet.ir.expr import Var, Expr, tensor_var
+from hidet.ir.type import sizeof
+from hidet.ir.expr import Var, Expr, tensor_var, tensor_pointer_var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt
@@ -11,7 +12,8 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import BaseType
 from hidet.ir.type import DataType, PointerType
-from .base import TileFunctionPass
+from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
 from .lower_ops import Buffer, implement_tile_op
 
 
@@ -37,11 +39,12 @@ class LowerTileDialectRewriter(IRRewriter):
             buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
             self.append_stmt(DeclareStmt(buf_var))
         elif isinstance(layout, SharedLayout):
+            from hidet.ir.primitives.cuda.tile import alloc_shared
             local_shape = layout.local_shape(shape)
-            # buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
-            # self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
-            buf_var: Var = tensor_var(hint, shape, dtype, layout=layout.data_layout)
-            self.append_stmt(DeclareStmt(buf_var, scope=DeclareScope.Shared))
+            buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
+            self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
+            # buf_var: Var = tensor_var(hint, shape, dtype, layout=layout.data_layout)
+            # self.append_stmt(DeclareStmt(buf_var, scope=DeclareScope.Shared))
         else:
             raise NotImplementedError()
         buf = Buffer(buf_var, dtype, shape, local_shape, layout)
@@ -134,8 +137,13 @@ class LowerTileDialectRewriter(IRRewriter):
 
 class LowerTileDialectPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewriter = LowerTileDialectRewriter()
-        return rewriter.rewrite(func)
+        return self.apply_rewriter_list(
+            func, [
+                LowerTileDialectRewriter(),
+                DeclareToLetRewriter(),
+                UpliftLetBodyRewriter(),
+            ]
+        )
 
 
 def lower_tile_dialect_pass() -> TileFunctionPass:

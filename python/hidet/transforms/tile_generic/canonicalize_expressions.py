@@ -9,8 +9,9 @@ from hidet.ir.func import Function
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
 from hidet.ir.tile.ops.assign import assign
+from hidet.transforms.base import TileFunctionPass
+
 import hidet.ir.tile.ops.arthimatic as arith
-from .base import TileFunctionPass
 
 _convert_table: Dict[Type[Expr], Type[Union[UnaryTileOp, BinaryTileOp]]] = {
     # unary arithmetic

@@ -9,6 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional, Dict
 from collections import defaultdict
 
 from hidet.ir.type import TensorPointerType, TensorType, ArrayType, FuncType
@@ -23,8 +24,8 @@ from hidet.utils import same_list
 class LetVarRefAnalyzer(IRVisitor):
     def __init__(self):
         super().__init__(use_memo=False)
-        self.usage_count = None
-        self.var2value = None
+        self.usage_count: Optional[Dict[Var, int]] = None
+        self.var2value: Optional[Dict[Var, Expr]] = None
 
     def analyze(self, stmt):
         self.usage_count = defaultdict(int)

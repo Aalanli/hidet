@@ -1,6 +1,6 @@
-from typing import Optional, List, Union, Sequence
+from typing import Optional, List, Union, Sequence, Callable
 from hidet.ir.type import BaseType, DataType, data_type
-from hidet.ir.expr import convert
+from hidet.ir.expr import Var, convert, index_vars
 from hidet.ir.tile.type import tile_type, TileLayout
 from hidet.ir.tile.expr import TileOp, Expr
 
@@ -31,6 +31,31 @@ class Full(TileOp):
         return tile_type(type_=arg_types[0], shape=self.shape, layout=self.layout)
 
 
+class Construct(TileOp):
+    def __init__(self, value: Expr, shape: List[int], axes: List[Var], layout: Optional[TileLayout] = None):
+        super().__init__(args=[value], attrs={"shape": shape, "axes": axes, "layout": layout})
+        self.shape: List[int] = shape
+        self.axes: List[Var] = axes
+        self.value: Expr = value
+        self.layout: Optional[TileLayout] = layout
+
+    def __getitem__(self, actual_indices: List[Union[Expr, int]]) -> Expr:
+        from hidet.ir.expr import convert
+        from hidet.ir.tools import rewrite
+        remap = {axis: convert(actual_index) for axis, actual_index in zip(self.axes, actual_indices)}
+        return rewrite(self.value, remap)
+
+    @staticmethod
+    def from_compute(shape: List[int], f_compute: Callable[[List[Var]], Expr]):
+        axes: List[Var] = index_vars(num_vars=len(shape))
+        value: Expr = f_compute(axes)
+        return Construct(value, shape, axes)
+
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        x_type = arg_types[0]
+        return tile_type(type_=x_type, shape=self.shape, layout=self.layout)
+
+
 def arange(begin: int, end: int):
     return Arange(begin, end).make_call()
 
@@ -49,3 +74,7 @@ def zeros(shape: List[int], dtype: Union[DataType, str] = 'float32'):
 def ones(shape: List[int], dtype: Union[DataType, str] = 'float32'):
     dtype = data_type(dtype)
     return full(dtype.one, shape)
+
+
+def construct(shape: List[int], f_compute: Callable[[List[Var]], Expr]):
+    return Construct.from_compute(shape, f_compute).make_call()

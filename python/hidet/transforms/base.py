@@ -9,9 +9,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Optional
+from typing import List, Optional, Union
 from hidet.ir.func import Function
 from hidet.ir.module import IRModule
+from hidet.ir.functors import IRRewriter
 
 from .instruments import PassInstrument
 
@@ -56,6 +57,12 @@ class Pass:
             instrument.after_pass(self.name, ir_module)
         return ir_module
 
+    @staticmethod
+    def apply_rewriter_list(node: Union[IRModule, Function], rewriter_list: List[IRRewriter]):
+        for rewriter in rewriter_list:
+            node = rewriter(node)
+        return node
+
     def predicate(self, ir_module: IRModule) -> bool:
         return True
 
@@ -85,6 +92,20 @@ class SequencePass(Pass):
 
 class FunctionPass(Pass):
     def process_func(self, func: Function) -> Function:
+        raise NotImplementedError()
+
+
+class TileFunctionPass(FunctionPass):
+    def predicate(self, ir_module: IRModule) -> bool:
+        # only apply to ir module with cuda tile functions
+        return any(func.kind == 'cuda_tile' for func in ir_module.functions.values())
+
+    def process_func(self, func: Function) -> Function:
+        if func.kind != 'cuda_tile':
+            return func
+        return self.process_tile_func(func)
+
+    def process_tile_func(self, func: Function) -> Function:
         raise NotImplementedError()
 
 

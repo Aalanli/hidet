@@ -12,7 +12,7 @@
 # pylint: disable=import-outside-toplevel, useless-parent-delegation, redefined-outer-name, redefined-builtin
 # pylint: disable=useless-super-delegation, protected-access
 from __future__ import annotations
-from typing import Optional, Union, Sequence, Tuple, Dict, Type, Callable
+from typing import Optional, Union, Sequence, Tuple, Dict, Type, Callable, List
 import string
 import operator
 import numpy as np
@@ -661,6 +661,14 @@ def var(hint: str = None, dtype='int32'):
     if isinstance(dtype, str):
         dtype = data_type(dtype)
     return Var(hint, dtype)
+
+
+def index_vars(num_vars: int) -> List[Var]:
+    default_names = ['i', 'j', 'k', 'p', 'q', 'r', 's', 't', 'u', 'v']
+    if num_vars < len(default_names):
+        return [var(default_names[i]) for i in range(num_vars)]
+    else:
+        return [var('i') for _ in range(num_vars)]
 
 
 def scalar_var(hint: str, dtype: Union[str, DataType] = 'float32') -> Var:

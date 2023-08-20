@@ -5,7 +5,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.ops import (
-    Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, convert_layout
+    Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Construct, convert_layout
 )
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import (
@@ -20,8 +20,8 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
-from .base import TileFunctionPass
-from .convert_tile_expr_to_let import convert_to_let
+from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
 
 
 class InstantiateLayoutRewriter(IRRewriter):
@@ -86,6 +86,11 @@ class InstantiateLayoutRewriter(IRRewriter):
         layout = BlockLayout.from_shape(e.shape, self.num_warps)
         value = self.visit(e.value)
         return Full(value, e.shape, layout)
+
+    def visit_Construct(self, e: Construct):
+        value = self.visit(e.value)
+        layout = BlockLayout.from_shape(e.shape, self.num_warps)
+        return Construct(value, e.shape, e.axes, layout)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         x = self.visit(e.x)

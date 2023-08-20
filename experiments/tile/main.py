@@ -3,6 +3,7 @@ from hidet.transforms import lower, PassContext, instruments
 
 hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
+# hidet.option.debug_show_var_id()
 
 hidet.utils.clear_cache_dir()
 

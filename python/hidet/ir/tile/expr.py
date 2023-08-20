@@ -29,9 +29,10 @@ class TileOp(Node):
     def name(self):
         return self.op_name()
 
-    def reforward(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
-        if attrs is None:
-            attrs = self.attrs
+    def reforward(self, args: List[Expr] = None, attr_update: Dict[str, CConst] = None):
+        attrs = self.attrs.copy()
+        if attr_update is not None:
+            attrs.update(attr_update)
         return self.__class__(*args, **attrs)
 
     def make_call(self):
@@ -39,7 +40,7 @@ class TileOp(Node):
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         raise NotImplementedError(
-            "'infer_type' method has not been implemented for '{}' tile operator".format(type(self).__name__)
+            "'infer_type' method has not been implemented for the following operator: \n{}".format(type(self).__name__)
         )
 
 

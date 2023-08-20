@@ -1,27 +1,24 @@
 from typing import List, Dict, Optional, Tuple
 
-from hidet.ir.expr import Var, Call, var
+import hidet.cuda.capability
+from hidet.ir.type import TensorPointerType, PointerType
+from hidet.ir.expr import Var, Call, Expr, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
-from hidet.ir.tile.ops import (
-    Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Construct, convert_layout
-)
+from hidet.ir.module import IRModule
+from hidet.ir.tile.ops import  Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
+from hidet.ir.tile.ops import Construct, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.primitives import lookup_primitive_function
-from hidet.ir.tile.layout import (
-    TileLayout,
-    SharedLayout,
-    BlockLayout,
-    DotOperandLayout,
-    FlattenBlockLayout,
-    BlockDotOperandLayout,
-)
+from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
+from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, DotOperandLayout, FlattenBlockLayout
+from hidet.ir.tile.layout import BlockDotOperandLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer, simplify_to_int
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
-from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.base import FunctionPass
 from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
 
 
@@ -31,8 +28,10 @@ class Alloc:
         self.nbytes: int = nbytes
         self.offset: Optional[int] = None
 
+def check_alloc_shared_call(call: Call) -> bool:
+    return isinstance(call, Call) and call.func_var.name == 'cuda_alloc_shared'
 
-class ExtractSharedMemoryAllocation(IRVisitor):
+class SharedMemoryAllocator(IRVisitor):
     """
     let a = alloc_shared(5 bytes)
       let b = alloc_shared(10 bytes)
@@ -44,7 +43,6 @@ class ExtractSharedMemoryAllocation(IRVisitor):
     allocations = [a, b, c]
     edges = {a: [b, c], b: [a], c: [a]}
     """
-    alloc_shared_func_var: Var = lookup_primitive_function('cuda_alloc_shared').var
 
     def __init__(self):
         super().__init__()
@@ -53,8 +51,11 @@ class ExtractSharedMemoryAllocation(IRVisitor):
         self.alloc2offset: Dict[Alloc, int] = {}
 
         self.let_scoped_alloc: List[Alloc] = []
+        self.var2alloc: Dict[Var, Alloc] = {}
 
-    def plan(self, max_nbytes: int):
+        self.dynamic_smem_size: Optional[int] = None
+
+    def plan(self, max_nbytes: int, alignment: int = 16):
         # determine the offset of each allocation in the shared memory so that the allocations with shared lifetime
         # will be placed in different regions of the shared memory (e.g., no overlap)
         # we use a greedy algorithm to do this:
@@ -66,20 +67,43 @@ class ExtractSharedMemoryAllocation(IRVisitor):
 
         # sort the allocations by size in descending order
         allocations: List[Alloc] = list(sorted(self.allocations, key=lambda alloc: alloc.nbytes, reverse=True))
+        max_allocated: int = 0
 
         for u in allocations:
+            events: List[Tuple[int, int]] = []
             for v in self.edges[u]:
-                events: List[Tuple[int, int]] = []
+                assert isinstance(u, Alloc)
+                assert isinstance(v, Alloc)
+                if v.offset is not None:
+                    aligned_nbytes = (v.nbytes + alignment - 1) // alignment * alignment
+                    events.append((v.offset, 1))
+                    events.append((v.offset + aligned_nbytes, -1))
+            events.append((0, 0))
+            events.append((max_nbytes, 0))
+            events = sorted(events, key=lambda    event: event[0])
+            cnt = 0
+            for i in range(len(events)):
+                cnt += events[i][1]
+                if cnt == 0 and i < len(events) - 1:
+                    space = events[i + 1][0]  - events[i][0]
+                    if space >= u.nbytes:
+                        u.offset = events[i][0]
+                        max_allocated = max(max_allocated, u.offset + u.nbytes)
+                        break
+            else:
+                raise RuntimeError('Cannot find a valid shared memory allocation plan.')
 
+        self.dynamic_smem_size = max_allocated
 
     def visit_LetStmt(self, stmt: LetStmt):
         num_enqueued: int = 0
 
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
-            if isinstance(bind_value, Call) and bind_value.func_var == self.alloc_shared_func_var:
+            if isinstance(bind_value, Call) and check_alloc_shared_call(bind_value):
                 nbytes: int = simplify_to_int(bind_value.args[0])
                 u_alloc = Alloc(bind_var, nbytes)
                 self.allocations.append(u_alloc)
+                self.var2alloc[bind_var] = u_alloc
                 self.edges[u_alloc] = []
                 for v_alloc in self.let_scoped_alloc:
                     self.edges[u_alloc].append(v_alloc)
@@ -96,11 +120,51 @@ class ExtractSharedMemoryAllocation(IRVisitor):
 class PlanSharedMemoryRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
+        self.allocator = SharedMemoryAllocator()
+
+    def __call__(self, ir_module: IRModule):
+        self.allocator.visit(ir_module)
+        self.allocator.plan(max_nbytes=self.get_max_smem_size())
+        return super().__call__(ir_module)
+
+    @staticmethod
+    def get_max_smem_size():
+        from hidet.cuda.capability import capability
+        return capability().sharedMemPerBlock
+
+    def visit_Function(self, func: Function):
+        func = super().visit_Function(func)
+        if func.kind == 'cuda_kernel':
+            func.attrs['cuda.dynamic_smem_bytes'] = self.allocator.dynamic_smem_size
+        return func
 
     def visit_LetStmt(self, stmt: LetStmt):
-        pass
+        bind_values: List[Expr] = []
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            if isinstance(bind_value, Call) and check_alloc_shared_call(bind_value):
+                offset: int = self.allocator.var2alloc[bind_var].offset
+                assert offset is not None
+                assert isinstance(bind_var, Var)
+                if isinstance(bind_var.type, TensorPointerType):
+                    dtype = bind_var.type.tensor_type.dtype
+                elif isinstance(bind_var.type, PointerType):
+                    dtype = bind_var.type
+                else:
+                    raise NotImplementedError()
+                bind_values.append(dynamic_shared_memory(offset, dtype=dtype))
+            else:
+                bind_values.append(bind_value)
+        body = self.visit(stmt.body)
+        if same_list(stmt.bind_values, bind_values) and body is stmt.body:
+            return stmt
+        else:
+            return LetStmt(stmt.bind_vars, bind_values, body)
 
 
-class PlanSharedMemoryPass(TileFunctionPass):
-    def process_tile_func(self, func: Function) -> Function:
+class PlanSharedMemoryPass(FunctionPass):
+    def process_func(self, func: Function) -> Function:
         return self.apply_rewriter_list(func, [PlanSharedMemoryRewriter()])
+
+
+def plan_shared_memory_pass() -> FunctionPass:
+    return PlanSharedMemoryPass()

@@ -42,6 +42,7 @@ from .tile_generic.inject_explicit_transform_ops import inject_explicit_transfor
 from .tile_generic.canonicalize_expressions import canonicalize_expressions_pass
 from .tile_generic.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
 from .tile_generic.fold_constant import fold_constant_pass
+from .tile_generic.pattern_transform import pattern_transform_pass
 
 from .tile_cuda.resolve_dot import resolve_dot_pass
 from .tile_cuda.instantiate_layout import instantiate_layout_pass
@@ -70,6 +71,7 @@ def lower(ir_module: IRModule) -> IRModule:
         canonicalize_expressions_pass(),
         convert_tile_expr_to_let_pass(),
         fold_constant_pass(),
+        pattern_transform_pass(),
     ]
 
     tile_cuda_transforms = [

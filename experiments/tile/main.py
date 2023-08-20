@@ -193,8 +193,8 @@ def demo_matmul():
     n_size = 1024
     k_size = 1024
 
-    block_m = 32
-    block_n = 32
+    block_m = 128
+    block_n = 64
     block_k = 8
 
     with hidet.script_module() as script_module:

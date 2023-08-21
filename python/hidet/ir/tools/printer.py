@@ -328,7 +328,7 @@ class IRPrinter(IRFunctor):
             self.add_scope_var(bind_var)
             doc += NewLine() + 'let ' + self(bind_var) + ': ' + self(bind_var.type) + ' = ' + self(bind_value)
         # doc += self(stmt.body)
-        doc += self(stmt.body).indent()
+        doc += self(stmt.body).indent(4)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):

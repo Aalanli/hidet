@@ -7,21 +7,26 @@ from hidet.ir.functors import IRRewriter
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
-from hidet.ir.tile.ops import Full,Construct, Arange, BinaryTileOp, Dot
+from hidet.ir.tile.ops import Full, Construct, Arange, BinaryTileOp, Dot, ConvertLayout
 from hidet.ir.tile.ops.arthimatic import Add, Multiply, Equal, NotEqual
 from hidet.utils import same_list
+
 
 class Pattern:
     pass
 
+
 class ScalarPlaceholder(Pattern):
     pass
+
 
 class TilePattern(Pattern):
     pass
 
+
 class TilePlaceholder(TilePattern):
     pass
+
 
 class TileOpPattern(TilePattern):
     def __init__(self, op_cls: Type[TileOp], *args: Pattern):
@@ -47,8 +52,14 @@ class Transform:
         return TileOpPattern(Arange)
 
     @staticmethod
-    def construct():
-        return TileOpPattern(Construct)
+    def construct(value=None):
+        if value is None:
+            value = Transform.any_scalar_expr()
+        return TileOpPattern(Construct, value)
+
+    @staticmethod
+    def convert_layout(x: TilePattern):
+        return TileOpPattern(ConvertLayout, x)
 
     @staticmethod
     def add(lhs: TilePattern, rhs: TilePattern):
@@ -76,12 +87,18 @@ class Transform:
         else:
             return False
 
+    @staticmethod
+    def get_tile_op(e: Pattern, matched: Dict[Pattern, Expr]):
+        call_tile_op = matched[e]
+        assert isinstance(call_tile_op, CallTileOp)
+        return call_tile_op.op
 
     def source(self) -> TilePattern:
         raise NotImplementedError()
 
     def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[CallTileOp]:
         raise NotImplementedError()
+
 
 class Matcher:
     def __init__(self, var2call: Dict[Var, CallTileOp], var2dectype: Dict[Var, TileType]):
@@ -146,10 +163,12 @@ class Matcher:
                 pa, pb = pattern.args
                 ta, tb = target.op.args
                 if self.match(pa, ta) and self.match(pb, tb):
+                    self.match_dict[pattern] = target
                     return True
                 else:
                     self.match_dict = saved_match_dict.copy()
                     if self.match(pa, tb) and self.match(pb, ta):
+                        self.match_dict[pattern] = target
                         return True
                     else:
                         return False
@@ -157,6 +176,7 @@ class Matcher:
                 for pattern_arg, target_arg in zip(pattern.args, target.op.args):
                     if not self.match(pattern_arg, target_arg):
                         return False
+            self.match_dict[pattern] = target
             return True
         else:
             return False
@@ -168,6 +188,7 @@ class ApplyTransformRewriter(IRRewriter):
         self.var2call: Dict[Var, CallTileOp] = {}
         self.var2dectype: Dict[Var, TileType] = {}
         self.transforms: List[Transform] = transforms
+        self.type_infer = TypeInfer()
 
     def visit_Function(self, func: Function):
         self.var2call.clear()
@@ -178,11 +199,22 @@ class ApplyTransformRewriter(IRRewriter):
         bind_vars = []
         bind_values = []
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
-            bind_value = self.visit(bind_value)
-            bind_vars.append(bind_var)
-            bind_values.append(bind_value)
-            if isinstance(bind_value, CallTileOp):
-                self.var2call[bind_var] = bind_value
+            # bind_value = self.visit(bind_value)
+            # bind_vars.append(bind_var)
+            # bind_values.append(bind_value)
+            # if isinstance(bind_value, CallTileOp):
+            #     self.var2call[bind_var] = bind_value
+
+            updated_bind_value = self.visit(bind_value)
+            if updated_bind_value is bind_value:
+                updated_bind_var = bind_var
+            else:
+                updated_bind_var = Var(bind_var.hint, self.type_infer(updated_bind_value))
+                self.memo[bind_var] = updated_bind_var
+            bind_vars.append(updated_bind_var)
+            bind_values.append(updated_bind_value)
+            if isinstance(updated_bind_value, CallTileOp):
+                self.var2call[bind_var] = updated_bind_value
         body = self.visit(stmt.body)
         if same_list(bind_vars, stmt.bind_vars) and same_list(bind_values, stmt.bind_values) and body is stmt.body:
             return stmt

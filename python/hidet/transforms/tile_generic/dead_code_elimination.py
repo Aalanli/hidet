@@ -11,6 +11,7 @@ from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
 from hidet.utils import same_list
 from hidet.transforms.base import TileFunctionPass
+from hidet.utils import repeat_until_converge
 
 
 class DeadCodeEliminationRewriter(IRRewriter):
@@ -20,7 +21,8 @@ class DeadCodeEliminationRewriter(IRRewriter):
         for bind_var, bind_value in reversed(list(zip(stmt.bind_vars, stmt.bind_values))):
             if bind_var not in self.memo:
                 dead_vars.add(bind_var)
-            self.visit(bind_value)
+            else:
+                self.visit(bind_value)
         bind_vars = []
         bind_values = []
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):

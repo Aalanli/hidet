@@ -15,6 +15,7 @@ class DotAddTransform(Transform):
     """
     add(dot(a, b, 0), c) => dot(a, b, c)
     """
+
     def __init__(self):
         super().__init__()
         self.a = self.any_tile()
@@ -38,7 +39,6 @@ class DotAddTransform(Transform):
         if not self.is_zero(zero, var2call):
             return None
         return Dot(a, b, c).make_call()
-
 
 
 class PatternTransformPass(TileFunctionPass):

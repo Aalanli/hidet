@@ -5,7 +5,7 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
-from hidet.ir.tile.ops import Construct, convert_layout
+from hidet.ir.tile.ops import Construct, Assign, convert_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
@@ -178,6 +178,16 @@ class InstantiateLayoutRewriter(IRRewriter):
             mask = convert_layout(mask, layout)
 
         return Store(ptr, value, mask)
+
+    def visit_Assign(self, e: Assign):
+        dst = self.visit(e.dst)
+        src = self.visit(e.src)
+        dst_type = self.type_infer.visit(dst)
+        src_type = self.type_infer.visit(src)
+        assert isinstance(dst_type, TileType) and isinstance(src_type, TileType)
+        if dst_type.layout != src_type.layout:
+            src = convert_layout(src, dst_type.layout)
+        return Assign(dst, src)
 
 
 class InstantiateLayoutPass(TileFunctionPass):

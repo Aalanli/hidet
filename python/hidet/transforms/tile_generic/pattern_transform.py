@@ -1,13 +1,14 @@
 from typing import List, Dict, Optional
 import functools
 
-from hidet.ir.expr import Expr, Constant
+from hidet.ir.expr import Expr, Var, Constant
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.ops import Full, Construct, Dot, dot
 from hidet.ir.func import Function
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import repeat_until_converge
 from .utils.pattern import Transform, Pattern, TilePattern, apply_transforms
+from .dead_code_elimination import DeadCodeEliminationRewriter
 
 
 class DotAddTransform(Transform):
@@ -29,14 +30,14 @@ class DotAddTransform(Transform):
     def source(self) -> Pattern:
         return self.pattern
 
-    def target(self, matched: Dict[Pattern, Expr]) -> Optional[CallTileOp]:
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[CallTileOp]:
         a = matched[self.a]
         b = matched[self.b]
         c = matched[self.c]
         zero = matched[self.zero]
-        if not self.is_zero(zero):
+        if not self.is_zero(zero, var2call):
             return None
-        return Dot(a, b, c)
+        return Dot(a, b, c).make_call()
 
 
 
@@ -46,15 +47,18 @@ class PatternTransformPass(TileFunctionPass):
         self.transforms: List[Transform] = transforms
 
     def process_tile_func(self, func: Function) -> Function:
-        return repeat_until_converge(
+        rewriter = DeadCodeEliminationRewriter()
+        func = repeat_until_converge(
             func=functools.partial(apply_transforms, transforms=self.transforms),
             obj=func,
             limit=None
         )
+        func = rewriter(func)
+        return func
 
 
 def pattern_transform_pass() -> TileFunctionPass:
     transforms = [
-        DotAddTransform()
+        DotAddTransform(),
     ]
     return PatternTransformPass(transforms)

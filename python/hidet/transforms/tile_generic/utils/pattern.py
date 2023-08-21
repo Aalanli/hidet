@@ -8,7 +8,7 @@ from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.ops import Full,Construct, Arange, BinaryTileOp, Dot
-from hidet.ir.tile.ops.arthimatic import Add
+from hidet.ir.tile.ops.arthimatic import Add, Multiply, Equal, NotEqual
 from hidet.utils import same_list
 
 class Pattern:
@@ -26,7 +26,7 @@ class TilePlaceholder(TilePattern):
 class TileOpPattern(TilePattern):
     def __init__(self, op_cls: Type[TileOp], *args: Pattern):
         self.op_cls: Type[TileOp] = op_cls
-        self.args: Tuple[Pattern] = args
+        self.args: List[Pattern] = list(args)
 
 
 class Transform:
@@ -59,7 +59,9 @@ class Transform:
         return TileOpPattern(Dot, a, b, c)
 
     @staticmethod
-    def is_zero(e: Expr) -> bool:
+    def is_zero(e: Expr, var2call: Dict[Var, CallTileOp]) -> bool:
+        if isinstance(e, Var) and e in var2call:
+            e = var2call[e]
         if isinstance(e, CallTileOp):
             if isinstance(e.op, Full):
                 v = e.op.value
@@ -78,7 +80,7 @@ class Transform:
     def source(self) -> TilePattern:
         raise NotImplementedError()
 
-    def target(self, matched: Dict[Pattern, Expr]) -> Optional[CallTileOp]:
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[CallTileOp]:
         raise NotImplementedError()
 
 class Matcher:
@@ -134,9 +136,27 @@ class Matcher:
                 return False
             if len(target.op.args) != len(pattern.args):
                 return False
-            for pattern_arg, target_arg in zip(pattern.args, target.op.args):
-                if not self.match(pattern_arg, target_arg):
-                    return False
+
+            is_commutative_binary_op = (
+                issubclass(op_cls, BinaryTileOp)
+                and op_cls in [Add, Multiply, Equal, NotEqual]
+            )
+            if is_commutative_binary_op:
+                saved_match_dict = self.match_dict.copy()
+                pa, pb = pattern.args
+                ta, tb = target.op.args
+                if self.match(pa, ta) and self.match(pb, tb):
+                    return True
+                else:
+                    self.match_dict = saved_match_dict.copy()
+                    if self.match(pa, tb) and self.match(pb, ta):
+                        return True
+                    else:
+                        return False
+            else:
+                for pattern_arg, target_arg in zip(pattern.args, target.op.args):
+                    if not self.match(pattern_arg, target_arg):
+                        return False
             return True
         else:
             return False
@@ -180,10 +200,8 @@ class ApplyTransformRewriter(IRRewriter):
 
         for transform in self.transforms:
             matcher = Matcher(self.var2call, self.var2dectype)
-            if isinstance(call.op, Add):
-                print('hi')
             if matcher.match(transform.source(), call):
-                updated_call = transform.target(matcher.match_dict)
+                updated_call = transform.target(matcher.match_dict, self.var2call)
                 if updated_call is not None:
                     return updated_call
         return call

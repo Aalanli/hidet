@@ -46,6 +46,8 @@ from .tile_generic.pattern_transform import pattern_transform_pass
 
 from .tile_cuda.resolve_dot import resolve_dot_pass
 from .tile_cuda.instantiate_layout import instantiate_layout_pass
+from .tile_cuda.coalesce_memory_access import coalesce_memory_access_pass
+from .tile_cuda.remove_layout_convert import remove_layout_convert_pass
 from .tile_cuda.canonicalize_declare import canonicalize_declare_pass
 from .tile_cuda.canonlicalize_convert_layout import canonicalize_convert_layout_pass
 from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
@@ -77,6 +79,7 @@ def lower(ir_module: IRModule) -> IRModule:
     tile_cuda_transforms = [
         resolve_dot_pass(),
         instantiate_layout_pass(),
+        coalesce_memory_access_pass(),
         canonicalize_declare_pass(),
         canonicalize_convert_layout_pass(),
         lower_tile_dialect_pass(),

@@ -10,6 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Optional, List, Union, Dict, Tuple
+import contextlib
 
 import hidet.utils.structure
 from hidet.ir.node import Node
@@ -47,8 +48,20 @@ class IRPrinter(IRFunctor):
         self.ir_module: Optional[IRModule] = None
         self.show_var_id = hidet.option.get_option('debug_show_var_id')
 
+        self.scoped_vars: List[List[Var]] = []
+
     def __call__(self, node):
         return self.visit(node)
+
+    def add_scope_var(self, v):
+        self.scoped_vars[-1].append(v)
+
+    @contextlib.contextmanager
+    def scope(self):
+        self.scoped_vars.append([])
+        yield
+        for v in self.scoped_vars.pop():
+            self.namer.remove_name_for(v)
 
     def get_attr_abbr(self, hint: str, attr_string: str):
         if attr_string in self.attributes:
@@ -63,10 +76,6 @@ class IRPrinter(IRFunctor):
                     break
             self.attributes[attr_string] = abbr
             return abbr
-
-    def var_exit_scope(self, v: Var):
-        assert v in self.namer.obj_name
-        self.namer.remove_name_for(v)
 
     def astext(self, node):
         body: Doc = self.visit(node)
@@ -116,7 +125,8 @@ class IRPrinter(IRFunctor):
             attr_doc += (NewLine() + '# {}: {}'.format(attr_name, attr_value)).indent(4)
 
         # body
-        body_doc = self(func.body).indent(4)
+        with self.scope():
+            body_doc = self(func.body).indent(4)
 
         return head_doc + attr_doc + body_doc + NewLine()
 
@@ -315,11 +325,10 @@ class IRPrinter(IRFunctor):
     def visit_LetStmt(self, stmt: LetStmt):
         doc = Doc()
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            self.add_scope_var(bind_var)
             doc += NewLine() + 'let ' + self(bind_var) + ': ' + self(bind_var.type) + ' = ' + self(bind_value)
         # doc += self(stmt.body)
         doc += self(stmt.body).indent()
-        for bind_var in stmt.bind_vars:
-            self.var_exit_scope(bind_var)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
@@ -327,20 +336,23 @@ class IRPrinter(IRFunctor):
         doc = NewLine() + Text('for ') + self(stmt.loop_var) + ' in ' + rng
         if stmt.attr.unroll or stmt.attr.parallel:
             doc += '  # ' + str(stmt.attr)
-        doc += self(stmt.body).indent(4)
-        self.var_exit_scope(stmt.loop_var)
+        self.add_scope_var(stmt.loop_var)
+        with self.scope():
+            doc += self(stmt.body).indent(4)
         return doc
 
     def visit_ForTaskStmt(self, stmt: ForMappingStmt):
         doc = NewLine() + Text('for ') + self(stmt.loop_vars) + ' in ' + self(stmt.mapping) + ' on ' + self(stmt.worker)
-        doc += self(stmt.body).indent(4)
         for loop_var in stmt.loop_vars:
-            self.var_exit_scope(loop_var)
+            self.add_scope_var(loop_var)
+        with self.scope():
+            doc += self(stmt.body).indent(4)
         return doc
 
     def visit_WhileStmt(self, stmt: WhileStmt):
         doc = NewLine() + 'while ' + self(stmt.cond)
-        doc += self(stmt.body).indent(4)
+        with self.scope():
+            doc += self(stmt.body).indent(4)
         return doc
 
     def visit_BreakStmt(self, stmt: BreakStmt):
@@ -351,10 +363,12 @@ class IRPrinter(IRFunctor):
 
     def visit_IfStmt(self, stmt: IfStmt):
         doc = NewLine() + Text('if ') + self(stmt.cond)
-        doc += self(stmt.then_body).indent(4)
-        if stmt.else_body:
-            doc += NewLine() + Text('else')
-            doc += self(stmt.else_body).indent(4)
+        with self.scope():
+            doc += self(stmt.then_body).indent(4)
+        with self.scope():
+            if stmt.else_body:
+                doc += NewLine() + Text('else')
+                doc += self(stmt.else_body).indent(4)
         return doc
 
     def visit_ReturnStmt(self, stmt: ReturnStmt):

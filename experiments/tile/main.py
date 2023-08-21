@@ -239,6 +239,8 @@ def demo_matmul():
     ta, tb, tc = a.torch(), b.torch(), c.torch()
     print(' torch: {:.2f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc))))
 
+    hidet.utils.assert_close(c, tc)
+
 
 def main():
     # demo_arange()

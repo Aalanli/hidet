@@ -11,10 +11,10 @@
 # limitations under the License.
 from typing import Union
 
-from hidet.ir.expr import Expr, Call
+from hidet.ir.expr import Expr, Call, cast
 from hidet.ir.expr import Var
 from hidet.ir.stmt import BlackBoxStmt, Stmt
-from hidet.ir.type import DataType, PointerType, data_type
+from hidet.ir.type import DataType, PointerType, data_type, void_p
 from hidet.ir.func import Function
 from hidet.ir.primitives.func import register_primitive_function, call_primitive_func
 from hidet.utils import initialize
@@ -24,25 +24,34 @@ from hidet.utils import initialize
 def register_functions():
     from hidet.lang import script, attrs, cast
 
-    for dtype in ['int8', 'uint8', 'uint32', 'int32', 'float16', 'float32']:
+    for dtype in ['int8', 'uint8', 'uint32', 'int32', 'float16', 'float32', 'void_p']:
         func_name = f'cuda_dynamic_shared_memory_{dtype}'
-        dtype = data_type(dtype)
+        if dtype == 'void_p':
+            ret_type = void_p
+        else:
+            ret_type = ~data_type(dtype)
 
         @script
-        def cuda_dynamic_shared_memory(byte_offset: int) -> ~dtype:
+        def cuda_dynamic_shared_memory(byte_offset: int) -> ret_type:
             attrs.func_kind = 'cuda_internal'
             attrs.func_name = func_name
             dynamic_smem = PointerType(base_type='uint8', specifiers=['extern', '__shared__'], use_bracket=True)
-            return cast(~dynamic_smem[byte_offset], ~dtype)
+            return cast(~dynamic_smem[byte_offset], ret_type)
 
         assert isinstance(cuda_dynamic_shared_memory, Function)
         register_primitive_function(cuda_dynamic_shared_memory.name, cuda_dynamic_shared_memory)
 
 
-def dynamic_shared_memory(byte_offset: Union[Expr, int], dtype: Union[DataType, str]) -> Call:
-    dtype: DataType = data_type(dtype)
-    func_name = f'cuda_dynamic_shared_memory_{dtype.name}'
-    return call_primitive_func(func_name, [byte_offset])
+def dynamic_shared_memory(byte_offset: Union[Expr, int], dtype: Union[DataType, PointerType, str]) -> Call:
+    if isinstance(dtype, PointerType):
+        suffix = 'void_p'
+    else:
+        suffix: str = data_type(dtype).name
+    func_name = f'cuda_dynamic_shared_memory_{suffix}'
+    if isinstance(dtype, PointerType):
+        return cast(call_primitive_func(func_name, [byte_offset]), ~dtype)
+    else:
+        return call_primitive_func(func_name, [byte_offset])
 
 
 def set_kernel_max_dynamic_smem_bytes(func: Var, max_dynamic_smem_bytes: Union[Expr, int]) -> Stmt:

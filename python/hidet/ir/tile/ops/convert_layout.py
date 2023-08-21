@@ -12,6 +12,10 @@ class ConvertLayout(TileOp):
         self.x: Expr = x
         self.layout: TileLayout = layout
 
+    @property
+    def var_name_hint(self):
+        return 'cvt'
+
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         a_type = arg_types[0]
         assert isinstance(a_type, TileType)

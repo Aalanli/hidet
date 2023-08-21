@@ -2,7 +2,7 @@ from typing import Dict, Optional, List, Type, Callable
 import operator
 
 import hidet.ir.tools
-from hidet.ir.type import DataType, PointerType
+from hidet.ir.type import DataType, PointerType, sizeof
 from hidet.ir.expr import Var, Constant, Div, Mod, Add, Sub, Multiply, Expr
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor, IRFunctor
@@ -11,6 +11,7 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
 from hidet.ir.tile.ops import Construct, Assign, convert_layout
+from hidet.ir.tile.layout import BlockLayout, TileLayout, DistributedLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
@@ -18,14 +19,20 @@ from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_le
 from hidet.utils import same_list, gcd
 from .utils.affine import affine_decompose
 
+
 class Value:
     def merge(self, other):
         raise NotImplementedError()
+
+    def as_tile_value(self):
+        assert isinstance(self, TileValue)
+        return self
 
 class Constancy:
     """
     The constancy of a variable indicates whether the variable is a constant.
     """
+
     def __init__(self, v: Optional[int] = None):
         self.v: Optional[int] = v
 
@@ -50,10 +57,12 @@ class Constancy:
         else:
             return Constancy()
 
+
 class Divisibility:
     """
     The divisibility of a variable indicates the greatest common divisor of its all possible values.
     """
+
     def __init__(self, v: int = 1):
         self.v: int = v
 
@@ -74,6 +83,7 @@ class ScalarValue(Value):
     """
     The constancy and divisibility of a scalar variable.
     """
+
     def __init__(self, constant: Constancy = Constancy(), divisibility: Divisibility = Divisibility()):
         self.constant: Constancy = constant
         self.divisibility: Divisibility = divisibility
@@ -117,6 +127,7 @@ class TileValue(Value):
     we have TileValue [4, 1, 1] because the value at position (i, j) is i * 4 + j * 1 + 1.
 
     """
+
     def __init__(self, weights: List[ScalarValue]):
         self.weights: List[ScalarValue] = weights
 
@@ -136,7 +147,6 @@ class TileValue(Value):
         return TileValue([a.merge(b) for a, b in zip(self.weights, other.weights)])
 
 
-
 class CoalesceAnalyzer(IRVisitor):
     """
     Given a variable, it may have multiple potential values
@@ -153,6 +163,7 @@ class CoalesceAnalyzer(IRVisitor):
 
     This class implements an iterative algorithm to solve the above equations.
     """
+
     def __init__(self):
         super().__init__()
         self.var2value: Dict[Var, Value] = {}
@@ -283,16 +294,72 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         self.analyzer = CoalesceAnalyzer()
 
     def __call__(self, func: Function) -> Function:
-        analyzer = CoalesceAnalyzer()
-        analyzer.analyze(func)
+        self.analyzer.analyze(func)
         return self.visit(func)
 
+    def try_to_get_vectorized_layout(self, ptr: Expr) -> Optional[TileLayout]:
+        ptr = self.visit(ptr)
+        assert isinstance(ptr, Var)
+
+        if ptr not in self.analyzer.var2value:
+            # does not know the constancy and divisibility information for ptr
+            return None
+
+        if not ptr.type.is_tile_type():
+            # accessing a scalar value
+            return None
+
+        tv: TileValue = self.analyzer.var2value[ptr].as_tile_value()
+        if len(tv.weights) == 1:
+            # scalar tile (e.g., len(shape) == 0)
+            return None
+
+        base_divisibility: int = tv.weights[-1].divisibility.v
+        offset_constant: Optional[int] = tv.weights[-2].constant.v
+        elem_type: PointerType = ptr.type.as_tile_type().type.base_type
+        dtype_bytes: int = sizeof(elem_type)
+        if offset_constant != 1:
+            # it is not contiguous in the last dimension
+            return None
+
+        # calculate the largest number of valid vectorized elements
+        # in cuda, we can load at most 16 bytes per thread
+        vector_elements: int = min(base_divisibility * dtype_bytes, 16) // dtype_bytes
+        if vector_elements == 1:
+            return None
+
+        ttype: TileType = ptr.type.as_tile_type()
+        orig_layout = ttype.layout
+        assert isinstance(orig_layout, DistributedLayout)
+        return BlockLayout.from_shape(
+            shape=ttype.shape,
+            num_warps=orig_layout.num_warps,
+            size_per_thread=[
+                vector_elements if i == len(ttype.shape) - 1 else 1 for i in range(len(ttype.shape))
+            ]
+        )
+
     def visit_Load(self, e: Load):
-        pass
+        ptr = self.visit(e.ptr)
+        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr)
+        if new_layout is None:
+            return super().visit_Load(e)
+        else:
+            ptr = convert_layout(ptr, new_layout)
+            mask: Optional[Expr] = convert_layout(self.visit(e.mask), new_layout) if e.mask is not None else None
+            other: Optional[Expr] = convert_layout(self.visit(e.other), new_layout) if e.other is not None else None
+            return Load(ptr=ptr, mask=mask, other=other)
 
     def visit_Store(self, e: Store):
-        pass
-
+        ptr = self.visit(e.ptr)
+        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr)
+        if new_layout is None:
+            return super().visit_Store(e)
+        else:
+            ptr = convert_layout(ptr, new_layout)
+            value: Expr = convert_layout(self.visit(e.value), new_layout) if e.value is not None else None
+            mask: Optional[Expr] = convert_layout(self.visit(e.mask), new_layout) if e.mask is not None else None
+            return Store(ptr=ptr, value=value, mask=mask)
 
 
 class CoalesceMemoryAccessPass(TileFunctionPass):
@@ -304,4 +371,3 @@ class CoalesceMemoryAccessPass(TileFunctionPass):
 
 def coalesce_memory_access_pass() -> TileFunctionPass:
     return CoalesceMemoryAccessPass()
-

@@ -27,9 +27,10 @@ class SharedLayout(TileLayout):
 
 
 class DistributedLayout(TileLayout):
-    def __init__(self, layout_shape: List[int]):
+    def __init__(self, layout_shape: List[int], num_warps: int):
         super().__init__()
         self.layout_shape: List[int] = layout_shape
+        self.num_warps: int = num_warps
 
     def calc_local_shape(self, shape: List[int]) -> List[int]:
         raise NotImplementedError()
@@ -83,7 +84,10 @@ class DistributedLayout(TileLayout):
 
 class BlockLayout(DistributedLayout):
     def __init__(self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
-        super().__init__(layout_shape=[a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)])
+        super().__init__(
+            layout_shape=[a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)],
+            num_warps=prod(warps_per_block)
+        )
         self.size_per_thread: List[int] = size_per_thread
         self.thread_per_warp: List[int] = thread_per_warp
         self.warps_per_block: List[int] = warps_per_block
@@ -239,7 +243,10 @@ class BlockLayout(DistributedLayout):
 
 class FlattenBlockLayout(DistributedLayout):
     def __init__(self, parent: BlockLayout, axis: int):
-        super().__init__(parent.layout_shape[:axis] + parent.layout_shape[axis + 1 :])
+        super().__init__(
+            layout_shape=parent.layout_shape[:axis] + parent.layout_shape[axis + 1 :],
+            num_warps=parent.num_warps,
+        )
         self.parent: BlockLayout = parent
         self.axis: int = axis
 
@@ -277,7 +284,10 @@ class DotOperandLayout(DistributedLayout):
 
 class BlockDotOperandLayout(DotOperandLayout):
     def __init__(self, parent: BlockLayout, op_idx: int):
-        super().__init__([])
+        super().__init__(
+            layout_shape=[],    # initialize later
+            num_warps=parent.num_warps,
+        )
         self.parent: BlockLayout = parent
         self.op_idx: int = op_idx
         self.axis: int = op_idx

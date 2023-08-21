@@ -75,7 +75,7 @@ class BaseType(Node):
             return None
         return self
 
-    def as_tensor_type(self) -> TensorType:
+    def as_tensor_type(self) -> Optional[TensorType]:
         if not isinstance(self, TensorType):
             return None
         return self

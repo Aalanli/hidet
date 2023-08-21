@@ -29,6 +29,10 @@ class TileOp(Node):
     def name(self):
         return self.op_name()
 
+    @property
+    def var_name_hint(self):
+        return self.name
+
     def reforward(self, args: List[Expr] = None, attr_update: Dict[str, CConst] = None):
         attrs = self.attrs.copy()
         if attr_update is not None:

@@ -49,6 +49,10 @@ class FreeVarCollector(IRVisitor):
         self.visit(node.value)
         self.defined.remove(node.axis)
 
+    def visit_DeclareStmt(self, stmt: DeclareStmt):
+        self.defined.add(stmt.var)
+        self.visit(stmt.init)
+
     def visit_LetStmt(self, stmt: LetStmt):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             self.visit(bind_value)

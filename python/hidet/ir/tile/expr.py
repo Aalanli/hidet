@@ -1,8 +1,7 @@
 from typing import List, Dict, Union
-from functools import lru_cache
 from hidet.ir.node import Node
 from hidet.ir.type import BaseType
-from hidet.ir.expr import Expr
+from hidet.ir.expr import Expr, Var
 
 
 class Attribute:

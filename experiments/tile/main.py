@@ -199,7 +199,7 @@ def demo_matmul():
 
     with hidet.script_module() as script_module:
         @hidet.script
-        def use_arange(a_ptr: ~f32, b_ptr: ~f32, c_ptr: ~f32):
+        def matmul(a_ptr: ~f32, b_ptr: ~f32, c_ptr: ~f32):
             attrs.func_kind = 'cuda_tile'
             attrs.cuda.block_dim = 128
             attrs.cuda.grid_dim = (m_size // block_m) * (n_size // block_n)

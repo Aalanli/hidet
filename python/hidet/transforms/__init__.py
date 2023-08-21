@@ -38,6 +38,7 @@ from .check_launch_configuration import check_launch_configuration_pass
 from .lower_special_cast import lower_special_cast_pass
 from .annotate_header_and_libs import annotate_header_and_libs_pass
 
+from .tile_generic.canonicalize_to_ssa import canonicalize_to_ssa_pass
 from .tile_generic.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
 from .tile_generic.canonicalize_expressions import canonicalize_expressions_pass
 from .tile_generic.convert_tile_expr_to_let import convert_tile_expr_to_let_pass
@@ -69,6 +70,7 @@ def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
 def lower(ir_module: IRModule) -> IRModule:
 
     tile_generic_transforms = [
+        canonicalize_to_ssa_pass(),
         inject_explicit_transform_ops_pass(),
         canonicalize_expressions_pass(),
         convert_tile_expr_to_let_pass(),

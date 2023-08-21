@@ -25,6 +25,7 @@ from hidet.ir.expr import BitwiseAnd, Neg, Cast, NotEqual, BitwiseXor, Reference
 from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt, EvaluateStmt, AssertStmt
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
+from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.type import TileType, TileLayout
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
@@ -60,8 +61,9 @@ class IRPrinter(IRFunctor):
     def scope(self):
         self.scoped_vars.append([])
         yield
-        for v in self.scoped_vars.pop():
-            self.namer.remove_name_for(v)
+        scoped_vars = self.scoped_vars.pop()
+        # for v in scoped_vars:
+        #     self.namer.remove_name_for(v)
 
     def get_attr_abbr(self, hint: str, attr_string: str):
         if attr_string in self.attributes:
@@ -332,7 +334,7 @@ class IRPrinter(IRFunctor):
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
-        rng = Text('range(') + self(stmt.extent) + ')'
+        rng = Text('range(') + self(stmt.extent) + '):'
         doc = NewLine() + Text('for ') + self(stmt.loop_var) + ' in ' + rng
         if stmt.attr.unroll or stmt.attr.parallel:
             doc += '  # ' + str(stmt.attr)
@@ -619,7 +621,7 @@ class IRPrinter(IRFunctor):
         return Text('concat(') + self(layout.lhs) + ', ' + self(layout.rhs) + ')'
 
     def visit_TileLayout(self, layout: TileLayout):
-        from hidet.ir.tile.layout import SharedLayout, BlockLayout, FlattenBlockLayout, DotOperandLayout
+        from hidet.ir.tile.layout import SharedLayout, BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 
         if isinstance(layout, BlockLayout):
             sub_items = {
@@ -636,7 +638,7 @@ class IRPrinter(IRFunctor):
         elif isinstance(layout, SharedLayout):
             doc = 'shared(' + self.visit(layout.data_layout) + ')'
             return doc
-        elif isinstance(layout, DotOperandLayout):
+        elif isinstance(layout, BlockDotOperandLayout):
             doc = 'dot_operand(parent=' + self.visit_TileLayout(layout.parent) + ', id=' + self(layout.op_idx) + ')'
             return doc
         else:
@@ -666,6 +668,49 @@ class IRPrinter(IRFunctor):
         if t.layout is not None:
             shape_items.append(self.visit_TileLayout(t.layout))
         return self(t.type) + '[' + doc_join(shape_items, ', ') + ']'
+
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        # for loop_var in range(extent) with arg = value, arg2 = value2, ...:
+        #   ...body...
+        #   yield ..., ..., ...
+        # get let_vars:
+        #   ...let_body...
+        loop_var = self(stmt.loop_var)
+        extent = self(stmt.extent)
+        args = [self(v) for v in stmt.args]
+        values = [self(v) for v in stmt.values]
+
+        self.add_scope_var(stmt.loop_var)
+        for arg in stmt.args:
+            self.add_scope_var(arg)
+
+        with self.scope():
+            body = self.visit(stmt.body)
+
+        let_vars = self.visit(stmt.let_vars)
+        with self.scope():
+            let_body = self.visit(stmt.let_body)
+
+        doc = Doc()
+
+        doc += NewLine() + 'for ' + loop_var + ' in range(' + extent + ')'
+
+        if len(args) > 0:
+            items = [arg + ' = ' + value for arg, value in zip(args, values)]
+            doc += ' with ' + doc_join(items, ', ')
+
+        doc += ':'
+        doc += body.indent(4)
+
+        empty_let_body = isinstance(stmt.let_body, SeqStmt) and len(stmt.let_body.seq) == 0
+        if len(args) > 0 and not empty_let_body:
+            doc += NewLine() + 'get ' + let_vars + ':'
+            doc += let_body.indent(4)
+
+        return doc
+
+    def visit_PureYieldStmt(self, e: PureYieldStmt):
+        return NewLine() + 'yield ' + doc_join([self(v) for v in e.yields], ', ')
 
 
 def astext(obj: Node) -> str:

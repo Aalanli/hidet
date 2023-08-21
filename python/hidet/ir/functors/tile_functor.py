@@ -1,6 +1,7 @@
 from hidet.ir.node import Node
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
+from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
 from hidet.ir.tile.ops.creation import Arange, Full, Construct
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
@@ -11,6 +12,7 @@ from hidet.ir.tile.ops.debug import DebugPrint
 from hidet.ir.tile.ops.dot import Dot
 from hidet.ir.tile.ops.assign import Assign
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
+from hidet.utils import same_list
 
 
 class TileFunctor(BaseFunctor):
@@ -19,6 +21,10 @@ class TileFunctor(BaseFunctor):
             return self.visit_TileType(node)
         elif isinstance(node, CallTileOp):
             return self.visit_CallTileOp(node)
+        elif isinstance(node, PureForStmt):
+            return self.visit_PureForStmt(node)
+        elif isinstance(node, PureYieldStmt):
+            return self.visit_PureYieldStmt(node)
         elif isinstance(node, UnaryTileOp):
             return self.visit_UnaryTileOp(node)
         elif isinstance(node, BinaryTileOp):
@@ -102,6 +108,12 @@ class TileFunctor(BaseFunctor):
     def visit_DebugPrint(self, e: DebugPrint):
         raise NotImplementedError()
 
+    def visit_PureForStmt(self, e: PureForStmt):
+        raise NotImplementedError()
+
+    def visit_PureYieldStmt(self, e: PureYieldStmt):
+        raise NotImplementedError()
+
 
 class TileVisitor(TileFunctor, BaseVisitor):
     def visit_TileType(self, t: TileType):
@@ -158,6 +170,18 @@ class TileVisitor(TileFunctor, BaseVisitor):
 
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
+
+    def visit_PureForStmt(self, e: PureForStmt):
+        self.visit(e.args)
+        self.visit(e.values)
+        self.visit(e.loop_var)
+        self.visit(e.extent)
+        self.visit(e.body)
+        self.visit(e.let_vars)
+        self.visit(e.let_body)
+
+    def visit_PureYieldStmt(self, e: PureYieldStmt):
+        self.visit(e.yields)
 
 
 class TileRewriter(TileFunctor, BaseRewriter):
@@ -275,3 +299,38 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e
         else:
             return e.reforward([x])
+
+    def visit_PureForStmt(self, e: PureForStmt):
+        args = self.visit(e.args)
+        values = self.visit(e.values)
+        loop_var = self.visit(e.loop_var)
+        extent = self.visit(e.extent)
+        body = self.visit(e.body)
+        let_vars = self.visit(e.let_vars)
+        let_body = self.visit(e.let_body)
+        if (
+            same_list(args, e.args)
+            and loop_var is e.loop_var
+            and extent is e.extent
+            and body is e.body
+            and same_list(let_vars, e.let_vars)
+            and let_body is e.let_body
+        ):
+            return e
+        else:
+            return PureForStmt(
+                args=args,
+                values=values,
+                loop_var=loop_var,
+                extent=extent,
+                body=body,
+                let_vars=let_vars,
+                let_body=let_body,
+            )
+
+    def visit_PureYieldStmt(self, e: PureYieldStmt):
+        yields = self.visit(e.yields)
+        if yields is e.yields:
+            return e
+        else:
+            return PureYieldStmt(yields=yields)

@@ -209,6 +209,10 @@ def demo_ldst():
     b = hidet.empty([block_m, block_k], device='cuda')
     func = script_module.build()
     func(a, b)
+
+    report = ncu_run(func, a, b)
+    report.visualize()
+
     print(a)
     print(b)
     hidet.utils.assert_close(a, b)
@@ -271,8 +275,8 @@ def demo_matmul():
 
     hidet.utils.assert_close(c, tc)
 
-    report = ncu_run(func, a, b, c)
-    report.visualize()
+    # report = ncu_run(func, a, b, c)
+    # report.visualize()
 
 
 def main():
@@ -283,13 +287,13 @@ def main():
     # demo_vector_add()
     #
     # demo_expand_dims()
-
+    #
     # demo_for_and_increment()
-
+    #
     # demo_reduce()
-
+    #
     # demo_dot_simt()
-
+    #
     # demo_ldst()
 
     demo_matmul()

@@ -11,14 +11,16 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
-from hidet.transforms.tile_generic.pattern_transform import apply_transforms, Transform, TilePattern, Pattern
+from hidet.transforms.tile_generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
 from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
 from hidet.utils import same_list
 
-class IdentityConvertLayoutTransform(Transform):
+
+class IdentityConvertLayoutTransform(PatternTransform):
     """
     convert_layout(tile with layout1, layout1) -> tile with layout1
     """
+
     def __init__(self):
         self.x = self.any_tile()
         self.cvt = self.convert_layout(self.x)
@@ -35,10 +37,11 @@ class IdentityConvertLayoutTransform(Transform):
             return None
 
 
-class ConvertConstructLayoutTransform(Transform):
+class ConvertConstructLayoutTransform(PatternTransform):
     """
     convert_layout(construct(..., layout1), layout2) -> construct(..., layout2)
     """
+
     def __init__(self):
         self.cst = self.construct()
         self.cvt = self.convert_layout(self.cst)
@@ -66,10 +69,12 @@ class RemoveLayoutConvertWithTransformsRewriter(IRRewriter):
 
 class RemoveLayoutConvertPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        return self.apply_rewriter_list(func, [
-            RemoveLayoutConvertWithTransformsRewriter(),
-            DeadCodeEliminationRewriter()
-        ])
+        return self.apply_rewriter_list(
+            func, [
+                RemoveLayoutConvertWithTransformsRewriter(),
+                DeadCodeEliminationRewriter()
+            ]
+        )
 
 
 def remove_layout_convert_pass() -> TileFunctionPass:

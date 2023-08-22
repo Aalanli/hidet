@@ -7,11 +7,11 @@ from hidet.ir.tile.ops import Full, Construct, Dot, dot
 from hidet.ir.func import Function
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import repeat_until_converge
-from .utils.pattern import Transform, Pattern, TilePattern, apply_transforms
+from .utils.pattern import PatternTransform, Pattern, TilePattern, apply_transforms
 from .dead_code_elimination import DeadCodeEliminationRewriter
 
 
-class DotAddTransform(Transform):
+class DotAddTransform(PatternTransform):
     """
     add(dot(a, b, 0), c) => dot(a, b, c)
     """
@@ -42,9 +42,9 @@ class DotAddTransform(Transform):
 
 
 class PatternTransformPass(TileFunctionPass):
-    def __init__(self, transforms: List[Transform]):
+    def __init__(self, transforms: List[PatternTransform]):
         super().__init__()
-        self.transforms: List[Transform] = transforms
+        self.transforms: List[PatternTransform] = transforms
 
     def process_tile_func(self, func: Function) -> Function:
         rewriter = DeadCodeEliminationRewriter()

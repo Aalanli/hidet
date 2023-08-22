@@ -49,8 +49,6 @@ from .tile_cuda.resolve_dot import resolve_dot_pass
 from .tile_cuda.instantiate_layout import instantiate_layout_pass
 from .tile_cuda.coalesce_memory_access import coalesce_memory_access_pass
 from .tile_cuda.remove_layout_convert import remove_layout_convert_pass
-from .tile_cuda.canonicalize_declare import canonicalize_declare_pass
-from .tile_cuda.canonlicalize_convert_layout import canonicalize_convert_layout_pass
 from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
 from .tile_cuda.plan_shared_memory import plan_shared_memory_pass
 
@@ -83,8 +81,6 @@ def lower(ir_module: IRModule) -> IRModule:
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
         remove_layout_convert_pass(),
-        # canonicalize_declare_pass(),
-        # canonicalize_convert_layout_pass(),
         lower_tile_dialect_pass(),
         plan_shared_memory_pass(),
     ]

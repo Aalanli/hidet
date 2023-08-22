@@ -25,6 +25,9 @@ def get_type_erased_dtype(ptr_type: PointerType) -> DataType:
 @register_impl(Load)
 class LoadImpl(TileOpImpl):
     def implement(self, op: Load, args: List[Union[Buffer, Expr]], output: Buffer):
+        from hidet.ir.primitives.cuda.ldst import load
+        from hidet.ir.mapping import repeat_map
+
         ptr: Buffer = args[0]
         mask: Optional[Buffer] = args[1] if len(args) > 1 else None
         other: Optional[Buffer] = args[2] if len(args) > 2 else None
@@ -32,9 +35,24 @@ class LoadImpl(TileOpImpl):
 
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
-        # if isinstance(layout, BlockLayout):
-        #     axis = len(layout.layout_shape) - 1     # the last axis is the innermost axis
-        #     pass
+        if isinstance(layout, BlockLayout):
+            axis = len(layout.layout_shape) - 1     # the last axis is the innermost axis
+            vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
+            if vec_size > 1 and mask is None:
+                local_shape: List[int] = layout.calc_local_shape(output.shape)
+                mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
+
+                with self.for_mapping(repeat_map(mapping_shape)) as indices:
+                    local_indices = [idx if dim != axis else idx * vec_size for dim, idx in enumerate(indices)]
+                    dst_addrs = []
+                    local_indices_iter = local_indices.copy()
+                    for i in range(vec_size):
+                        dst_addrs.append(~output.var[local_indices_iter])
+                        local_indices_iter[axis] += 1
+                    self.append(
+                        load(dtype, addr=ptr[local_indices], dst_addrs=dst_addrs, space='global', nc_cache=True)
+                    )
+                return
 
         if isinstance(ptr.layout, DistributedLayout):
             if mask:
@@ -43,8 +61,6 @@ class LoadImpl(TileOpImpl):
                 assert other.layout == ptr.layout
 
             def f_apply(local_indices, global_indices, not_duplicated):
-                from hidet.ir.primitives.cuda.ldst import load
-
                 if mask is None:
                     self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~output.var[local_indices]]))
                 else:

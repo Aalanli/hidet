@@ -9,6 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import subprocess
 from typing import Sequence, Dict
 import logging
 import os
@@ -124,6 +125,11 @@ def build_ir_module(ir_module: IRModule, output_dir: str, *, target: str, output
         linking_libraries=ir_module.linking_libs,
         object_files=ir_module.object_files,
     )
+
+    # dump the assembly code
+    if target.name == 'cuda':
+        asm_path = os.path.join(output_dir, 'sass.txt')
+        subprocess.run('/usr/local/cuda/bin/cuobjdump -sass {} > {}'.format(lib_path, asm_path), shell=True)
 
     # write the function types
     if output_kind == '.so':

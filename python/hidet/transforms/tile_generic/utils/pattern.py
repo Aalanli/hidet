@@ -3,7 +3,7 @@ from hidet.ir.expr import Expr, Var, Constant
 from hidet.ir.stmt import LetStmt, DeclareStmt
 from hidet.ir.func import Function
 from hidet.ir.module import IRModule
-from hidet.ir.functors import IRRewriter
+from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
@@ -35,7 +35,7 @@ class TileOpPattern(TilePattern):
         self.args: List[Pattern] = list(args)
 
 
-class Transform:
+class PatternBuilder:
     @staticmethod
     def any_scalar_expr() -> ScalarPlaceholder:
         return ScalarPlaceholder()
@@ -55,7 +55,7 @@ class Transform:
     @staticmethod
     def construct(value=None):
         if value is None:
-            value = Transform.any_scalar_expr()
+            value = PatternBuilder.any_scalar_expr()
         return TileOpPattern(Construct, value)
 
     @staticmethod
@@ -98,10 +98,20 @@ class Transform:
         else:
             raise RuntimeError()
 
+
+class PatternTransform(PatternBuilder):
     def source(self) -> TilePattern:
         raise NotImplementedError()
 
     def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
+        raise NotImplementedError()
+
+
+class PatternAnalyzer(PatternBuilder):
+    def pattern(self) -> TilePattern:
+        raise NotImplementedError()
+
+    def analyze(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> None:
         raise NotImplementedError()
 
 
@@ -182,10 +192,10 @@ class Matcher:
 
 
 class ApplyTransformRewriter(IRRewriter):
-    def __init__(self, transforms: List[Transform]):
+    def __init__(self, transforms: List[PatternTransform]):
         super().__init__()
         self.var2value: Dict[Var, Union[CallTileOp, Var]] = {}
-        self.transforms: List[Transform] = transforms
+        self.transforms: List[PatternTransform] = transforms
         self.type_infer = TypeInfer()
 
     def visit_Function(self, func: Function):
@@ -224,6 +234,43 @@ class ApplyTransformRewriter(IRRewriter):
         return call
 
 
-def apply_transforms(node: Union[IRModule, Function], transforms: List[Transform]):
+class ApplyPatternAnalyzerVisitor(IRVisitor):
+    def __init__(self, analyzers: List[PatternAnalyzer]):
+        super().__init__()
+        self.var2call: Dict[Var, CallTileOp] = {}
+        self.analyzers: List[PatternAnalyzer] = analyzers
+
+    def bind(self, var_list: List[Var], value_list: List[Expr]):
+        for var, value in zip(var_list, value_list):
+            if isinstance(value, CallTileOp):
+                self.var2call[var] = value
+
+    def visit_LetStmt(self, stmt: LetStmt):
+        self.bind(stmt.bind_vars, stmt.bind_values)
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            self.visit(bind_value)
+        self.visit(stmt.body)
+
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        self.bind(stmt.args, stmt.values)
+        self.visit(stmt.args)
+        self.visit(stmt.values)
+        self.visit(stmt.body)
+        self.visit(stmt.let_body)
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        super().visit_CallTileOp(call)
+        for analyzer in self.analyzers:
+            matcher = Matcher(self.var2call)
+            if matcher.match(analyzer.pattern(), call):
+                analyzer.analyze(matcher.match_dict, self.var2call)
+
+
+def apply_transforms(node: Union[IRModule, Function], transforms: List[PatternTransform]):
     rewriter = ApplyTransformRewriter(transforms)
     return rewriter.visit(node)
+
+
+def apply_analyzers(node: Union[IRModule, Function], analyzers: List[PatternAnalyzer]):
+    visitor = ApplyPatternAnalyzerVisitor(analyzers)
+    visitor.visit(node)

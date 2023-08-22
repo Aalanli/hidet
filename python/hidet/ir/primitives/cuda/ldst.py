@@ -32,6 +32,9 @@ def resolve_load_inst_name(bits: int, space: str, sync: Optional[str], nc_cache=
     if nc_cache:
         assert space == 'global'
         inst += '.nc'
+    if nc_cache and vec > 1:
+        if vec * bits >= 128:
+            inst += '.L2::128B'
     if vec > 1:
         inst += f'.v{vec}'
     inst += f'.b{bits}'
@@ -54,6 +57,12 @@ def resolve_store_inst_name(bits: int, space: str, sync: Optional[str], vec=1, s
     return inst
 
 
+def normalize_func_name(inst_name):
+    func_name = 'cuda_' + inst_name.replace('.', '_')
+    func_name = func_name.replace('::', '_')
+    return func_name
+
+
 @initialize()
 def register_functions():
     from hidet.lang import attrs, script, asm, deref, cast  # pylint: disable=import-outside-toplevel
@@ -66,7 +75,7 @@ def register_functions():
         return deref(cast(x, ~dtype))
 
     registered = set()
-    for space in ['generic']:
+    for space in ['generic', 'global']:
         for sync in ['acquire', None]:
             for vec in [1, 2, 4]:
                 for dtype_ in [uint8, uint16, uint32, uint64]:
@@ -77,7 +86,7 @@ def register_functions():
                         if sync is not None and space != 'generic':
                             continue
                         inst_name = resolve_load_inst_name(dtype.nbytes * 8, space, sync, nc, vec)
-                        func_name = 'cuda_' + inst_name.replace('.', '_')
+                        func_name = normalize_func_name(inst_name)
                         if func_name in registered:
                             continue
                         registered.add(func_name)
@@ -119,7 +128,7 @@ def register_functions():
                 for vec in [1, 2, 4]:
                     dtype = dtype_
                     inst_name = resolve_store_inst_name(dtype.nbytes * 8, space, sync, vec)
-                    func_name = 'cuda_' + inst_name.replace('.', '_')
+                    func_name = normalize_func_name(inst_name)
                     if func_name in registered:
                         continue
                     registered.add(func_name)
@@ -252,8 +261,7 @@ def load(dtype, addr: Expr, dst_addrs: List[Expr], space: str = 'generic', sync=
         The loaded data.
     """
     dtype = data_type(dtype)
-    func_name = 'cuda_' + resolve_load_inst_name(dtype.nbytes * 8, space, sync, nc_cache, len(dst_addrs), scope)
-    func_name = func_name.replace('.', '_')
+    func_name = normalize_func_name(resolve_load_inst_name(dtype.nbytes * 8, space, sync, nc_cache, len(dst_addrs), scope))
     return call_primitive_func(func_name, [addr, *dst_addrs])
 
 
@@ -281,8 +289,7 @@ def store(dtype, addr: Expr, src_addrs: List[Expr], space: str = 'generic', sync
         The scope of the synchronization. Candidates: 'cta', 'gpu', 'sys'.
     """
     dtype = data_type(dtype)
-    func_name = 'cuda_' + resolve_store_inst_name(dtype.nbytes * 8, space, sync, len(src_addrs), scope)
-    func_name = func_name.replace('.', '_')
+    func_name = normalize_func_name(resolve_store_inst_name(dtype.nbytes * 8, space, sync, len(src_addrs), scope))
     return call_primitive_func(func_name, [addr, *src_addrs])
 
 

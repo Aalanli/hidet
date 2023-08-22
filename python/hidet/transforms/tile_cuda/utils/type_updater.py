@@ -53,7 +53,6 @@ class TypeUpdater(IRRewriter):
         )
 
 
-
 def update_type(node: Union[Function, IRModule]):
     updater = TypeUpdater()
     return updater.visit(node)

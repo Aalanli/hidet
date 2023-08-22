@@ -49,10 +49,11 @@ def register_functions():
     def cuda_acquire_seq_semaphore(semaphore: ~i32, expect_status: i32):
         attrs.func_kind = 'cuda_internal'
         attrs.func_name = 'cuda_acquire_seq_semaphore'
-        actual_status = load(semaphore, space='global', sync='acquire', scope='gpu')
+        actual_status: i32 = i32.zero
+        load(semaphore, [~actual_status], space='global', sync='acquire', scope='gpu')
         while syncthreads_and(actual_status != expect_status):
             if threadIdx.x == 0:
-                actual_status = load(semaphore, space='global', sync='acquire', scope='gpu')
+                load(semaphore, [~actual_status], space='global', sync='acquire', scope='gpu')
 
     assert isinstance(cuda_acquire_seq_semaphore, Function)
     register_primitive_function(cuda_acquire_seq_semaphore.name, cuda_acquire_seq_semaphore)
@@ -63,7 +64,7 @@ def register_functions():
         attrs.func_name = 'cuda_release_seq_semaphore'
         syncthreads()
         if threadIdx.x == 0:
-            store(semaphore, status, space='global', sync='release', scope='gpu')
+            store(semaphore, [~status], space='global', sync='release', scope='gpu')
 
     assert isinstance(cuda_release_seq_semaphore, Function)
     register_primitive_function(cuda_release_seq_semaphore.name, cuda_release_seq_semaphore)

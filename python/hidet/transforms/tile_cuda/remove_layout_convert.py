@@ -15,8 +15,30 @@ from hidet.transforms.tile_generic.pattern_transform import apply_transforms, Tr
 from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
 from hidet.utils import same_list
 
+class IdentityConvertLayoutTransform(Transform):
+    """
+    convert_layout(tile with layout1, layout1) -> tile with layout1
+    """
+    def __init__(self):
+        self.x = self.any_tile()
+        self.cvt = self.convert_layout(self.x)
+
+    def source(self) -> TilePattern:
+        return self.cvt
+
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
+        x = matched[self.x]
+        cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
+        if isinstance(x, Var) and isinstance(x.type, TileType) and x.type.layout == cvt.layout:
+            return x
+        else:
+            return None
+
 
 class ConvertConstructLayoutTransform(Transform):
+    """
+    convert_layout(construct(..., layout1), layout2) -> construct(..., layout2)
+    """
     def __init__(self):
         self.cst = self.construct()
         self.cvt = self.convert_layout(self.cst)
@@ -24,9 +46,9 @@ class ConvertConstructLayoutTransform(Transform):
     def source(self) -> TilePattern:
         return self.cvt
 
-    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[CallTileOp]:
-        cst: Construct = self.get_tile_op(self.cst, matched)
-        cvt: ConvertLayout = self.get_tile_op(self.cvt, matched)
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
+        cst: Construct = self.get_tile_op(self.cst, matched, var2call)
+        cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
 
         updated_cst = Construct(value=cst.value, shape=cst.shape, axes=cst.axes, layout=cvt.layout)
         return updated_cst.make_call()
@@ -35,9 +57,11 @@ class ConvertConstructLayoutTransform(Transform):
 class RemoveLayoutConvertWithTransformsRewriter(IRRewriter):
     def __call__(self, func: Function) -> Function:
         transforms = [
+            IdentityConvertLayoutTransform(),
             ConvertConstructLayoutTransform(),
         ]
-        return apply_transforms(func, transforms)
+        func = apply_transforms(func, transforms)
+        return func
 
 
 class RemoveLayoutConvertPass(TileFunctionPass):

@@ -89,21 +89,25 @@ class Transform:
             return False
 
     @staticmethod
-    def get_tile_op(e: Pattern, matched: Dict[Pattern, Expr]):
-        call_tile_op = matched[e]
-        assert isinstance(call_tile_op, CallTileOp)
-        return call_tile_op.op
+    def get_tile_op(e: Pattern, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]):
+        match = matched[e]
+        if isinstance(match, Var) and match in var2call:
+            return var2call[match].op
+        elif isinstance(match, CallTileOp):
+            return match.op
+        else:
+            raise RuntimeError()
 
     def source(self) -> TilePattern:
         raise NotImplementedError()
 
-    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[CallTileOp]:
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
         raise NotImplementedError()
 
 
 class Matcher:
     def __init__(self, var2value: Dict[Var, Union[CallTileOp, Var]]):
-        self.var2value: Dict[Var, Union[Var, CallTileOp]] = var2value
+        self.var2call: Dict[Var, Union[Var, CallTileOp]] = var2value
         self.match_dict: Dict[Pattern, Expr] = {}
         self.type_infer = TypeInfer()
 
@@ -138,42 +142,43 @@ class Matcher:
             return False
 
     def match_TileOpPattern(self, pattern: TileOpPattern, target: Expr) -> bool:
-        if isinstance(target, Var) and target in self.var2value:
-            target = self.var2value[target]
-            # fall through to next if
-        if isinstance(target, CallTileOp):
-            op_cls = type(target.op)
-            if not issubclass(op_cls, pattern.op_cls):
-                return False
-            if len(target.op.args) != len(pattern.args):
-                return False
+        if isinstance(target, Var) and target in self.var2call:
+            call_op = self.var2call[target]
+        elif isinstance(target, CallTileOp):
+            call_op = target
+        else:
+            return False
 
-            is_commutative_binary_op = (
-                issubclass(op_cls, BinaryTileOp)
-                and op_cls in [Add, Multiply, Equal, NotEqual]
-            )
-            if is_commutative_binary_op:
-                saved_match_dict = self.match_dict.copy()
-                pa, pb = pattern.args
-                ta, tb = target.op.args
-                if self.match(pa, ta) and self.match(pb, tb):
+        op_cls = type(call_op.op)
+        if not issubclass(op_cls, pattern.op_cls):
+            return False
+        if len(call_op.op.args) != len(pattern.args):
+            return False
+
+        is_commutative_binary_op = (
+            issubclass(op_cls, BinaryTileOp)
+            and op_cls in [Add, Multiply, Equal, NotEqual]
+        )
+        if is_commutative_binary_op:
+            saved_match_dict = self.match_dict.copy()
+            pa, pb = pattern.args
+            ta, tb = call_op.op.args
+            if self.match(pa, ta) and self.match(pb, tb):
+                self.match_dict[pattern] = target
+                return True
+            else:
+                self.match_dict = saved_match_dict.copy()
+                if self.match(pa, tb) and self.match(pb, ta):
                     self.match_dict[pattern] = target
                     return True
                 else:
-                    self.match_dict = saved_match_dict.copy()
-                    if self.match(pa, tb) and self.match(pb, ta):
-                        self.match_dict[pattern] = target
-                        return True
-                    else:
-                        return False
-            else:
-                for pattern_arg, target_arg in zip(pattern.args, target.op.args):
-                    if not self.match(pattern_arg, target_arg):
-                        return False
-            self.match_dict[pattern] = target
-            return True
+                    return False
         else:
-            return False
+            for pattern_arg, target_arg in zip(pattern.args, call_op.op.args):
+                if not self.match(pattern_arg, target_arg):
+                    return False
+        self.match_dict[pattern] = target
+        return True
 
 
 class ApplyTransformRewriter(IRRewriter):
@@ -188,16 +193,24 @@ class ApplyTransformRewriter(IRRewriter):
         return super().visit_Function(func)
 
     def visit_LetStmt(self, stmt: LetStmt):
+        bind_vars = []
         bind_values = []
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             bind_value = self.visit(bind_value)
-            bind_values.append(bind_value)
-            self.var2value[bind_var] = bind_value
+            if isinstance(bind_value, Var):
+                # remove the binding entry
+                self.memo[bind_var] = bind_value
+            else:
+                bind_vars.append(bind_var)
+                bind_values.append(bind_value)
+                self.var2value[bind_var] = bind_value
         body = self.visit(stmt.body)
-        if same_list(bind_values, stmt.bind_values) and body is stmt.body:
+        if len(bind_vars) == 0:
+            return body
+        elif same_list(bind_vars, stmt.bind_vars) and same_list(bind_values, stmt.bind_values) and body is stmt.body:
             return stmt
         else:
-            return LetStmt(stmt.bind_vars, bind_values, body)
+            return LetStmt(bind_vars, bind_values, body)
 
     def visit_CallTileOp(self, call: CallTileOp):
         call = super().visit_CallTileOp(call)

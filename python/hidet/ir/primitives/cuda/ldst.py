@@ -10,7 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # pylint: disable=cell-var-from-loop
-from typing import Optional
+from typing import Optional, List
 
 from hidet.ir.type import PointerType, TensorPointerType, data_type
 from hidet.ir.expr import Expr
@@ -21,86 +21,118 @@ from hidet.ir.type import DataType
 from hidet.utils import initialize
 
 
-def resolve_load_inst_name(dtype: str, space: str, sync: Optional[str], scope: str) -> str:
-    dtype = data_type(dtype)
-    nbytes = dtype.nbytes
-    nbits = nbytes * 8
+def resolve_load_inst_name(space: str, sync: Optional[str], nc_cache=False, vec=1, scope: str = None) -> str:
+    inst = 'ld'
     if sync:
-        if space == 'generic':
-            inst_name = f'ld.{sync}.{scope}.b{nbits}'
-        else:
-            inst_name = f'ld.{sync}.{scope}.{space}.b{nbits}'
-    else:
-        if space == 'generic':
-            inst_name = f'ld.b{nbits}'
-        else:
-            inst_name = f'ld.{space}.b{nbits}'
-    return inst_name
+        inst += f'.{sync}.{scope}'
+    if space != 'generic':
+        inst += f'.{space}'
+    if nc_cache:
+        assert space == 'global'
+        inst += '.nc'
+    if vec > 1:
+        inst += f'.v{vec}'
+    inst += f'.b32'
+
+    return inst
 
 
-def resolve_store_inst_name(dtype: str, space: str, sync: Optional[str], scope: str) -> str:
-    dtype = data_type(dtype)
-    nbytes = dtype.nbytes
-    nbits = nbytes * 8
+def resolve_store_inst_name(space: str, sync: Optional[str], vec=1, scope: str = None) -> str:
+    inst = 'st'
     if sync:
-        if space == 'generic':
-            inst_name = f'st.{sync}.{scope}.b{nbits}'
-        else:
-            inst_name = f'st.{sync}.{scope}.{space}.b{nbits}'
-    else:
-        if space == 'generic':
-            inst_name = f'st.b{nbits}'
-        else:
-            inst_name = f'st.{space}.b{nbits}'
-    return inst_name
+        inst += f'.{sync}.{scope}'
+    if space != 'generic':
+        inst += f'.{space}'
+    if vec > 1:
+        inst += f'.v{vec}'
+    inst += f'.b32'
+
+    return inst
+
 
 
 @initialize()
 def register_functions():
-    from hidet.lang import attrs, script, asm  # pylint: disable=import-outside-toplevel
+    from hidet.lang import attrs, script, asm, deref, cast  # pylint: disable=import-outside-toplevel
+    from hidet.lang.types import uint32, void_p
+
+    as_u32 = lambda x: deref(cast(x, ~uint32))
 
     registered = set()
-    for dtype in ['uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int32', 'int64', 'float16', 'float32']:
-        for space in ['generic', 'global']:
-            for sync in ['acquire', None]:
-                for scope in ['gpu']:
-                    inst_name = resolve_load_inst_name(dtype, space, sync, scope)
-                    func_name = 'cuda_' + inst_name.replace('.', '_') + f'_{dtype}'
+    for space in ['generic', 'global']:
+        for sync in ['acquire', None]:
+            for vec in [1, 2, 4]:
+                for nc in [True, False]:
+                    if nc and space != 'global':
+                        continue
+                    if sync is not None and space != 'generic':
+                        continue
+                    inst_name = resolve_load_inst_name(space, sync, nc, vec)
+                    func_name = 'cuda_' + inst_name.replace('.', '_')
                     if func_name in registered:
                         continue
                     registered.add(func_name)
 
-                    @script
-                    def cuda_load(addr: ~data_type(dtype)) -> data_type(dtype):
-                        attrs.func_kind = 'cuda_internal'
-                        attrs.func_name = func_name
-                        template = inst_name + ' %0, [%1];'
-                        ret: data_type(dtype) = 0  # define a variable used to store the loaded data
-                        asm(template, outputs=[ret], inputs=[addr], is_volatile=True)
-                        return ret
+                    if vec == 1:
+                        @script
+                        def cuda_load(addr: void_p, reg1: void_p):
+                            attrs.func_kind = 'cuda_internal'
+                            attrs.func_name = func_name
+                            template = inst_name + ' %0, [%1];'
+                            outputs = [as_u32(reg1)]
+                            asm(template, outputs=outputs, inputs=[addr], is_volatile=True)
+                        register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
+                    if vec == 2:
+                        @script
+                        def cuda_load(addr: void_p, reg0: void_p, reg1: void_p):
+                            attrs.func_kind = 'cuda_internal'
+                            attrs.func_name = func_name
+                            template = inst_name + ' {%0, %1}, [%2];'
+                            outputs = [as_u32(reg0), as_u32(reg1)]
+                            asm(template, outputs=outputs, inputs=[addr], is_volatile=True)
+                        register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
+                    if vec == 4:
+                        @script
+                        def cuda_load(addr: void_p, reg0: void_p, reg1: void_p, reg2: void_p, reg3: void_p):
+                            attrs.func_kind = 'cuda_internal'
+                            attrs.func_name = func_name
+                            template = inst_name + ' {%0, %1, %2, %3}, [%4];'
+                            outputs = [as_u32(reg0), as_u32(reg1), as_u32(reg2), as_u32(reg3)]
+                            asm(template, outputs=outputs, inputs=[addr], is_volatile=True)
+                        register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
 
-                    assert isinstance(cuda_load, Function)
-                    register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
+    for space in ['generic', 'global']:
+        for sync in ['release', None]:
+            inst_name = resolve_store_inst_name(space, sync, vec)
+            func_name = 'cuda_' + inst_name.replace('.', '_')
+            if func_name in registered:
+                continue
+            registered.add(func_name)
 
-    for dtype in ['uint8', 'uint16', 'uint32', 'uint64', 'int8', 'int32', 'int64', 'float16', 'float32']:
-        for space in ['generic', 'global']:
-            for sync in ['release', None]:
-                for scope in ['gpu']:
-                    inst_name = resolve_store_inst_name(dtype, space, sync, scope)
-                    func_name = 'cuda_' + inst_name.replace('.', '_') + f'_{dtype}'
-                    if func_name in registered:
-                        continue
-                    registered.add(func_name)
-
-                    @script
-                    def cuda_store(addr: ~data_type(dtype), value: data_type(dtype)):
-                        attrs.func_kind = 'cuda_internal'
-                        attrs.func_name = func_name
-                        template = inst_name + ' [%0], %1;'
-                        asm(template, inputs=[addr, value], is_volatile=True)
-
-                    assert isinstance(cuda_store, Function)
-                    register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
+            if vec == 1:
+                @script
+                def cuda_store(addr: void_p, reg1: ~uint32):
+                    attrs.func_kind = 'cuda_internal'
+                    attrs.func_name = func_name
+                    template = inst_name + ' [%0], %1;'
+                    asm(template, inputs=[addr, as_u32(reg1)], is_volatile=True)
+                register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
+            if vec == 2:
+                @script
+                def cuda_store(addr: void_p, reg0: ~uint32, reg1: ~uint32):
+                    attrs.func_kind = 'cuda_internal'
+                    attrs.func_name = func_name
+                    template = inst_name + ' [%0], {%1, %2};'
+                    asm(template, inputs=[addr, as_u32(reg0), as_u32(reg1)], is_volatile=True)
+                register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
+            if vec == 4:
+                @script
+                def cuda_store(addr: void_p, reg0: ~uint32, reg1: ~uint32, reg2: ~uint32, reg3: ~uint32):
+                    attrs.func_kind = 'cuda_internal'
+                    attrs.func_name = func_name
+                    template = inst_name + ' [%0], {%1, %2, %3, %4};'
+                    asm(template, inputs=[addr, as_u32(reg0), as_u32(reg1), as_u32(reg2), as_u32(reg3)], is_volatile=True)
+                register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
 
 
 @initialize()
@@ -151,6 +183,21 @@ def register_primitive_functions_with_body():
         fb.set_body(body)
     register_primitive_function(name='cuda_sts128', func_or_type=fb.get())
 
+@initialize()
+def register_vectorized_ldg_stg():
+    from hidet.lang import attrs, script, asm, meta  # pylint: disable=import-outside-toplevel
+    from hidet.lang.types import void_p
+
+    # ldg64
+    @script
+    def ldg64(a_ptr: void_p, b_ptr: void_p):
+        attrs.func_kind = 'cuda_internal'
+        attrs.func_name = 'cuda_ldg64'
+
+        template = 'ld.global.nc.u64 %0, [%1];'
+        asm(template, outputs=[b_ptr], inputs=[a_ptr], is_volatile=True)
+
+
 
 def resolve_pointed_dtype(addr: Expr) -> str:
     ptr_type = infer_type(addr)
@@ -165,7 +212,8 @@ def resolve_pointed_dtype(addr: Expr) -> str:
     return dtype.name
 
 
-def load(addr: Expr, space: str = 'generic', sync: Optional[str] = None, scope: Optional[str] = None):
+def load(
+    addr: Expr, regs: List[Expr], space: str = 'generic', sync: Optional[str] = None, nc_cache=False, scope=None):
     """
     Load data from memory.
 
@@ -174,13 +222,20 @@ def load(addr: Expr, space: str = 'generic', sync: Optional[str] = None, scope: 
     addr: Expr
         The address of the data, in a type of pointer.
 
+    regs: List[Expr]
+        The address of the registers to store the loaded data. The length of the list must be 1, 2, or 4. The load
+        instruction will load data to the registers in order, each register will be feed with 32bit data.
+
     space: str
         The memory space of the address. Candidates: 'generic', 'global', 'shared', 'local'
 
     sync: Optional[str]
         The synchronization behavior. Candidates: None, 'acquire', and 'relaxed'.
 
-    scope: Optional[str]
+    nc_cache: bool
+        Whether to use non-coherent cache. This parameter is only valid when space is 'global'.
+
+    scope: str
         The scope of the synchronization. Candidates: None, 'cta', 'gpu', 'sys'.
 
     Returns
@@ -188,12 +243,12 @@ def load(addr: Expr, space: str = 'generic', sync: Optional[str] = None, scope: 
     ret: Expr
         The loaded data.
     """
-    dtype = resolve_pointed_dtype(addr)
-    func_name = 'cuda_' + resolve_load_inst_name(dtype, space, sync, scope).replace('.', '_') + f'_{dtype}'
-    return call_primitive_func(func_name, [addr])
+    func_name = 'cuda_' + resolve_load_inst_name(space, sync, nc_cache, len(regs), scope)
+    func_name = func_name.replace('.', '_')
+    return call_primitive_func(func_name, [addr, *regs])
 
 
-def store(addr: Expr, value: Expr, space: str = 'generic', sync: Optional[str] = None, scope: str = 'gpu'):
+def store(addr: Expr, regs: List[Expr], space: str = 'generic', sync: Optional[str] = None, scope: str = 'gpu'):
     """
     Store data to memory.
 
@@ -202,7 +257,7 @@ def store(addr: Expr, value: Expr, space: str = 'generic', sync: Optional[str] =
     addr: Expr
         The address to store the data.
 
-    value: Expr
+    regs: List[Expr]
         The value to store.
 
     space: str
@@ -214,9 +269,9 @@ def store(addr: Expr, value: Expr, space: str = 'generic', sync: Optional[str] =
     scope: str
         The scope of the synchronization. Candidates: 'cta', 'gpu', 'sys'.
     """
-    dtype = resolve_pointed_dtype(addr)
-    func_name = 'cuda_' + resolve_store_inst_name(dtype, space, sync, scope).replace('.', '_') + f'_{dtype}'
-    return call_primitive_func(func_name, [addr, value])
+    func_name = 'cuda_' + resolve_store_inst_name(space, sync, len(regs), scope)
+    func_name = func_name.replace('.', '_')
+    return call_primitive_func(func_name, [addr, *regs])
 
 
 def lds128(reg0, reg1, reg2, reg3, smem_addr):

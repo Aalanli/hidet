@@ -17,8 +17,10 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
+from hidet.transforms.tile_cuda.instantiate_layout import instantiate_layout
 from hidet.utils import same_list, gcd
 from .utils.affine import affine_decompose
+from .utils.type_updater import update_type
 
 
 class Value:
@@ -269,7 +271,6 @@ class CoalesceAnalyzer(IRVisitor):
         affine: Optional[List[Expr]] = affine_decompose(e.value, e.axes)
         if affine is not None:
             weights: List[Optional[ScalarValue]] = [self.visit(w) for w in affine]
-            print('{}: {}'.format(e.make_call(), weights))
             return TileValue([w if w is not None else ScalarValue() for w in weights])
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
@@ -368,6 +369,7 @@ class CoalesceMemoryAccessPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         rewriter = CoalesceMemoryAccessRewriter()
         func = rewriter(func)
+        func = instantiate_layout(func)
         return convert_to_let(func)
 
 

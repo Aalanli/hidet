@@ -237,8 +237,11 @@ class StmtRewriter(StmtFunctor, BaseRewriter):
             return AssignStmt(v, value)
 
     def visit_LetStmt(self, stmt: LetStmt):
-        bind_vars = [self.visit(bind_var) for bind_var in stmt.bind_vars]
-        bind_values = [self.visit(bind_value) for bind_value in stmt.bind_values]
+        bind_vars = []
+        bind_values = []
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            bind_vars.append(self.visit(bind_var))
+            bind_values.append(self.visit(bind_value))
         body = self.visit(stmt.body)
         if same_list(bind_vars, stmt.bind_vars) and same_list(bind_values, stmt.bind_values) and body is stmt.body:
             return stmt

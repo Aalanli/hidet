@@ -2,7 +2,7 @@ from typing import List, Union, Optional
 
 from hidet.ir.expr import Expr, if_then_else, logical_and
 from hidet.ir.tile.expr import TileOp
-from hidet.ir.tile.layout import DistributedLayout
+from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.type import PointerType, DataType, void_p
 from .buffer import Buffer
@@ -15,6 +15,11 @@ class LoadImpl(TileOpImpl):
         ptr: Buffer = args[0]
         mask: Optional[Buffer] = args[1] if len(args) > 1 else None
         other: Optional[Buffer] = args[2] if len(args) > 2 else None
+        layout = ptr.layout
+
+        if isinstance(layout, BlockLayout):
+            axis = len(layout.layout_shape) - 1     # the last axis is the innermost axis
+            pass
 
         if isinstance(ptr.layout, DistributedLayout):
             if mask:

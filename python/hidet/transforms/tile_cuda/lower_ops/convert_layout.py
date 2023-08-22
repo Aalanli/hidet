@@ -44,7 +44,7 @@ class ConvertLayoutImpl(TileOpImpl):
 
                 # smem to dst
                 def f_compute(local_indices, global_indices, not_duplicated):
-                    return src[global_indices]
+                    return smem[global_indices]
 
                 self.iterate_dist_buffer_and_compute(dst, f_compute)
 

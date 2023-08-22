@@ -110,7 +110,7 @@ def registered_primitive_functions() -> List[str]:
 
 
 def register_primitive_function(
-    name: str, func_or_type: Union[Function, FuncType], codegen_name: Optional[str] = None, generic=False
+    name: str, func_or_type, codegen_name: Optional[str] = None, generic=False
 ) -> PrimitiveFunctionRegistry:
     """
     Register a primitive function.
@@ -120,7 +120,8 @@ def register_primitive_function(
     name: str
         The name of the primitive function.
 
-    func_or_type: Union[Function, FuncType]
+    func_or_type:
+        Function or FuncType
         Function definition or function type of the primitive function.
         When function type is given, this function is implemented by underlying language (e.g., cuda c).
 

@@ -16,10 +16,23 @@ from hidet.utils import same_list
 
 
 class InstantiateLayoutRewriter(IRRewriter):
-    def __init__(self, num_warps: int):
+    def __init__(self):
         super().__init__()
-        self.num_warps: int = num_warps
+        self.num_warps: int = 0
         self.type_infer = TypeInfer()
+
+    def visit_Function(self, func: Function):
+        if 'cuda.block_dim' not in func.attrs:
+            raise ValueError("cuda.block_dim must be specified for 'cuda_tile' function")
+        block_dim = func.attrs['cuda.block_dim']
+        try:
+            block_dim = int(block_dim)
+        except ValueError:
+            raise ValueError(f"cuda.block_dim must be a constant integer, got {block_dim}")
+        self.num_warps = block_dim // 32
+        if block_dim % 32 != 0:
+            raise ValueError(f"cuda.block_dim must be a multiple of 32, got {block_dim}")
+        return super().visit_Function(func)
 
     def visit_CallTileOp(self, call: CallTileOp):
         op = self.visit(call.op)
@@ -80,17 +93,26 @@ class InstantiateLayoutRewriter(IRRewriter):
         return PureYieldStmt(updated_values)
 
     def visit_Arange(self, e: Arange):
-        layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)
+        if e.layout:
+            layout = e.layout
+        else:
+            layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)
         return Arange(e.begin, e.end, layout)
 
     def visit_Full(self, e: Full):
-        layout = BlockLayout.from_shape(e.shape, self.num_warps)
+        if e.layout:
+            layout = e.layout
+        else:
+            layout = BlockLayout.from_shape(e.shape, self.num_warps)
         value = self.visit(e.value)
         return Full(value, e.shape, layout)
 
     def visit_Construct(self, e: Construct):
+        if e.layout:
+            layout = e.layout
+        else:
+            layout = BlockLayout.from_shape(e.shape, self.num_warps)
         value = self.visit(e.value)
-        layout = BlockLayout.from_shape(e.shape, self.num_warps)
         return Construct(value, e.shape, e.axes, layout)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
@@ -154,19 +176,27 @@ class InstantiateLayoutRewriter(IRRewriter):
             a = self.visit(e.a)
             b = self.visit(e.b)
             c = self.visit(e.c)
-            c_type = self.type_infer.visit(c)
-            m, n = c_type.shape
-            num_threads = self.num_warps * 32
-            if m * n >= num_threads * 16:
-                size_per_thread = [4, 4]
-            elif m * n >= num_threads * 4:
-                size_per_thread = [2, 2]
+            a_type: TileType = self.type_infer.visit(a)
+            b_type: TileType = self.type_infer.visit(b)
+            c_type: TileType = self.type_infer.visit(c)
+            if c_type.layout:
+                layout = c_type.layout
             else:
-                size_per_thread = [1, 1]
-            layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
-            a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
-            b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
-            c = convert_layout(c, layout)
+                m, n = c_type.shape
+                num_threads = self.num_warps * 32
+                if m * n >= num_threads * 16:
+                    size_per_thread = [4, 4]
+                elif m * n >= num_threads * 4:
+                    size_per_thread = [2, 2]
+                else:
+                    size_per_thread = [1, 1]
+                layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
+            if not (isinstance(a_type.layout, BlockDotOperandLayout) and a_type.layout.parent == layout):
+                a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
+            if not (isinstance(b_type.layout, BlockDotOperandLayout) and b_type.layout.parent == layout):
+                b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
+            if c_type.layout != layout:
+                c = convert_layout(c, layout)
             return SimtDot(a, b, c, layout)
         else:
             raise NotImplementedError()
@@ -204,18 +234,12 @@ class InstantiateLayoutRewriter(IRRewriter):
 
 class InstantiateLayoutPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        if 'cuda.block_dim' not in func.attrs:
-            raise ValueError("cuda.block_dim must be specified for 'cuda_tile' function")
-        block_dim = func.attrs['cuda.block_dim']
-        try:
-            block_dim = int(block_dim)
-        except ValueError:
-            raise ValueError(f"cuda.block_dim must be a constant integer, got {block_dim}")
-        num_warps = block_dim // 32
-        if block_dim % 32 != 0:
-            raise ValueError(f"cuda.block_dim must be a multiple of 32, got {block_dim}")
-        rewriter = InstantiateLayoutRewriter(num_warps)
+        rewriter = InstantiateLayoutRewriter()
         return convert_to_let(rewriter.visit(func))
+
+def instantiate_layout(func: Function) -> Function:
+    rewriter = InstantiateLayoutRewriter()
+    return convert_to_let(rewriter.visit(func))
 
 
 def instantiate_layout_pass() -> TileFunctionPass:

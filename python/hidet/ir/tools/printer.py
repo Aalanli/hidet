@@ -678,6 +678,7 @@ class IRPrinter(IRFunctor):
         loop_var = self(stmt.loop_var)
         extent = self(stmt.extent)
         args = [self(v) for v in stmt.args]
+        arg_types = [self(v.type) for v in stmt.args]
         values = [self(v) for v in stmt.values]
 
         self.add_scope_var(stmt.loop_var)
@@ -696,7 +697,7 @@ class IRPrinter(IRFunctor):
         doc += NewLine() + 'for ' + loop_var + ' in range(' + extent + ')'
 
         if len(args) > 0:
-            items = [arg + ' = ' + value for arg, value in zip(args, values)]
+            items = [arg + ': ' + arg_type + ' = ' + value for arg, arg_type, value in zip(args, arg_types, values)]
             doc += ' with ' + doc_join(items, ', ')
 
         doc += ':'

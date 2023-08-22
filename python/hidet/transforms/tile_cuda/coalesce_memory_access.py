@@ -8,6 +8,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor, IRFunctor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt, EvaluateStmt
 from hidet.ir.tile.expr import CallTileOp, TileOp
+from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
 from hidet.ir.tile.ops import Construct, Assign, convert_layout
@@ -202,13 +203,7 @@ class CoalesceAnalyzer(IRVisitor):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             assert isinstance(bind_var, Var)
             if isinstance(bind_var.type, TileType):
-                if isinstance(bind_value, CallTileOp):
-                    self.merge(bind_var, self.visit(bind_value))
-                elif isinstance(bind_value, Var):
-                    assert bind_value in self.var2value
-                    self.merge(bind_var, self.var2value[bind_value])
-                else:
-                    assert False
+                self.merge(bind_var, self.visit(bind_value))
             elif (
                 isinstance(bind_var.type, DataType) and bind_var.type.is_integer()
                 or isinstance(bind_var.type, PointerType)
@@ -219,16 +214,23 @@ class CoalesceAnalyzer(IRVisitor):
                 pass
         self.visit(stmt.body)
 
-    def visit_DeclareStmt(self, stmt: DeclareStmt):
-        if stmt.init is not None:
-            self.merge(stmt.var, self.visit(stmt.init))
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        for arg, value in zip(stmt.args, stmt.values):
+            if isinstance(arg.type, TileType):
+                self.merge(arg, self.visit(value))
+        self.pure_for_stmts.append(stmt)
+        self.visit(stmt.body)
+        self.pure_for_stmts.pop()
+        for arg, let_var in zip(stmt.args, stmt.let_vars):
+            if isinstance(arg.type, TileType):
+                self.merge(let_var, self.var2value.get(arg, None))
+        self.visit(stmt.let_body)
 
-    def visit_EvaluateStmt(self, stmt: EvaluateStmt):
-        if isinstance(stmt.expr, CallTileOp):
-            op: TileOp = stmt.expr.op
-            if isinstance(op, Assign):
-                assert isinstance(op.dst, Var)
-                self.merge(op.dst, self.visit(op.src))
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        for_stmt = self.pure_for_stmts[-1]
+        for arg, yield_value in zip(for_stmt.args, stmt.yields):
+            if isinstance(arg.type, TileType):
+                self.merge(arg, self.visit(yield_value))
 
     def visit_CallTileOp(self, call: CallTileOp):
         return self.visit(call.op)
@@ -282,7 +284,7 @@ class CoalesceAnalyzer(IRVisitor):
             op = op_dict[type(e)]
             x = self.visit(e.x)
             y = self.visit(e.y)
-            if x is None and y is None:
+            if x is None or y is None:
                 return None
             else:
                 return op(x, y)

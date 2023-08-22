@@ -82,9 +82,9 @@ def lower(ir_module: IRModule) -> IRModule:
         resolve_dot_pass(),
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
-        remove_layout_convert_pass(),
-        canonicalize_declare_pass(),
-        canonicalize_convert_layout_pass(),
+        # remove_layout_convert_pass(),
+        # canonicalize_declare_pass(),
+        # canonicalize_convert_layout_pass(),
         lower_tile_dialect_pass(),
         plan_shared_memory_pass(),
     ]

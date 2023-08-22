@@ -18,18 +18,39 @@ class ConvertLayoutImpl(TileOpImpl):
         src: Buffer = args[0]
         dst: Buffer = output
 
-        # handle the cases where the conversion can be done efficiently
-        if src.is_block() and dst.is_block() and src.layout == dst.layout:
-            return src
-        elif src.is_block() and dst.is_flatten_block() and src.layout == dst.flatten_block_layout.parent:
-            raise NotImplementedError()
-        elif src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
-            raise NotImplementedError()
-        elif src.is_flatten_block() and dst.is_flatten_block() and src.layout == dst.layout:
-            raise NotImplementedError()
+        if src.is_distributed() and dst.is_distributed():
+            # handle the cases where the conversion can be done efficiently
+            if src.is_block() and dst.is_block() and src.layout == dst.layout:
+                return src
+            elif src.is_block() and dst.is_flatten_block() and src.layout == dst.flatten_block_layout.parent:
+                raise NotImplementedError()
+            elif src.is_flatten_block() and dst.is_block() and src.flatten_block_layout.parent == dst.layout:
+                raise NotImplementedError()
+            elif src.is_flatten_block() and dst.is_flatten_block() and src.layout == dst.layout:
+                raise NotImplementedError()
+            else:
+                # use shared memory to do the conversion from a general distributed layout to another
+                smem = self.alloc_shared_buffer(src.dtype, src.shape, 'cvt_smem')
 
-        if src.is_distributed() and dst.is_shared():
+                # src to smem
+                def f_apply(local_indices, global_indices, not_duplicated):
+                    with self.if_then(not_duplicated):
+                        self.buffer_store(smem.var, global_indices, value=src[local_indices])
 
+                self.iterate_dist_buffer_and_apply(src, f_apply)
+
+                # sync
+                self.sync_threads()
+
+                # smem to dst
+                def f_compute(local_indices, global_indices, not_duplicated):
+                    return src[global_indices]
+
+                self.iterate_dist_buffer_and_compute(dst, f_compute)
+
+                self.sync_threads()
+
+        elif src.is_distributed() and dst.is_shared():
             def f_apply(local_indices, global_indices, not_duplicated):
                 with self.if_then(not_duplicated):
                     self.buffer_store(dst.var, global_indices, value=src[local_indices])
@@ -46,9 +67,5 @@ class ConvertLayoutImpl(TileOpImpl):
         elif src.is_shared() and dst.is_shared():
             raise NotImplementedError()
         else:
-            raise ValueError(
-                'can not convert the layout from {} to {}, please use canonicalize_convert_layout pass first.'.format(
-                    src.layout, dst.layout
-                )
-            )
+            assert False
         return dst

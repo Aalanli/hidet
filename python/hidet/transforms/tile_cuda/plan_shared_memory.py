@@ -7,7 +7,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.module import IRModule
-from hidet.ir.tile.ops import  Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
+from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
 from hidet.ir.tile.ops import Construct, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.primitives import lookup_primitive_function
@@ -28,8 +28,10 @@ class Alloc:
         self.nbytes: int = nbytes
         self.offset: Optional[int] = None
 
+
 def check_alloc_shared_call(call: Call) -> bool:
     return isinstance(call, Call) and call.func_var.name == 'cuda_alloc_shared'
+
 
 class SharedMemoryAllocator(IRVisitor):
     """
@@ -80,12 +82,12 @@ class SharedMemoryAllocator(IRVisitor):
                     events.append((v.offset + aligned_nbytes, -1))
             events.append((0, 0))
             events.append((max_nbytes, 0))
-            events = sorted(events, key=lambda    event: event[0])
+            events = sorted(events, key=lambda event: event[0])
             cnt = 0
             for i in range(len(events)):
                 cnt += events[i][1]
                 if cnt == 0 and i < len(events) - 1:
-                    space = events[i + 1][0]  - events[i][0]
+                    space = events[i + 1][0] - events[i][0]
                     if space >= u.nbytes:
                         u.offset = events[i][0]
                         max_allocated = max(max_allocated, u.offset + u.nbytes)

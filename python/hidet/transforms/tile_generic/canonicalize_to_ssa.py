@@ -136,15 +136,15 @@ class CanonicalizeToSSARewriter(IRRewriter):
             )
         )
 
-    def visit_PureForStmt(self, e: PureForStmt):
+    def visit_PureForStmt(self, stmt: PureForStmt):
         raise NotImplementedError()
 
     def visit_SeqStmt(self, stmt: SeqStmt):
         for s in stmt.seq:
             self.visit(s)
 
-    def visit_PureYieldStmt(self, e: PureYieldStmt):
-        self.append(super().visit_PureYieldStmt(e))
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        self.append(super().visit_PureYieldStmt(stmt))
 
     def visit_IfStmt(self, stmt: IfStmt):
         raise NotImplementedError('tile-dialect does not support {} for now'.format(stmt.__class__.__name__))

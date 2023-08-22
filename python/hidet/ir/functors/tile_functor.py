@@ -1,3 +1,4 @@
+from typing import List
 from hidet.ir.node import Node
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
@@ -16,6 +17,10 @@ from hidet.utils import same_list
 
 
 class TileFunctor(BaseFunctor):
+    def __init__(self, use_memo=True):
+        super().__init__(use_memo)
+        self.pure_for_stmts: List[PureForStmt] = []
+
     def visit_dispatch(self, node):
         if isinstance(node, TileType):
             return self.visit_TileType(node)
@@ -171,17 +176,17 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
 
-    def visit_PureForStmt(self, e: PureForStmt):
-        self.visit(e.args)
-        self.visit(e.values)
-        self.visit(e.loop_var)
-        self.visit(e.extent)
-        self.visit(e.body)
-        self.visit(e.let_vars)
-        self.visit(e.let_body)
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        self.visit(stmt.args)
+        self.visit(stmt.values)
+        self.visit(stmt.loop_var)
+        self.visit(stmt.extent)
+        self.visit(stmt.body)
+        self.visit(stmt.let_vars)
+        self.visit(stmt.let_body)
 
-    def visit_PureYieldStmt(self, e: PureYieldStmt):
-        self.visit(e.yields)
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        self.visit(stmt.yields)
 
 
 class TileRewriter(TileFunctor, BaseRewriter):
@@ -300,23 +305,25 @@ class TileRewriter(TileFunctor, BaseRewriter):
         else:
             return e.reforward([x])
 
-    def visit_PureForStmt(self, e: PureForStmt):
-        args = self.visit(e.args)
-        values = self.visit(e.values)
-        loop_var = self.visit(e.loop_var)
-        extent = self.visit(e.extent)
-        body = self.visit(e.body)
-        let_vars = self.visit(e.let_vars)
-        let_body = self.visit(e.let_body)
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        self.pure_for_stmts.append(stmt)
+        args = self.visit(stmt.args)
+        values = self.visit(stmt.values)
+        loop_var = self.visit(stmt.loop_var)
+        extent = self.visit(stmt.extent)
+        body = self.visit(stmt.body)
+        self.pure_for_stmts.pop()
+        let_vars = self.visit(stmt.let_vars)
+        let_body = self.visit(stmt.let_body)
         if (
-            same_list(args, e.args)
-            and loop_var is e.loop_var
-            and extent is e.extent
-            and body is e.body
-            and same_list(let_vars, e.let_vars)
-            and let_body is e.let_body
+            same_list(args, stmt.args)
+            and loop_var is stmt.loop_var
+            and extent is stmt.extent
+            and body is stmt.body
+            and same_list(let_vars, stmt.let_vars)
+            and let_body is stmt.let_body
         ):
-            return e
+            return stmt
         else:
             return PureForStmt(
                 args=args,
@@ -328,9 +335,9 @@ class TileRewriter(TileFunctor, BaseRewriter):
                 let_body=let_body,
             )
 
-    def visit_PureYieldStmt(self, e: PureYieldStmt):
-        yields = self.visit(e.yields)
-        if yields is e.yields:
-            return e
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        yields = self.visit(stmt.yields)
+        if yields is stmt.yields:
+            return stmt
         else:
             return PureYieldStmt(yields=yields)

@@ -14,7 +14,7 @@ from .buffer import Buffer
 
 @register_impl(Assign)
 class AssignImpl(TileOpImpl):
-    def implement(self, op: Assign, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
+    def implement(self, op: Optional[Assign], args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         dst: Buffer = args[0]
         src: Buffer = args[1]
 

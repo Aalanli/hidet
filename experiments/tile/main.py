@@ -243,8 +243,8 @@ def demo_matmul():
 
 
 def main():
-    # demo_arange()
-    #
+    demo_arange()
+
     # demo_debug_print()
     #
     # demo_vector_add()
@@ -257,7 +257,7 @@ def main():
 
     # demo_dot_simt()
 
-    demo_matmul()
+    # demo_matmul()
 
 
 if __name__ == '__main__':

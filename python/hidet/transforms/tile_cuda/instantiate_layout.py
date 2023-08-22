@@ -1,9 +1,11 @@
-from hidet.ir.expr import Var, var
+from typing import List
+from hidet.ir.expr import Var, Expr, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
+from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
 from hidet.ir.tile.ops import Construct, Assign, convert_layout
 from hidet.ir.tile.type import TileType
@@ -45,27 +47,37 @@ class InstantiateLayoutRewriter(IRRewriter):
         body = self.visit(stmt.body)
         return LetStmt(bind_vars, bind_values, body)
 
-    def visit_DeclareStmt(self, stmt: DeclareStmt):
-        if stmt.init is None:
-            return super().visit_DeclareStmt(stmt)
-        else:
-            init = self.visit(stmt.init)
-            stmt_var = var(stmt.var.hint, self.type_infer(init))
-            self.memo[stmt.var] = stmt_var
-            return DeclareStmt(stmt_var, init)
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        self.pure_for_stmts.append(stmt)
+        extent: Expr = self.visit(stmt.extent)
+        values: List[Expr] = self.visit(stmt.values)
+        args: List[Var] = [Var(arg.hint, self.type_infer(value)) for arg, value in zip(stmt.args, values)]
+        for orig_arg, arg in zip(stmt.args, args):
+            self.memo[orig_arg] = arg
+        body = self.visit(stmt.body)
+        self.pure_for_stmts.pop()
+        let_vars = [Var(let_var.hint, arg.type) for let_var, arg in zip(stmt.let_vars, args)]
+        for orig_let_var, let_var in zip(stmt.let_vars, let_vars):
+            self.memo[orig_let_var] = let_var
+        let_body = self.visit(stmt.let_body)
+        return PureForStmt(args, values, stmt.loop_var, extent, body, let_vars, let_body)
 
-    def visit_AssignStmt(self, stmt: AssignStmt):
-        value = self.visit(stmt.value)
-        stmt_var: Var = self.visit(stmt.var)
-        value_type = self.type_infer.visit(value)
-        if isinstance(value_type, TileType):
-            assert isinstance(stmt_var.type, TileType)
-            if value_type.layout != stmt_var.type.layout:
-                value = convert_layout(value, stmt_var.type.layout)
-            return AssignStmt(stmt_var, value)
-        else:
-            assert not isinstance(stmt_var.type, TileType)
-            super().visit_AssignStmt(stmt)
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        for_stmt = self.pure_for_stmts[-1]
+        args: List[Var] = self.visit(for_stmt.args)
+        yields: List[Expr] = self.visit(stmt.yields)
+        updated_values = []
+        for arg, yie in zip(args, yields):
+            yield_type = self.type_infer(yie)
+            if isinstance(arg.type, TileType):
+                assert isinstance(yield_type, TileType)
+                if arg.type.layout != yield_type.layout:
+                    updated_values.append(convert_layout(yie, arg.type.layout))
+                else:
+                    updated_values.append(yie)
+            else:
+                updated_values.append(yie)
+        return PureYieldStmt(updated_values)
 
     def visit_Arange(self, e: Arange):
         layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)

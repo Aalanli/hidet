@@ -3,17 +3,19 @@ from typing import List, Dict, Union, Optional
 from hidet.ir.type import sizeof
 from hidet.ir.expr import Var, Expr, tensor_var, tensor_pointer_var
 from hidet.ir.func import Function
-from hidet.ir.functors import IRRewriter
+from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.stmt import LetStmt, DeclareStmt
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DistributedLayout
 from hidet.ir.tile.type import TileType
+from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import BaseType
 from hidet.ir.type import DataType, PointerType
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
+from hidet.transforms.tile_cuda.lower_ops.assign import AssignImpl
 from .lower_ops import Buffer, implement_tile_op
 
 
@@ -107,14 +109,57 @@ class LowerTileDialectRewriter(IRRewriter):
         else:
             return SeqStmt(stmts)
 
-    def visit_DeclareStmt(self, stmt: DeclareStmt):
-        if isinstance(stmt.var.type, TileType):
-            assert stmt.init is None, 'canonicalize_declare pass should have removed the init value for tile var'
-            buf = self.alloc_buffer(stmt.var.name, stmt.var.type)
-            self.var2buffer[stmt.var] = buf
-            return DeclareStmt(buf.var)
-        else:
-            return super().visit_DeclareStmt(stmt)
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        # allocate buffer for the loop arguments
+        for arg in stmt.args:
+            if isinstance(arg.type, TileType):
+                self.var2buffer[arg] = self.alloc_buffer(arg.name, arg.type)
+            else:
+                raise NotImplementedError()
+
+        # copy the argument initial values to argument buffers
+        assign_impl = AssignImpl()
+        stmts = []
+        for arg, value in zip(stmt.args, stmt.values):
+            if isinstance(arg.type, TileType):
+                assert isinstance(value, Var)
+                arg_buf = self.var2buffer[arg]
+                value_buf = self.var2buffer[value]
+                assign_impl.implement(None, args=[arg_buf, value_buf], output=None)
+                stmts.extend(self.flush_stmts())
+            else:
+                raise NotImplementedError()
+
+        # implement the loop body
+        self.pure_for_stmts.append(stmt)
+        stmts.append(self.visit(stmt.body))
+        self.pure_for_stmts.pop()
+
+        # mapping the let_vars to the buffer
+        for let_var, arg in zip(stmt.let_vars, stmt.args):
+            if isinstance(arg.type, TileType):
+                self.var2buffer[let_var] = self.var2buffer[arg]
+            else:
+                raise NotImplementedError()
+
+        # implement the let body
+        stmts.append(self.visit(stmt.let_body))
+        return SeqStmt(stmts)
+
+    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+        for_stmt = self.pure_for_stmts[-1]
+        assign_impl = AssignImpl()
+        stmts = []
+        for arg, yield_value in zip(for_stmt.args, stmt.yields):
+            assert isinstance(yield_value, Var)
+            if isinstance(arg.type, TileType):
+                arg_buf = self.var2buffer[arg]
+                yield_buf = self.var2buffer[yield_value]
+                assign_impl.implement(None, args=[arg_buf, yield_buf], output=None)
+                stmts.extend(self.flush_stmts())
+            else:
+                raise NotImplementedError()
+        return SeqStmt(stmts)
 
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):
         if isinstance(stmt.expr, CallTileOp):

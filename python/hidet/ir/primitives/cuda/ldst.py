@@ -24,6 +24,8 @@ from hidet.utils import initialize
 def resolve_load_inst_name(space: str, sync: Optional[str], nc_cache=False, vec=1, scope: str = None) -> str:
     inst = 'ld'
     if sync:
+        if scope is None:
+            scope = 'gpu'
         inst += f'.{sync}.{scope}'
     if space != 'generic':
         inst += f'.{space}'
@@ -40,6 +42,8 @@ def resolve_load_inst_name(space: str, sync: Optional[str], nc_cache=False, vec=
 def resolve_store_inst_name(space: str, sync: Optional[str], vec=1, scope: str = None) -> str:
     inst = 'st'
     if sync:
+        if scope is None:
+            scope = 'gpu'
         inst += f'.{sync}.{scope}'
     if space != 'generic':
         inst += f'.{space}'

@@ -543,37 +543,65 @@ class PythonToHidetTranslator(PythonAstFunctor):
             raise HidetProgramError(self, stmt, 'Hidet does not support syntax like "a = b = 1".')
         target = stmt.targets[0]
         value = stmt.value
-        if isinstance(target, (Tuple, List)):
+
+        if isinstance(target, (Tuple, List)) and isinstance(value, (Tuple, List)):
+            # a, b = c, d
             lhs_list = target.elts
-        else:
-            lhs_list = [target]
-
-        if isinstance(value, (Tuple, List)):
             rhs_list = [self.visit(v) for v in value.elts]
-        else:
-            rhs_list = [self.visit(value)]
-
-        if len(lhs_list) == len(rhs_list):
-            for lhs, rhs in zip(lhs_list, rhs_list):
-                self.process_assign(lhs, rhs)
-        elif len(lhs_list) == 1:
-            lhs = lhs_list[0]
-            assert isinstance(lhs, (Subscript, Name, Attribute))
-            self.process_assign(lhs, rhs_list)
-        elif len(rhs_list) == 1:
-            if isinstance(rhs_list[0], ir.Expr):
-                raise HidetProgramError(self, stmt, 'Hidet does not support unpacking.')
-            rhs_list = list(rhs_list[0])
             if len(lhs_list) != len(rhs_list):
-                raise HidetProgramError(
-                    self, stmt, 'Trying to assign {} values to {} objects'.format(len(rhs_list), len(lhs_list))
-                )
+                raise HidetProgramError(self, stmt, 'The number of left values and right values does not match.')
             for lhs, rhs in zip(lhs_list, rhs_list):
                 self.process_assign(lhs, rhs)
+        elif isinstance(target, (Tuple, List)):
+            # a, b = c
+            lhs_list = target.elts
+            rhs_list = self.visit(value)
+            if len(lhs_list) != len(rhs_list):
+                raise HidetProgramError(self, stmt, 'The number of left values and right values does not match.')
+            for lhs, rhs in zip(lhs_list, rhs_list):
+                self.process_assign(lhs, rhs)
+        elif isinstance(value, (Tuple, List)):
+            # a = c, d
+            rhs_list = [self.visit(v) for v in value.elts]
+            assert isinstance(target, (Attribute, Subscript, Name))
+            self.process_assign(target, rhs_list)
         else:
-            raise HidetProgramError(
-                self, stmt, 'Can not assign {} elements to {} elements.'.format(len(rhs_list), len(lhs_list))
-            )
+            # a = c
+            assert isinstance(target, (Attribute, Subscript, Name))
+            rhs = self.visit(value)
+            self.process_assign(target, rhs)
+
+        # if isinstance(target, (Tuple, List)):
+        #     lhs_list = target.elts
+        # else:
+        #     lhs_list = [target]
+        #
+        # if isinstance(value, (Tuple, List)):
+        #     rhs_list = [self.visit(v) for v in value.elts]
+        # else:
+        #     rhs_list = [self.visit(value)]
+        #
+        # if len(lhs_list) == len(rhs_list):
+        #     for lhs, rhs in zip(lhs_list, rhs_list):
+        #         self.process_assign(lhs, rhs)
+        # elif len(lhs_list) == 1:
+        #     lhs = lhs_list[0]
+        #     assert isinstance(lhs, (Subscript, Name, Attribute))
+        #     self.process_assign(lhs, rhs_list)
+        # elif len(rhs_list) == 1:
+        #     if isinstance(rhs_list[0], ir.Expr):
+        #         raise HidetProgramError(self, stmt, 'Hidet does not support unpacking.')
+        #     rhs_list = list(rhs_list[0])
+        #     if len(lhs_list) != len(rhs_list):
+        #         raise HidetProgramError(
+        #             self, stmt, 'Trying to assign {} values to {} objects'.format(len(rhs_list), len(lhs_list))
+        #         )
+        #     for lhs, rhs in zip(lhs_list, rhs_list):
+        #         self.process_assign(lhs, rhs)
+        # else:
+        #     raise HidetProgramError(
+        #         self, stmt, 'Can not assign {} elements to {} elements.'.format(len(rhs_list), len(lhs_list))
+        #     )
 
     def visit_Name(self, expr: Name):
         if isinstance(expr.ctx, Store):

@@ -1,5 +1,6 @@
 import hidet
 from hidet.transforms import lower, PassContext, instruments
+from hidet.utils.ncu_utils import ncu_run
 
 hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
@@ -184,6 +185,35 @@ def demo_dot_simt():
     func()
 
 
+def demo_ldst():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs
+    from hidet.lang import tile as ti
+
+    block_m = 128
+    block_k = 16
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def matmul(a_ptr: ~f32, b_ptr: ~f32):
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.block_dim = 128
+            attrs.cuda.grid_dim = 1
+
+            offsets = ti.expand_dims(ti.arange(0, block_m), axis=1) * block_k + ti.arange(0, block_k)
+            a_ptrs = a_ptr + offsets
+            b_ptrs = b_ptr + offsets
+            ti.store(b_ptrs, ti.load(a_ptrs))
+
+    a = hidet.randn([block_m, block_k], device='cuda')
+    b = hidet.empty([block_m, block_k], device='cuda')
+    func = script_module.build()
+    func(a, b)
+    print(a)
+    print(b)
+    hidet.utils.assert_close(a, b)
+
+
 def demo_matmul():
     from hidet.lang.types import f32, int32
     from hidet.lang import attrs
@@ -241,34 +271,8 @@ def demo_matmul():
 
     hidet.utils.assert_close(c, tc)
 
-
-def demo_ldst():
-    from hidet.lang.types import f32, int32
-    from hidet.lang import attrs
-    from hidet.lang import tile as ti
-
-    block_m = 128
-    block_k = 16
-
-    with hidet.script_module() as script_module:
-        @hidet.script
-        def matmul(a_ptr: ~f32, b_ptr: ~f32):
-            attrs.func_kind = 'cuda_tile'
-            attrs.cuda.block_dim = 128
-            attrs.cuda.grid_dim = 1
-
-            offsets = ti.expand_dims(ti.arange(0, block_m), axis=1) * block_k + ti.arange(0, block_k)
-            a_ptrs = a_ptr + offsets
-            b_ptrs = b_ptr + offsets
-            ti.store(b_ptrs, ti.load(a_ptrs))
-
-    a = hidet.randn([block_m, block_k], device='cuda')
-    b = hidet.empty([block_m, block_k], device='cuda')
-    func = script_module.build()
-    func(a, b)
-    print(a)
-    print(b)
-    hidet.utils.assert_close(a, b)
+    report = ncu_run(func, a, b, c)
+    report.visualize()
 
 
 def main():
@@ -286,9 +290,9 @@ def main():
 
     # demo_dot_simt()
 
-    demo_ldst()
+    # demo_ldst()
 
-    # demo_matmul()
+    demo_matmul()
 
 
 if __name__ == '__main__':

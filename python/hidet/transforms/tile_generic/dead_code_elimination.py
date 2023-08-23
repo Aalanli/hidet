@@ -15,6 +15,11 @@ from hidet.utils import repeat_until_converge
 
 
 class DeadCodeEliminationRewriter(IRRewriter):
+
+    def visit_Function(self, func: Function):
+        self.memo.clear()   # in case calling this rewriter multiple times
+        return super().visit_Function(func)
+
     def visit_LetStmt(self, stmt):
         body = self.visit(stmt.body)
         dead_vars: Set[Var] = set()

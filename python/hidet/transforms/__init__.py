@@ -71,7 +71,6 @@ def lower(ir_module: IRModule) -> IRModule:
         inject_explicit_transform_ops_pass(),
         canonicalize_expressions_pass(),
         canonicalize_to_ssa_pass(),
-        # convert_tile_expr_to_let_pass(),
         fold_constant_pass(),
         pattern_transform_pass(),
     ]

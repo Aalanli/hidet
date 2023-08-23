@@ -100,6 +100,9 @@ class PatternBuilder:
 
 
 class PatternTransform(PatternBuilder):
+    def __call__(self, node):
+        return apply_transforms(node, [self])
+
     def source(self) -> TilePattern:
         raise NotImplementedError()
 

@@ -1,30 +1,30 @@
 from typing import List, Dict, Set
 from collections import defaultdict
-from hidet.ir.expr import Var
+from hidet.ir.expr import Var, Expr
 from hidet.ir.stmt import LetStmt, EvaluateStmt, SeqStmt
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.functors import IRVisitor
-from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.expr import TileOp, CallTileOp
+from hidet.ir.tile.ops import ConvertLayout
 
 
-class Usage:
-    pass
-
-
-class LetUsage(Usage):
+class LetUsage:
     """ let ... = convert_layout(x) """
 
     def __init__(self, let_stmt, idx):
         self.let_stmt: LetStmt = let_stmt
         self.idx: int = idx
+        self.bind_var: Var = let_stmt.bind_vars[idx]
+        self.bind_value: Expr = let_stmt.bind_values[idx]
 
 
-class StmtUsage(Usage):
+class StmtUsage:
     """
     for ... in ... with arg=x, ...
     yield x
     store(...)
     """
+
     def __init__(self, stmt):
         self.stmt = stmt
 
@@ -36,6 +36,9 @@ class VarUsage:
 
     def count(self):
         return len(self.let_usages) + len(self.stmt_usages)
+
+    def call_op_let_usages(self):
+        return [usage for usage in self.let_usages if isinstance(usage.bind_value, CallTileOp)]
 
 
 class UsageAnalyzer(IRVisitor):

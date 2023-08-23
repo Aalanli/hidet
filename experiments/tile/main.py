@@ -275,8 +275,8 @@ def demo_matmul():
 
     hidet.utils.assert_close(c, tc)
 
-    report = ncu_run(func, a, b, c)
-    report.visualize()
+    # report = ncu_run(func, a, b, c)
+    # report.visualize()
 
 
 def main():

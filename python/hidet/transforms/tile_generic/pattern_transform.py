@@ -48,11 +48,7 @@ class PatternTransformPass(TileFunctionPass):
 
     def process_tile_func(self, func: Function) -> Function:
         rewriter = DeadCodeEliminationRewriter()
-        func = repeat_until_converge(
-            func=functools.partial(apply_transforms, transforms=self.transforms),
-            obj=func,
-            limit=None
-        )
+        func = self.apply_transforms(func, self.transforms, repeat_limit=-1)
         func = rewriter(func)
         return func
 

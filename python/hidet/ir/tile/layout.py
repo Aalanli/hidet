@@ -25,6 +25,9 @@ class SharedLayout(TileLayout):
         assert isinstance(other, TileLayout)
         return isinstance(other, SharedLayout)
 
+    def __hash__(self):
+        return hash(self.data_layout)
+
     def local_shape(self, shape: List[int]) -> List[int]:
         return shape
 
@@ -108,6 +111,9 @@ class BlockLayout(DistributedLayout):
             and same_list(self.thread_per_warp, other.thread_per_warp)
             and same_list(self.warps_per_block, other.warps_per_block)
         )
+
+    def __hash__(self):
+        return hash((tuple(self.size_per_thread), tuple(self.thread_per_warp), tuple(self.warps_per_block), 'block'))
 
     @staticmethod
     def from_shape(shape: List[int], num_warps: int, size_per_thread: Optional[List[int]] = None) -> BlockLayout:
@@ -265,6 +271,9 @@ class FlattenBlockLayout(DistributedLayout):
         assert isinstance(other, TileLayout)
         return isinstance(other, FlattenBlockLayout) and self.parent == other.parent and self.axis == other.axis
 
+    def __hash__(self):
+        return hash((self.parent, self.axis, 'flatten_block'))
+
     def expanded_shape(self, shape: List[int]):
         return shape[: self.axis] + [1] + shape[self.axis:]
 
@@ -314,6 +323,9 @@ class BlockDotOperandLayout(DotOperandLayout):
     def __eq__(self, other):
         assert isinstance(other, TileLayout)
         return isinstance(other, BlockDotOperandLayout) and self.parent == other.parent and self.op_idx == other.op_idx
+
+    def __hash__(self):
+        return hash((self.parent, self.op_idx, 'block_dot_operand'))
 
     def calc_local_shape(self, shape: List[int]) -> List[int]:
         assert len(shape) == 2

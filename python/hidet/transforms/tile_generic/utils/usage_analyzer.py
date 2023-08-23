@@ -17,6 +17,11 @@ class LetUsage:
         self.bind_var: Var = let_stmt.bind_vars[idx]
         self.bind_value: Expr = let_stmt.bind_values[idx]
 
+    @property
+    def op(self) -> TileOp:
+        assert isinstance(self.bind_value, CallTileOp)
+        return self.bind_value.op
+
 
 class StmtUsage:
     """

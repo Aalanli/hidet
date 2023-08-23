@@ -369,7 +369,6 @@ class CoalesceMemoryAccessPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         rewriter = CoalesceMemoryAccessRewriter()
         func = rewriter(func)
-        func = instantiate_layout(func)
         return convert_to_let(func)
 
 

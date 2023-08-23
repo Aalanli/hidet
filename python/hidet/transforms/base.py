@@ -60,10 +60,22 @@ class Pass:
     @staticmethod
     def apply_transforms(
         node: Union[IRModule, Function],
-        transforms: List[Callable[[Union[IRModule, Function]], Union[IRModule, Function]]]
+        transforms: List[Callable[[Union[IRModule, Function]], Union[IRModule, Function]]],
+        repeat_limit=1
     ):
-        for rewriter in transforms:
-            node = rewriter(node)
+        while True:
+            prev_node = node
+            for rewriter in transforms:
+                node = rewriter(node)
+            # with open('./outs/apply_transform_{}.txt'.format(repeat_limit), 'w') as f:
+            #     f.write(str(node))
+            if prev_node is node:
+                break
+            repeat_limit -= 1
+            if repeat_limit == 0:
+                break
+            elif repeat_limit < -100:
+                raise RuntimeError("Exceeded repeat hard limit 100")
         return node
 
     def predicate(self, ir_module: IRModule) -> bool:

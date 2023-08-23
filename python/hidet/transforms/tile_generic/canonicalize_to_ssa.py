@@ -29,7 +29,7 @@ def flatten_stmt_seq(seq: List[Stmt]) -> List[Stmt]:
 
 class ConvertTileExprToLetRewriter(IRRewriter):
     def __init__(self):
-        super().__init__()
+        super().__init__(use_memo=False)
         self.type_infer = TypeInfer()
 
     def visit_LetStmt(self, stmt: LetStmt):
@@ -59,7 +59,7 @@ class ConvertTileExprToLetRewriter(IRRewriter):
 class CanonicalizeToSSARewriter(IRRewriter):
     def __init__(self):
         super().__init__(use_memo=False)
-        self.var2value: Dict[Var, Expr] = {}
+        self.var2current: Dict[Var, Expr] = {}
         self.stmts: List[List[Stmt]] = []
         self.type_infer = TypeInfer()
 
@@ -67,8 +67,11 @@ class CanonicalizeToSSARewriter(IRRewriter):
         self.stmts.append([])
         self.visit(stmt)
         seq: List[Stmt] = self.stmts.pop()
+
+        # flatten SeqStmt in the statement sequence
         seq = flatten_stmt_seq(seq)
 
+        # concatenate the statement sequence
         if len(seq) == 0:
             return SeqStmt([])
         elif len(seq) == 1:
@@ -107,7 +110,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
         return Function(func.name, func.params, body, func.ret_type, func.kind, func.attrs)
 
     def visit_Var(self, e: Var):
-        value = self.var2value.get(e, None)
+        value = self.var2current.get(e, None)
         if value is None:
             return e  # global variables or function parameters
         else:
@@ -117,7 +120,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
         if stmt.init is not None:
             bind_var = Var(stmt.var.hint, stmt.var.type)
             bind_value = self.visit(stmt.init)
-            self.var2value[stmt.var] = bind_var
+            self.var2current[stmt.var] = bind_var
             self.append(LetStmt(bind_var, bind_value, body=None))
 
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):
@@ -126,14 +129,14 @@ class CanonicalizeToSSARewriter(IRRewriter):
     def visit_AssignStmt(self, stmt: AssignStmt):
         updated_value = self.visit(stmt.value)
         v = Var(stmt.var.hint, self.type_infer(updated_value))  # create a new variable for the updated value
-        self.var2value[stmt.var] = v
+        self.var2current[stmt.var] = v
         self.append(LetStmt(v, updated_value, body=None))
 
     def visit_LetStmt(self, stmt: LetStmt):
         bind_values = []
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             updated_value = self.visit(bind_value)
-            self.var2value[bind_var] = updated_value
+            self.var2current[bind_var] = bind_var
             bind_values.append(updated_value)
         self.append(LetStmt(stmt.bind_vars, bind_values, self.visit_and_wrap(stmt.body)))
 
@@ -145,12 +148,12 @@ class CanonicalizeToSSARewriter(IRRewriter):
         values: List[Expr] = []
         for assign_stmt in assignments:
             assigned_var = assign_stmt.var
-            value: Optional[Expr] = self.var2value.get(assign_stmt.var, None)
+            value: Optional[Expr] = self.var2current.get(assign_stmt.var, None)
             if value is not None:
                 arg = Var(assigned_var.hint, assigned_var.type)
                 args.append(arg)
                 values.append(value)
-                self.var2value[assigned_var] = arg
+                self.var2current[assigned_var] = arg
                 modified_vars.append(assigned_var)
             else:
                 # not found in parent scopes, so it is a variable defined in the loop body
@@ -162,7 +165,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
         returns: List[Var] = [Var(arg.hint, arg.type) for arg in args]
 
         for modified_var, ret in zip(modified_vars, returns):
-            self.var2value[modified_var] = ret
+            self.var2current[modified_var] = ret
         self.append(
             PureForStmt(
                 args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=returns,
@@ -171,7 +174,15 @@ class CanonicalizeToSSARewriter(IRRewriter):
         )
 
     def visit_PureForStmt(self, stmt: PureForStmt):
-        raise NotImplementedError()
+        assignments: List[AssignStmt] = collect(stmt, AssignStmt)
+        if len(assignments) > 0:
+            raise NotImplementedError()
+        values = [self.visit(value) for value in stmt.values]
+        args = [self.visit(arg) for arg in stmt.args]
+        body = self.visit_and_wrap(stmt.body)
+        let_vars = [self.visit(let_var) for let_var in stmt.let_vars]
+        let_body = self.visit_and_wrap(stmt.let_body)
+        self.append(PureForStmt(args, values, stmt.loop_var, stmt.extent, body, let_vars, let_body))
 
     def visit_SeqStmt(self, stmt: SeqStmt):
         for s in stmt.seq:

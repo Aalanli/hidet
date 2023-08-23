@@ -59,6 +59,10 @@ class PatternBuilder:
         return TileOpPattern(Construct, value)
 
     @staticmethod
+    def binary(x: TilePattern, y: TilePattern):
+        return TileOpPattern(BinaryTileOp, x, y)
+
+    @staticmethod
     def convert_layout(x: TilePattern):
         return TileOpPattern(ConvertLayout, x)
 
@@ -101,7 +105,11 @@ class PatternBuilder:
 
 class PatternTransform(PatternBuilder):
     def __call__(self, node):
-        return apply_transforms(node, [self])
+        while True:
+            orig_node = node
+            node = apply_transforms(node, [self])
+            if orig_node is node:
+                return node
 
     def source(self) -> TilePattern:
         raise NotImplementedError()

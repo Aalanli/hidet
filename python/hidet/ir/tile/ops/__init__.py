@@ -16,3 +16,4 @@ from .reduce import ReduceOp
 from .dot import Dot, SimtDot
 from .debug import DebugPrint
 from .assign import Assign
+from .smem import AllocTensor, InsertSliceAsync, AsyncWait, AsyncCommitGroup, ExtractSlice

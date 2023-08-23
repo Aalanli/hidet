@@ -14,7 +14,6 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
 from hidet.transforms.tile_generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
 from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
 from hidet.transforms.tile_generic.utils.usage_analyzer import VarUsage, UsageAnalyzer

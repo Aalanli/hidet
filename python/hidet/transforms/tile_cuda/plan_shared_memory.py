@@ -19,7 +19,6 @@ from hidet.ir.tools import TypeInfer, simplify_to_int
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
 from hidet.transforms.base import FunctionPass
-from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
 
 
 class Alloc:

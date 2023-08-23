@@ -30,7 +30,8 @@ class ConvertLayoutImpl(TileOpImpl):
                 raise NotImplementedError()
             else:
                 # use shared memory to do the conversion from a general distributed layout to another
-                smem = self.alloc_shared_buffer(src.dtype, src.shape, 'cvt_smem')
+                smem_shape = [s + 1 for s in src.shape]  # add one extra dimension to avoid bank conflict
+                smem = self.alloc_shared_buffer(src.dtype, smem_shape, 'cvt_smem')
 
                 # src to smem
                 def f_apply(local_indices, global_indices, not_duplicated):

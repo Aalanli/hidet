@@ -227,7 +227,7 @@ def demo_matmul():
     n_size = 1024
     k_size = 1024
 
-    block_m = 64
+    block_m = 128
     block_n = 32
     block_k = 8
 

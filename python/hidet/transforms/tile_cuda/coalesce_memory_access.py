@@ -11,12 +11,12 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
-from hidet.ir.tile.ops import Construct, Assign, convert_layout
+from hidet.ir.tile.ops import Construct, Assign, ConvertLayout, convert_layout
 from hidet.ir.tile.layout import BlockLayout, TileLayout, DistributedLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
+from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.transforms.tile_cuda.instantiate_layout import instantiate_layout
 from hidet.utils import same_list, gcd
 from .utils.affine import affine_decompose
@@ -30,6 +30,7 @@ class Value:
     def as_tile_value(self):
         assert isinstance(self, TileValue)
         return self
+
 
 class Constancy:
     """
@@ -348,10 +349,11 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         if new_layout is None:
             return super().visit_Load(e)
         else:
+            orig_layout = ptr.type.as_tile_type().layout
             ptr = convert_layout(ptr, new_layout)
             mask: Optional[Expr] = convert_layout(self.visit(e.mask), new_layout) if e.mask is not None else None
             other: Optional[Expr] = convert_layout(self.visit(e.other), new_layout) if e.other is not None else None
-            return Load(ptr=ptr, mask=mask, other=other)
+            return ConvertLayout(Load(ptr=ptr, mask=mask, other=other).make_call(), orig_layout)
 
     def visit_Store(self, e: Store):
         ptr = self.visit(e.ptr)
@@ -369,7 +371,8 @@ class CoalesceMemoryAccessPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         rewriter = CoalesceMemoryAccessRewriter()
         func = rewriter(func)
-        return convert_to_let(func)
+        func = canonicalize_to_ssa(func)
+        return func
 
 
 def coalesce_memory_access_pass() -> TileFunctionPass:

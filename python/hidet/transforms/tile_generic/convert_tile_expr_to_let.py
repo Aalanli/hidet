@@ -87,3 +87,6 @@ def convert_to_let(node: Union[IRModule, Function]):
 
 def convert_tile_expr_to_let_pass() -> TileFunctionPass:
     return ConvertTileExprToLetPass()
+
+
+raise ValueError()

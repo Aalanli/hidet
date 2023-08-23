@@ -467,7 +467,7 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
                 DeclareScope.Register: '',  # we can not force nvcc to use register, but it will do so if possible
             }
             doc += scope2specifier[stmt.scope]
-        self.add_scoped_var(stmt.var)
+        # self.add_scoped_var(stmt.var)
         doc += self.local_var_declare(stmt.var)
         if stmt.init is not None:
             doc += ' = ' + self(stmt.init)

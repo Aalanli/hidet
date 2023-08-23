@@ -11,7 +11,7 @@ from hidet.ir.tile.ops import Construct, Assign, convert_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.convert_tile_expr_to_let import convert_to_let
+from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.utils import same_list
 
 
@@ -179,18 +179,15 @@ class InstantiateLayoutRewriter(IRRewriter):
             a_type: TileType = self.type_infer.visit(a)
             b_type: TileType = self.type_infer.visit(b)
             c_type: TileType = self.type_infer.visit(c)
-            if c_type.layout:
-                layout = c_type.layout
+            m, n = c_type.shape
+            num_threads = self.num_warps * 32
+            if m * n >= num_threads * 16:
+                size_per_thread = [4, 4]
+            elif m * n >= num_threads * 4:
+                size_per_thread = [2, 2]
             else:
-                m, n = c_type.shape
-                num_threads = self.num_warps * 32
-                if m * n >= num_threads * 16:
-                    size_per_thread = [4, 4]
-                elif m * n >= num_threads * 4:
-                    size_per_thread = [2, 2]
-                else:
-                    size_per_thread = [1, 1]
-                layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
+                size_per_thread = [1, 1]
+            layout = BlockLayout.from_shape([m, n], num_warps=self.num_warps, size_per_thread=size_per_thread)
             if not (isinstance(a_type.layout, BlockDotOperandLayout) and a_type.layout.parent == layout):
                 a = convert_layout(a, BlockDotOperandLayout(parent=layout, op_idx=0))
             if not (isinstance(b_type.layout, BlockDotOperandLayout) and b_type.layout.parent == layout):
@@ -235,11 +232,14 @@ class InstantiateLayoutRewriter(IRRewriter):
 class InstantiateLayoutPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         rewriter = InstantiateLayoutRewriter()
-        return convert_to_let(rewriter.visit(func))
+        func = rewriter(func)
+        func = canonicalize_to_ssa(func)
+        return func
+
 
 def instantiate_layout(func: Function) -> Function:
     rewriter = InstantiateLayoutRewriter()
-    return convert_to_let(rewriter.visit(func))
+    return canonicalize_to_ssa(rewriter.visit(func))
 
 
 def instantiate_layout_pass() -> TileFunctionPass:

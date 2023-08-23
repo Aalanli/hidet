@@ -9,6 +9,7 @@ from hidet.ir.dtypes import uint8, uint16, uint32, uint64
 from .buffer import Buffer
 from .registry import TileOpImpl, register_impl
 
+
 def get_type_erased_dtype(ptr_type: PointerType) -> DataType:
     # get the type-erased data type of the loaded element
     assert isinstance(ptr_type, PointerType)
@@ -36,7 +37,7 @@ class LoadImpl(TileOpImpl):
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
         if isinstance(layout, BlockLayout):
-            axis = len(layout.layout_shape) - 1     # the last axis is the innermost axis
+            axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
             if vec_size > 1 and mask is None:
                 local_shape: List[int] = layout.calc_local_shape(output.shape)
@@ -88,11 +89,33 @@ class LoadImpl(TileOpImpl):
 @register_impl(Store)
 class StoreImpl(TileOpImpl):
     def implement(self, op: Store, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
+        from hidet.ir.mapping import repeat_map
+        from hidet.ir.primitives.cuda.ldst import store
         ptr: Buffer = args[0]
         value: Buffer = args[1]
         mask: Optional[Buffer] = args[2] if len(args) > 2 else None
 
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
+        layout = ptr.layout
+
+        if isinstance(layout, BlockLayout):
+            axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
+            vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
+            if vec_size > 1 and mask is None:
+                local_shape: List[int] = layout.calc_local_shape(ptr.shape)
+                mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
+
+                with self.for_mapping(repeat_map(mapping_shape)) as indices:
+                    local_indices = [idx if dim != axis else idx * vec_size for dim, idx in enumerate(indices)]
+                    src_addrs = []
+                    local_indices_iter = local_indices.copy()
+                    for i in range(vec_size):
+                        src_addrs.append(~value.var[local_indices_iter])
+                        local_indices_iter[axis] += 1
+                    self.append(
+                        store(dtype, addr=ptr[local_indices], src_addrs=src_addrs)
+                    )
+                return
 
         if isinstance(ptr.layout, DistributedLayout):
             assert value.layout == ptr.layout
@@ -100,7 +123,6 @@ class StoreImpl(TileOpImpl):
                 assert mask.layout == ptr.layout
 
             def f_apply(local_indices, global_indices, not_duplicated):
-                from hidet.ir.primitives.cuda.ldst import store
 
                 if mask:
                     assert isinstance(mask, Buffer) and ptr.layout == mask.layout

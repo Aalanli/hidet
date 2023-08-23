@@ -17,6 +17,7 @@ from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
 from hidet.transforms.tile_cuda.lower_ops.assign import AssignImpl
 from .lower_ops import Buffer, implement_tile_op
+from hidet.transforms.tile_generic.utils.usage_analyzer import UsageAnalyzer, VarUsage
 
 
 class LowerTileDialectRewriter(IRRewriter):
@@ -24,6 +25,7 @@ class LowerTileDialectRewriter(IRRewriter):
         super().__init__()
         # the mapping from the defined var to the corresponding buffer
         # the defined var can be either the var in LetStmt/DeclareStmt, or the one created in Buffer
+        self.usages: Dict[Var, VarUsage] = {}
         self.var2buffer: Dict[Var, Buffer] = {}
         self.stmts: List[Stmt] = []
         self.type_infer = TypeInfer()
@@ -113,22 +115,28 @@ class LowerTileDialectRewriter(IRRewriter):
     def visit_PureForStmt(self, stmt: PureForStmt):
         stmts = []
         # allocate buffer for the loop arguments
-        for arg in stmt.args:
-            if isinstance(arg.type, TileType):
-                self.var2buffer[arg] = self.alloc_buffer(arg.hint, arg.type)
-            else:
-                raise NotImplementedError()
-        stmts.extend(self.flush_stmts())
+        # for arg in stmt.args:
+        #     if isinstance(arg.type, TileType):
+        #         self.var2buffer[arg] = self.alloc_buffer(arg.hint, arg.type)
+        #     else:
+        #         raise NotImplementedError()
+        # stmts.extend(self.flush_stmts())
 
         # copy the argument initial values to argument buffers
         for arg, value in zip(stmt.args, stmt.values):
             if isinstance(arg.type, TileType):
                 assert isinstance(value, Var)
-                arg_buf = self.var2buffer[arg]
-                value_buf = self.var2buffer[value]
-                assign_impl = AssignImpl()
-                assign_impl.implement(None, args=[arg_buf, value_buf], output=None)
-                stmts.append(assign_impl.finish())
+                if self.usages[value].count() == 1:
+                    # the value is only used as the argument of the loop, so we can directly use the buffer
+                    self.var2buffer[arg] = self.var2buffer[value]
+                else:
+                    # otherwise, we need to create a buffer for the arg and copy the value to the buffer
+                    arg_buf = self.alloc_buffer(arg.hint, arg.type)
+                    value_buf = self.var2buffer[value]
+                    assign_impl = AssignImpl()
+                    assign_impl.implement(None, args=[arg_buf, value_buf], output=None)
+                    stmts.append(assign_impl.finish())
+                    self.var2buffer[arg] = arg_buf
             else:
                 raise NotImplementedError()
 
@@ -177,6 +185,9 @@ class LowerTileDialectRewriter(IRRewriter):
             return super().visit_EvaluateStmt(stmt)
 
     def visit_Function(self, func: Function):
+        usage_analyzer = UsageAnalyzer()
+        usage_analyzer.visit(func)
+        self.usages = usage_analyzer.usages
         ret = super().visit_Function(func)
         if ret.kind == 'cuda_tile':
             ret.kind = 'cuda_kernel'

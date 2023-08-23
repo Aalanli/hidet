@@ -155,7 +155,7 @@ def register_functions():
                         register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
                     if vec == 4:
                         @script
-                        def cuda_store(addr: void_p, v0: ~void_p, v1: ~void_p, v2: ~void_p, v3: ~void_p):
+                        def cuda_store(addr: void_p, v0: void_p, v1: void_p, v2: void_p, v3: void_p):
                             attrs.func_kind = 'cuda_internal'
                             attrs.func_name = func_name
                             template = inst_name + ' [%0], {%1, %2, %3, %4};'

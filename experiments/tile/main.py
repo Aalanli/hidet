@@ -227,8 +227,8 @@ def demo_matmul():
     n_size = 1024
     k_size = 1024
 
-    block_m = 128
-    block_n = 64
+    block_m = 64
+    block_n = 32
     block_k = 8
 
     with hidet.script_module() as script_module:
@@ -275,8 +275,8 @@ def demo_matmul():
 
     hidet.utils.assert_close(c, tc)
 
-    # report = ncu_run(func, a, b, c)
-    # report.visualize()
+    report = ncu_run(func, a, b, c)
+    report.visualize()
 
 
 def main():

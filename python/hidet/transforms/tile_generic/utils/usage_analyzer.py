@@ -34,6 +34,9 @@ class VarUsage:
         self.let_usages: List[LetUsage] = []
         self.stmt_usages: List[StmtUsage] = []
 
+    def count(self):
+        return len(self.let_usages) + len(self.stmt_usages)
+
 
 class UsageAnalyzer(IRVisitor):
     def __init__(self):

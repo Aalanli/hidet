@@ -56,20 +56,6 @@ class InjectExplicitTransformOpsRewriter(IRRewriter):
         else:
             return super().visit_Binary(e)
 
-    def visit_AssignStmt(self, stmt: AssignStmt):
-        rhs = self.visit(stmt.value)
-        lhs = self.visit(stmt.var)
-        rhs_type = self.type_infer.visit(rhs)
-        lhs_type = self.type_infer.visit(lhs)
-
-        if isinstance(lhs_type, TileType) and isinstance(rhs_type, (PointerType, DataType)):
-            rhs = full(rhs, lhs_type.shape)
-            return AssignStmt(lhs, rhs)
-        elif isinstance(lhs_type, (PointerType, DataType)) and isinstance(rhs_type, TileType):
-            raise ValueError('Cannot assign a tile to a non-tile variable')
-        else:
-            return super().visit_AssignStmt(stmt)
-
 
 class InjectExplicitTransformOpsPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:

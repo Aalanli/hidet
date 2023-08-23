@@ -58,12 +58,6 @@ class CanonicalizeExpressionsRewriter(IRRewriter):
         else:
             return super().visit_Binary(e)
 
-    def visit_AssignStmt(self, stmt: AssignStmt):
-        assign_var = self.visit(stmt.var)
-        assign_value = self.visit(stmt.value)
-        assert isinstance(assign_var, expr.Var)
-        return EvaluateStmt(assign(assign_var, assign_value))
-
 
 class CanonicalizeExpressionsPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:

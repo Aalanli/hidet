@@ -68,10 +68,10 @@ def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
 def lower(ir_module: IRModule) -> IRModule:
 
     tile_generic_transforms = [
-        canonicalize_to_ssa_pass(),
         inject_explicit_transform_ops_pass(),
         canonicalize_expressions_pass(),
-        convert_tile_expr_to_let_pass(),
+        canonicalize_to_ssa_pass(),
+        # convert_tile_expr_to_let_pass(),
         fold_constant_pass(),
         pattern_transform_pass(),
     ]

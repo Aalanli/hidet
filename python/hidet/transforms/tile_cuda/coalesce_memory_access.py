@@ -8,7 +8,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor, IRFunctor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt, EvaluateStmt
 from hidet.ir.tile.expr import CallTileOp, TileOp
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
 from hidet.ir.tile.ops import Construct, Assign, convert_layout
@@ -228,7 +228,7 @@ class CoalesceAnalyzer(IRVisitor):
                 self.merge(let_var, self.var2value.get(arg, None))
         self.visit(stmt.let_body)
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+    def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
         for arg, yield_value in zip(for_stmt.args, stmt.yields):
             if isinstance(arg.type, TileType):

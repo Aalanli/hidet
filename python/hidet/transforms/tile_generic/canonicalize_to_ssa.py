@@ -1,15 +1,20 @@
 import contextlib
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
-from hidet.ir.expr import Expr, Var
+from hidet.ir.expr import Expr, Var, Let, var
 from hidet.ir.func import Function
+from hidet.ir.module import IRModule
 from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LaunchKernelStmt, BlackBoxStmt
 from hidet.ir.stmt import Stmt, DeclareStmt, SeqStmt, AssignStmt, EvaluateStmt, BufferStoreStmt, LetStmt, ForStmt
 from hidet.ir.stmt import WhileStmt, ForMappingStmt, BreakStmt, ContinueStmt, IfStmt, ReturnStmt, AssertStmt, AsmStmt
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.type import TileType
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
+from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tools import TypeInfer, collect
 from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.expand_let_expr import LetExprExpander
+from hidet.utils import same_list
 
 
 def flatten_stmt_seq(seq: List[Stmt]) -> List[Stmt]:
@@ -20,6 +25,35 @@ def flatten_stmt_seq(seq: List[Stmt]) -> List[Stmt]:
         else:
             flattened.append(stmt)
     return flattened
+
+
+class ConvertTileExprToLetRewriter(IRRewriter):
+    def __init__(self):
+        super().__init__()
+        self.type_infer = TypeInfer()
+
+    def visit_LetStmt(self, stmt: LetStmt):
+        stmt = super().visit_LetStmt(stmt)
+        bind_values = []
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            if isinstance(bind_value, Let) and bind_value.body is bind_value.var:
+                # Let v = (let vv=e: v) => # Let v = e
+                bind_values.append(bind_value.value)
+            else:
+                bind_values.append(bind_value)
+        if same_list(stmt.bind_values, bind_values):
+            return stmt
+        else:
+            return LetStmt(stmt.bind_vars, bind_values, stmt.body)
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        call = super().visit_CallTileOp(call)
+        ret_type = self.type_infer(call)
+        if isinstance(ret_type, TileType):
+            v = var(hint=call.op.var_name_hint, dtype=ret_type)
+            return Let(v, call, v)
+        else:
+            return call
 
 
 class CanonicalizeToSSARewriter(IRRewriter):
@@ -124,7 +158,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
 
         loop_var: Var = stmt.loop_var
         extent: Expr = self.visit(stmt.extent)
-        body: Stmt = self.visit_and_wrap(SeqStmt([stmt.body, PureYieldStmt(modified_vars)]))
+        body: Stmt = self.visit_and_wrap(SeqStmt([stmt.body, YieldStmt(modified_vars)]))
         returns: List[Var] = [Var(arg.hint, arg.type) for arg in args]
 
         for modified_var, ret in zip(modified_vars, returns):
@@ -143,8 +177,8 @@ class CanonicalizeToSSARewriter(IRRewriter):
         for s in stmt.seq:
             self.visit(s)
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
-        self.append(super().visit_PureYieldStmt(stmt))
+    def visit_YieldStmt(self, stmt: YieldStmt):
+        self.append(super().visit_YieldStmt(stmt))
 
     def visit_IfStmt(self, stmt: IfStmt):
         raise NotImplementedError('tile-dialect does not support {} for now'.format(stmt.__class__.__name__))
@@ -182,8 +216,22 @@ class CanonicalizeToSSARewriter(IRRewriter):
 
 class CanonicalizeToSSAPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewriter = CanonicalizeToSSARewriter()
-        return rewriter.visit(func)
+        return self.apply_transforms(func, [
+            CanonicalizeToSSARewriter(),
+            ConvertTileExprToLetRewriter(),
+            LetExprExpander()
+        ])
+
+
+def canonicalize_to_ssa(node: Union[Function, IRModule]):
+    transforms = [
+        CanonicalizeToSSARewriter(),
+        ConvertTileExprToLetRewriter(),
+        LetExprExpander()
+    ]
+    for transform in transforms:
+        node = transform(node)
+    return node
 
 
 def canonicalize_to_ssa_pass() -> TileFunctionPass:

@@ -69,7 +69,7 @@ class RemoveLayoutConvertWithTransformsRewriter(IRRewriter):
 
 class RemoveLayoutConvertPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        return self.apply_rewriter_list(
+        return self.apply_transforms(
             func, [
                 RemoveLayoutConvertWithTransformsRewriter(),
                 DeadCodeEliminationRewriter()

@@ -25,7 +25,7 @@ from hidet.ir.expr import BitwiseAnd, Neg, Cast, NotEqual, BitwiseXor, Reference
 from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt, EvaluateStmt, AssertStmt
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.type import TileType, TileLayout
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
@@ -710,7 +710,7 @@ class IRPrinter(IRFunctor):
 
         return doc
 
-    def visit_PureYieldStmt(self, e: PureYieldStmt):
+    def visit_YieldStmt(self, e: YieldStmt):
         return NewLine() + 'yield ' + doc_join([self(v) for v in e.yields], ', ')
 
 

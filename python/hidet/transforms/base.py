@@ -9,7 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Callable
 from hidet.ir.func import Function
 from hidet.ir.module import IRModule
 from hidet.ir.functors import IRRewriter
@@ -58,8 +58,11 @@ class Pass:
         return ir_module
 
     @staticmethod
-    def apply_rewriter_list(node: Union[IRModule, Function], rewriter_list: List[IRRewriter]):
-        for rewriter in rewriter_list:
+    def apply_transforms(
+        node: Union[IRModule, Function],
+        transforms: List[Callable[[Union[IRModule, Function]], Union[IRModule, Function]]]
+    ):
+        for rewriter in transforms:
             node = rewriter(node)
         return node
 

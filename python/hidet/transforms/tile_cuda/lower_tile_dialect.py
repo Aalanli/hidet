@@ -9,7 +9,7 @@ from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DistributedLayout
 from hidet.ir.tile.type import TileType
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import BaseType
 from hidet.ir.type import DataType, PointerType
@@ -22,7 +22,7 @@ from .lower_ops import Buffer, implement_tile_op
 class LowerTileDialectRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
-        # the mapping from the defined var (within LetStmt or DeclareStmt and Buffer) to the corresponding buffer
+        # the mapping from the defined var to the corresponding buffer
         # the defined var can be either the var in LetStmt/DeclareStmt, or the one created in Buffer
         self.var2buffer: Dict[Var, Buffer] = {}
         self.stmts: List[Stmt] = []
@@ -96,6 +96,7 @@ class LowerTileDialectRewriter(IRRewriter):
                         + '  {}'.format(type(bind_value.op).__name__)
                     )
                 self.var2buffer[bind_var] = buf
+                buf.var.hint = bind_var.hint
                 stmts.extend(self.flush_stmts())
                 # self.memo[bind_var] = buf.var
             elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
@@ -148,7 +149,7 @@ class LowerTileDialectRewriter(IRRewriter):
         stmts.append(self.visit(stmt.let_body))
         return SeqStmt(stmts)
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+    def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
         stmts = []
         for arg, yield_value in zip(for_stmt.args, stmt.yields):
@@ -184,7 +185,7 @@ class LowerTileDialectRewriter(IRRewriter):
 
 class LowerTileDialectPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        return self.apply_rewriter_list(
+        return self.apply_transforms(
             func, [
                 LowerTileDialectRewriter(),
                 DeclareToLetRewriter(),

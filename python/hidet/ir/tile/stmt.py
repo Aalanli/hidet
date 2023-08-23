@@ -23,7 +23,7 @@ class PureForStmt(Stmt):
         self.let_body: Stmt = let_body
 
 
-class PureYieldStmt(Stmt):
+class YieldStmt(Stmt):
     def __init__(self, yields: List[Expr]):
         self.yields: List[Expr] = yields
 

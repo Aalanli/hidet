@@ -165,7 +165,7 @@ class PlanSharedMemoryRewriter(IRRewriter):
 
 class PlanSharedMemoryPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
-        return self.apply_rewriter_list(func, [PlanSharedMemoryRewriter()])
+        return self.apply_transforms(func, [PlanSharedMemoryRewriter()])
 
 
 def plan_shared_memory_pass() -> FunctionPass:

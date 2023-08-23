@@ -2,7 +2,7 @@ from typing import List
 from hidet.ir.node import Node
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops.creation import Arange, Full, Construct
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
@@ -28,8 +28,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_CallTileOp(node)
         elif isinstance(node, PureForStmt):
             return self.visit_PureForStmt(node)
-        elif isinstance(node, PureYieldStmt):
-            return self.visit_PureYieldStmt(node)
+        elif isinstance(node, YieldStmt):
+            return self.visit_YieldStmt(node)
         elif isinstance(node, UnaryTileOp):
             return self.visit_UnaryTileOp(node)
         elif isinstance(node, BinaryTileOp):
@@ -116,7 +116,7 @@ class TileFunctor(BaseFunctor):
     def visit_PureForStmt(self, e: PureForStmt):
         raise NotImplementedError()
 
-    def visit_PureYieldStmt(self, e: PureYieldStmt):
+    def visit_YieldStmt(self, e: YieldStmt):
         raise NotImplementedError()
 
 
@@ -185,7 +185,7 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(stmt.let_vars)
         self.visit(stmt.let_body)
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+    def visit_YieldStmt(self, stmt: YieldStmt):
         self.visit(stmt.yields)
 
 
@@ -335,9 +335,9 @@ class TileRewriter(TileFunctor, BaseRewriter):
                 let_body=let_body,
             )
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+    def visit_YieldStmt(self, stmt: YieldStmt):
         yields = self.visit(stmt.yields)
         if yields is stmt.yields:
             return stmt
         else:
-            return PureYieldStmt(yields=yields)
+            return YieldStmt(yields=yields)

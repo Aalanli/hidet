@@ -5,7 +5,7 @@ from hidet.ir.functors import IRRewriter
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
-from hidet.ir.tile.stmt import PureForStmt, PureYieldStmt
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
 from hidet.ir.tile.ops import Construct, Assign, convert_layout
 from hidet.ir.tile.type import TileType
@@ -75,7 +75,7 @@ class InstantiateLayoutRewriter(IRRewriter):
         let_body = self.visit(stmt.let_body)
         return PureForStmt(args, values, stmt.loop_var, extent, body, let_vars, let_body)
 
-    def visit_PureYieldStmt(self, stmt: PureYieldStmt):
+    def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
         args: List[Var] = self.visit(for_stmt.args)
         yields: List[Expr] = self.visit(stmt.yields)
@@ -90,7 +90,7 @@ class InstantiateLayoutRewriter(IRRewriter):
                     updated_values.append(yie)
             else:
                 updated_values.append(yie)
-        return PureYieldStmt(updated_values)
+        return YieldStmt(updated_values)
 
     def visit_Arange(self, e: Arange):
         if e.layout:

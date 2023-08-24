@@ -267,11 +267,11 @@ def demo_matmul():
     c = hidet.empty([m_size, n_size], device='cuda')
 
     func(a, b, c)
-    print('  tile: {:.2f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
+    print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
 
     import torch
     ta, tb, tc = a.torch(), b.torch(), c.torch()
-    print(' torch: {:.2f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
+    print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
 
     hidet.utils.assert_close(c, tc)
 

@@ -13,8 +13,8 @@ class AllocTensor(TileOp):
 
 
 class InsertSliceAsync(TileOp):
-    def __init__(self, ptr: Expr, dst: Expr, axis: int, index: int):
-        super().__init__(args=[ptr, dst], attrs={"axis": axis, "index": index})
+    def __init__(self, ptr: Expr, dst: Expr, index: Expr, axis: int):
+        super().__init__(args=[ptr, dst, index], attrs={"axis": axis})
 
 
 class AsyncCommitGroup(TileOp):
@@ -23,10 +23,10 @@ class AsyncCommitGroup(TileOp):
 
 
 class AsyncWait(TileOp):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, n: int):
+        super().__init__(attrs={"n": n})
 
 
 class ExtractSlice(TileOp):
-    def __init__(self, src: Expr, axis: int, index: int, layout: Optional[TileLayout] = None):
-        super().__init__(args=[src], attrs={"axis": axis, "index": index, "layout": layout})
+    def __init__(self, src: Expr, index: Expr, axis: int, layout: Optional[TileLayout] = None):
+        super().__init__(args=[src, index], attrs={"axis": axis, "layout": layout})

@@ -26,8 +26,11 @@ from hidet.ir.stmt import SeqStmt, IfStmt, ForStmt, AssignStmt, BufferStoreStmt,
 from hidet.ir.stmt import BlackBoxStmt, AsmStmt, ReturnStmt, LetStmt, DeclareStmt, ForMappingStmt, WhileStmt
 from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStmt
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.type import TileType, TileLayout
+from hidet.ir.tile.ops import Arange, Full, Construct, Load, Store, Broadcast, ExpandDims, ConvertLayout
+from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, ReduceOp, Dot, DebugPrint, Assign
+from hidet.ir.tile.ops import AllocTensor, InsertSliceAsync, AsyncWait, AsyncCommitGroup, ExtractSlice
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
 from hidet.ir.layout import ColumnMajorLayout
 from hidet.ir.mapping import RepeatTaskMapping, SpatialTaskMapping, ComposedTaskMapping
@@ -55,7 +58,8 @@ class IRPrinter(IRFunctor):
         return self.visit(node)
 
     def add_scope_var(self, v):
-        self.scoped_vars[-1].append(v)
+        if len(self.scoped_vars) > 0:
+            self.scoped_vars[-1].append(v)
 
     @contextlib.contextmanager
     def scope(self):
@@ -644,10 +648,10 @@ class IRPrinter(IRFunctor):
         else:
             raise NotImplementedError()
 
-    def visit_CallTileOp(self, call: CallTileOp):
-        args_doc = [self(v) for v in call.op.args]
+    def visit_TileOp(self, op: TileOp):
+        args_doc = [self(v) for v in op.args]
         attrs_doc = []
-        for k, v in call.op.attrs.items():
+        for k, v in op.attrs.items():
             if v is None:
                 # skip None attrs
                 continue
@@ -661,7 +665,67 @@ class IRPrinter(IRFunctor):
                 attrs_doc.append(self(k) + '=' + repr(v))
             else:
                 attrs_doc.append(self(k) + '=' + self(v))
-        return call.op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
+        return op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
+    
+    def visit_Arange(self, e: Arange):
+        return self.visit_TileOp(e)
+
+    def visit_Full(self, e: Full):
+        return self.visit_TileOp(e)
+
+    def visit_Construct(self, e: Construct):
+        return self.visit_TileOp(e)
+
+    def visit_ExpandDims(self, e: ExpandDims):
+        return self.visit_TileOp(e)
+
+    def visit_Broadcast(self, e: Broadcast):
+        return self.visit_TileOp(e)
+
+    def visit_UnaryTileOp(self, e: UnaryTileOp):
+        return self.visit_TileOp(e)
+
+    def visit_BinaryTileOp(self, e: BinaryTileOp):
+        return self.visit_TileOp(e)
+
+    def visit_ConvertLayout(self, e: ConvertLayout):
+        return self.visit_TileOp(e)
+
+    def visit_Assign(self, e: Assign):
+        return self.visit_TileOp(e)
+
+    def visit_Load(self, e: Load):
+        return self.visit_TileOp(e)
+    
+    def visit_Store(self, e: Store):
+        return self.visit_TileOp(e)
+
+    def visit_ReduceOp(self, e: ReduceOp):
+        return self.visit_TileOp(e)
+
+    def visit_Dot(self, e: Dot):
+        return self.visit_TileOp(e)
+
+    def visit_AllocTensor(self, e: AllocTensor):
+        return self.visit_TileOp(e)
+
+    def visit_InsertSliceAsync(self, e: InsertSliceAsync):
+        return self.visit_TileOp(e)
+
+    def visit_AsyncWait(self, e: AsyncWait):
+        return self.visit_TileOp(e)
+
+    def visit_AsyncCommitGroup(self, e: AsyncCommitGroup):
+        return self.visit_TileOp(e)
+
+    def visit_ExtractSlice(self, e: ExtractSlice):
+        return self.visit_TileOp(e)
+
+    def visit_DebugPrint(self, e: DebugPrint):
+        return self.visit_TileOp(e)
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        return self.visit_TileOp(call.op)
 
     def visit_TileType(self, t: TileType):
         shape_items = [self(v) for v in t.shape]

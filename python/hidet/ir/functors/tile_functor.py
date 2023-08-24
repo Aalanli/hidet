@@ -181,7 +181,9 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(stmt.values)
         self.visit(stmt.loop_var)
         self.visit(stmt.extent)
+        self.pure_for_stmts.append(stmt)
         self.visit(stmt.body)
+        self.pure_for_stmts.pop()
         self.visit(stmt.let_vars)
         self.visit(stmt.let_body)
 

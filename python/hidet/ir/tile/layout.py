@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Tuple, Optional
 
 from hidet.ir.expr import Expr
-from hidet.ir.layout import DataLayout
+from hidet.ir.layout import DataLayout, row_major
 from hidet.utils import same_list, prod, is_power_of_two, argmin
 from .expr import Attribute
 
@@ -13,9 +13,10 @@ class TileLayout(Attribute):
 
 
 class SharedLayout(TileLayout):
-    def __init__(self, data_layout: DataLayout):
+    def __init__(self, shape: List[int], data_layout: Optional[DataLayout] = None):
         super().__init__()
-        self.data_layout: DataLayout = data_layout
+        self.shape: List[int] = shape
+        self.data_layout: DataLayout = data_layout if data_layout is not None else data_layout(*shape)
 
     def __str__(self):
         return 'shared({})'.format(self.data_layout)

@@ -27,7 +27,7 @@ class TileOpImpl(StmtBuilder):
             dtype=dtype,
             shape=shape,
             local_shape=shape,
-            layout=SharedLayout(data_layout if data_layout else row_major(*shape)),
+            layout=SharedLayout(shape),
         )
 
     def sync_threads(self):

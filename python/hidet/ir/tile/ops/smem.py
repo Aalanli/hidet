@@ -13,8 +13,13 @@ class AllocTensor(TileOp):
 
 
 class InsertSliceAsync(TileOp):
-    def __init__(self, ptr: Expr, dst: Expr, index: Expr, axis: int):
+    def __init__(self, ptr: Expr, dst: Expr, index: Expr, mask: Optional[Expr], other: Optional[Expr], axis: int):
         super().__init__(args=[ptr, dst, index], attrs={"axis": axis})
+        if mask is not None:
+            self.args.append(mask)
+        if other is not None:
+            assert mask is not None
+            self.args.append(other)
 
 
 class AsyncCommitGroup(TileOp):

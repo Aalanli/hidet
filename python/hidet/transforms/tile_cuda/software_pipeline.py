@@ -1,23 +1,26 @@
-from typing import List, Dict, Set, Optional, Tuple
+import logging
 from collections import defaultdict
-from hidet.ir.expr import Expr
+from typing import List, Dict, Set, Optional, Tuple, Union
+
 from hidet.ir.dtypes import int32
+from hidet.ir.expr import Expr
+from hidet.ir.expr import Var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
+from hidet.ir.stmt import LetStmt, Stmt, EvaluateStmt, SeqStmt
+from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.ops import AllocTensor, Load, InsertSliceAsync, AsyncCommitGroup, ExtractSlice, AsyncWait
 from hidet.ir.tile.ops import ConvertLayout
-from hidet.ir.tile.expr import TileOp
-from hidet.ir.tile.type import TileType
-from hidet.ir.tile.layout import SharedLayout
-from hidet.ir.tile.stmt import PureForStmt
-from hidet.ir.tools import TypeInfer, rewrite, collect
-from hidet.ir.type import DataType
-from hidet.ir.expr import Var
-from hidet.ir.builders import StmtBuilder
-from hidet.transforms.base import TileFunctionPass
-from hidet.ir.stmt import LetStmt, Stmt, EvaluateStmt, SeqStmt
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
+from hidet.ir.tile.type import TileType
+from hidet.ir.tools import TypeInfer, rewrite
+from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.tile_cuda.remove_layout_convert import FoldConvertLayoutTransform, DeadCodeEliminationRewriter
 from hidet.transforms.tile_generic.utils.definition_analyzer import DefinitionAnalyzer, VarDefinition, LetDefinition
+from hidet.transforms.tile_generic.utils.dependency_analyzer import DependencyAnalyzer
+
+logger = logging.getLogger(__name__)
 
 """
 Apply software pipeline to the load operators in a loop:
@@ -112,41 +115,6 @@ class DetectLoadInLoopVisitor(IRVisitor):
         super().visit_YieldStmt(stmt)
 
 
-class DependencyGraphConstructor(IRVisitor):
-    def __init__(self):
-        super().__init__()
-        self.depends: Dict[Var, List[Var]] = {}
-
-    def get_direct_depends(self, e: Expr):
-        self.memo.clear()
-        self.visit(e)
-        return [v for v in self.memo if isinstance(v, Var)]
-
-    def add_depends(self, user: Var, depends: List[Var]):
-        if user not in self.depends:
-            self.depends[user] = []
-        for v in depends:
-            if v not in self.depends[user]:
-                self.depends[user].append(v)
-
-    def visit_LetStmt(self, stmt: LetStmt):
-        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
-            self.add_depends(bind_var, self.get_direct_depends(bind_value))
-        self.visit(stmt.body)
-
-    def visit_PureForStmt(self, stmt: PureForStmt):
-        for arg, value in zip(stmt.args, stmt.values):
-            self.add_depends(arg, self.get_direct_depends(value))
-        self.pure_for_stmts.append(stmt)
-        self.visit(stmt.body)
-        self.pure_for_stmts.pop()
-        self.visit(stmt.let_body)
-
-    def visit_YieldStmt(self, stmt: YieldStmt):
-        loop_stmt = self.pure_for_stmts[-1]
-        for let_var, yield_value in zip(loop_stmt.let_vars, stmt.yields):
-            self.add_depends(let_var, self.get_direct_depends(yield_value))
-
 
 class Rematerializer:
     def __init__(self, args: List[Var], bind_vars: List[Var], bind_values: List[Expr], results: List[Var]):
@@ -156,8 +124,20 @@ class Rematerializer:
         self.bind_values: List[Expr] = bind_values
         self.results: List[Var] = results
 
+    def __str__(self):
+        from hidet.ir.tools.printer import IRPrinter, Doc, NewLine
+        printer = IRPrinter()
+        doc = Doc()
+        doc += printer(self.args)
+        body = Doc()
+        for bind_var, bind_value in zip(self.bind_vars, self.bind_values):
+            body += NewLine() + printer(bind_var) + ' = ' + printer(bind_value)
+        doc += body.indent()
+        doc += NewLine() + 'return ' + printer(self.results)
+        return str(doc)
+
     @staticmethod
-    def create(loop: PureForStmt, for_args: List[Var], values: List[Expr]):
+    def create(loop: PureForStmt, depends: Dict[Var, List[Var]], args: List[Var], values: List[Expr]):
         given_values = values
         values: List[Var] = [v for v in given_values if isinstance(v, Var)]
         assert len(values) == len(given_values), "Expected all values to be Var"
@@ -182,18 +162,20 @@ class Rematerializer:
                 definition = definitions[u]
                 if not isinstance(definition, LetDefinition):
                     raise RuntimeError(f"Expected LetDefinition, got {definition}")
-                if definition.bind_var in visited:
-                    # already in the computation (bind_vars, bind_values), skip
-                    continue
                 bind_vars.append(definition.bind_var)
                 bind_values.append(definition.bind_value)
-                visited.add(definition.bind_var)
-                queue.append(definition.bind_var)
+
+                for v in depends[u]:
+                    if v in visited:
+                        # already in the computation (bind_vars, bind_values), skip
+                        continue
+                    visited.add(v)
+                    queue.append(v)
 
         # inplace reverse the order of bind_vars and bind_values
         bind_vars.reverse()
         bind_values.reverse()
-        return Rematerializer(for_args, bind_vars, bind_values, values)
+        return Rematerializer(args, bind_vars, bind_values, values)
 
     def rematerialize(self, updated_args: List[Var]) -> Tuple[List[Var], List[Expr], List[Var]]:
         bind_vars = []
@@ -209,6 +191,26 @@ class Rematerializer:
         return bind_vars, bind_values, results
 
 
+class LoopArgs:
+    def __init__(self, original, extra_indices, loaded_tiles, buffers, load_dependent_args, arg2value):
+        self.original: List[Var] = original
+        self.extra_indices: List[Var] = extra_indices
+        self.loaded_tiles: List[Var] = loaded_tiles
+        self.buffers: List[Var] = buffers
+        self.load_dependent_args: List[Var] = load_dependent_args
+
+        self.arg2value: Dict[Var, Expr] = arg2value
+
+    def concatenated(self) -> List[Var]:
+        return self.original + self.extra_indices + self.loaded_tiles + self.buffers + self.load_dependent_args
+
+    def insert_index(self) -> Var:
+        return self.extra_indices[0]
+
+    def extract_index(self) -> Var:
+        return self.extra_indices[1]
+
+
 class SoftwarePipelineRewriter(IRRewriter):
     def __init__(self, loop, yield_stmt, loads, dependency_graph, num_stages=3):
         super().__init__()
@@ -220,9 +222,21 @@ class SoftwarePipelineRewriter(IRRewriter):
         self.type_infer = TypeInfer()
 
         # the information that will be used by Load and YieldStmt visitors, filled by PureForStmt visitor
-        self.loop_args: List[Var] = []
-        self.args_count: Dict[str, int] = {}
-        self.for_extra_args: List[Var] = []
+        self.load_args: List[Var] = self.get_load_args()                      # step 2.1
+        self.load_dependent_args: List[Var] = self.get_load_dependent_args()  # step 2.2
+        self.yield_load_dependent_values: List[Expr] = [
+            self.yield_stmt.yields[i] for i in range(len(self.loop.args))
+            if self.loop.args[i] in self.load_dependent_args
+        ]
+        dep = self.dependency_graph
+        self.load_args_remat: Rematerializer = Rematerializer.create(
+            loop=self.loop, depends=dep, args=self.load_dependent_args, values=self.load_args
+        )
+        self.load_dependent_args_remat: Rematerializer = Rematerializer.create(
+            loop=self.loop, depends=dep, args=self.load_dependent_args, values=self.yield_load_dependent_values
+        )
+        self.updated_args: Optional[LoopArgs] = None
+
 
     def depends(self, users: List[Var]):
         # find all the variables that are the dependencies of users
@@ -230,6 +244,9 @@ class SoftwarePipelineRewriter(IRRewriter):
         visited: Set[Var] = set(users)
         while len(stack) > 0:
             u = stack.pop()
+            if u not in self.dependency_graph:
+                # variables without any dependency like loop variable
+                continue
             for v in self.dependency_graph[u]:
                 if v not in visited:
                     stack.append(v)
@@ -250,20 +267,19 @@ class SoftwarePipelineRewriter(IRRewriter):
                 load_args.add(load.other)
         return list(load_args)
 
-    def get_for_extra_args(self, all_for_args) -> List[Var]:
+    def get_load_dependent_args(self) -> List[Var]:
         """ step 2.2: find the self-contained set of arguments to compute load args as well as themselves """
-        load_args = self.get_load_args()
-        for_extra_args = load_args
+        load_args = self.load_args
+        load_dependent_args = load_args
         while True:
-            orig_num = len(for_extra_args)
-            for_extra_args = [v for v in self.depends(users=load_args) if v in all_for_args]
-            if len(for_extra_args) == orig_num:
+            orig_num = len(load_dependent_args)
+            load_dependent_args = [v for v in self.depends(users=load_dependent_args) if v in self.loop.args]
+            if len(load_dependent_args) == orig_num:
                 # converged to a self-contained set of arguments to compute themselves during loop iteration
                 break
-        for_extra_args = [v for v in self.depends(users=load_args) if v in all_for_args]
-        return for_extra_args
+        return load_dependent_args
 
-    def rematerialized_prefetch(self) -> Tuple[List[Stmt], List[Var], List[Var]]:
+    def rematerialized_prefetch(self) -> Tuple[List[Stmt], List[Var], List[Var], List[Var]]:
         stmts = []
 
         # allocate shared memory buffers
@@ -274,22 +290,19 @@ class SoftwarePipelineRewriter(IRRewriter):
             buffer_type = TileType(load_type.type, shape, layout=SharedLayout(shape))
             buffer_var = Var('smem', type=buffer_type)
             buffer_vars.append(buffer_var)
-            stmts.append(LetStmt(buffer_var, AllocTensor(shape).make_call()))
+            stmts.append(LetStmt(buffer_var, AllocTensor(dtype=load_type.type, shape=shape).make_call()))
 
         # construct the rematerializer for for_args calculation
         load_args = self.get_load_args()
-        load_args_remat = Rematerializer.create(loop=self.loop, for_args=self.for_extra_args, values=load_args)
-        for_args_remat = Rematerializer.create(
-            loop=self.loop, for_args=self.for_extra_args, values=self.yield_stmt.yields
-        )
 
         # rematerialize the load args and loop args
         arg2init: Dict[Var, Var] = {arg: value for arg, value in zip(self.loop.args, self.loop.values)}
-        current_for_args: List[Var] = [arg2init[arg] for arg in self.for_extra_args]
+        current_for_args: List[Var] = [arg2init[arg] for arg in self.load_dependent_args]
         for i in range(self.num_stages - 1):
             # rematerialize the load arguments computations
-            bind_vars, bind_values, remat_load_args = load_args_remat.rematerialize(current_for_args)
-            stmts.append(LetStmt(bind_vars, bind_values))
+            bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(current_for_args)
+            if len(bind_vars) > 0:
+                stmts.append(LetStmt(bind_vars, bind_values))
 
             # rematerialize the load operations
             load_arg_map: Dict[Expr, Var] = {a: b for a, b in zip(load_args, remat_load_args)}
@@ -303,72 +316,100 @@ class SoftwarePipelineRewriter(IRRewriter):
                 new_buf_var = Var(buf_var.hint, type=buf_var.type)
                 buffer_vars[idx] = new_buf_var
                 stmts.append(LetStmt(new_buf_var, op.make_call()))
-                stmts.append(EvaluateStmt(AsyncCommitGroup().make_call()))
+            stmts.append(AsyncCommitGroup())
 
             # rematerialize the loop arguments computations
-            bind_vars, bind_values, current_for_args = for_args_remat.rematerialize(current_for_args)
-            stmts.append(LetStmt(bind_vars, bind_values))
+            bind_vars, bind_values, current_for_args = self.load_dependent_args_remat.rematerialize(current_for_args)
+            if len(bind_vars) > 0:
+                stmts.append(LetStmt(bind_vars, bind_values))
 
         # extract the first stage
-        stmts.append(EvaluateStmt(AsyncWait(self.num_stages - 2)))
+        stmts.append(AsyncWait(self.num_stages - 2))
         tile_vars: List[Var] = []
         for idx, buf_var in enumerate(buffer_vars):
             shape = load_types[idx].shape
-            op = ExtractSlice(buf_var, index=int32(0), axis=0, layout=SharedLayout(shape)).make_call()
+            op = ExtractSlice(buf_var, index=int32(0), axis=0, layout=SharedLayout(shape))
             tile_var = Var('ext_slice', type=self.type_infer(op.make_call()))
             stmts.append(LetStmt(tile_var, op.make_call()))
             tile_vars.append(tile_var)
 
-        # iterate the for_args
-        bind_vars, bind_values, current_for_args = for_args_remat.rematerialize(current_for_args)
-        stmts.append(LetStmt(bind_vars, bind_values))
+        # # iterate the for_args
+        # bind_vars, bind_values, current_for_args = self.load_dependent_args_remat.rematerialize(current_for_args)
+        # if len(bind_vars) > 0:
+        #     stmts.append(LetStmt(bind_vars, bind_values))
 
-        return stmts, current_for_args, tile_vars
+        return stmts, current_for_args, tile_vars, buffer_vars
 
-    def update_loop_args_values(self, stmt: PureForStmt, tile_vars: List[Var], current_for_args: List[Var]):
+    def update_loop_args_values(
+        self, stmt: PureForStmt, tile_vars: List[Var], buffers_vals: List[Var], load_dependent_args_vals: List[Var]
+    ):
+        arg2value: Dict[Var, Expr] = {}
+
         # prepare the new loop args and init values
-        self.args_count['original'] = len(stmt.args)
-        loop_args: List[Var] = stmt.args.copy()
-        loop_values: List[Expr] = stmt.values.copy()
+        original: List[Var] = stmt.args.copy()
+        arg2value.update({arg: value for arg, value in zip(original, stmt.values)})
+
         # insert_index and extract_index
-        self.args_count['num_indices'] = 2
-        loop_args.append(Var('insert_index', type=int32))
-        loop_values.append(int32(self.num_stages - 1))
-        loop_args.append(Var('extract_index', type=int32))
-        loop_values.append(int32(self.num_stages - 2))
+        extra_indices: List[Var] = [Var('insert_index', type=int32), Var('extract_index', type=int32)]
+        values = [int32(self.num_stages - 1), int32(self.num_stages - 2)]
+        arg2value.update({arg: value for arg, value in zip(extra_indices, values)})
+
         # extracted slices
-        self.args_count['tile_vars'] = len(tile_vars)
-        for tile_var in tile_vars:
-            loop_args.append(Var(tile_var.hint, type=tile_var.type))
-            loop_values.append(tile_var)
+        loaded_tiles: List[Var] = [Var(tile_var.hint, type=tile_var.type) for tile_var in tile_vars]
+        arg2value.update({arg: value for arg, value in zip(loaded_tiles, tile_vars)})
+
+        # shared memory buffers
+        buffers: List[Var] = [Var(buffer_var.hint, type=buffer_var.type) for buffer_var in buffers_vals]
+        arg2value.update({arg: value for arg, value in zip(buffers, buffers_vals)})
+
         # extra loop args used to compute load args
-        self.args_count['extra_args'] = len(current_for_args)
-        for current_for_arg in current_for_args:
-            loop_args.append(Var(current_for_arg.hint, type=current_for_arg.type))
-            loop_values.append(current_for_arg)
-        return loop_args, loop_values
+        load_dependent_args: List[Var] = [Var(arg.hint, type=arg.type) for arg in load_dependent_args_vals]
+        arg2value.update({arg: value for arg, value in zip(load_dependent_args, load_dependent_args_vals)})
+
+        self.updated_args = LoopArgs(
+            original=original,
+            extra_indices=extra_indices,
+            loaded_tiles=loaded_tiles,
+            buffers=buffers,
+            load_dependent_args=load_dependent_args,
+            arg2value=arg2value,
+        )
+
+    def concat_stmts(self, stmts: List[Union[Stmt, Expr, TileOp]]) -> Stmt:
+        # concatenate the stmts
+        body = stmts.pop()
+        for s in reversed(stmts):
+            if isinstance(s, TileOp):
+                s = s.make_call()
+            if isinstance(s, Expr):
+                s = EvaluateStmt(s)
+            if isinstance(s, LetStmt) and s.body is None:
+                if isinstance(body, LetStmt):
+                    body = LetStmt(s.bind_vars + body.bind_vars, s.bind_values + body.bind_values, body.body)
+                else:
+                    body = LetStmt(s.bind_vars, s.bind_values, body)
+            elif isinstance(s, PureForStmt) and s.let_body is None:
+                s.let_body = body
+                body = s
+            else:
+                body = SeqStmt([s, body])
+        return body
 
     def visit_PureForStmt(self, stmt: PureForStmt):
         if stmt is not self.loop:
             return super().visit_PureForStmt(stmt)
 
-        stmts: List[Stmt] = []
-
-        arg2value: Dict[Var, Expr] = {arg: value for arg, value in zip(stmt.args, stmt.values)}
-
-        # step 2.1 to 2.2: the for args that are used to compute the load arguments
-        self.for_extra_args: List[Var] = self.get_for_extra_args(all_for_args=stmt.args)
+        stmts: List[Union[Stmt, Expr, TileOp]] = []
 
         # step 2.3: hoist the loading logic out of the loop body
-        new_stmts, current_for_args, tile_vars = self.rematerialized_prefetch()
+        new_stmts, current_for_args, tile_vars, buffer_vars = self.rematerialized_prefetch()
         stmts.extend(new_stmts)
 
-        loop_args_values = self.update_loop_args_values(stmt, tile_vars, current_for_args)
-        loop_args: List[Var] = loop_args_values[0]
-        loop_values: List[Expr] = loop_args_values[1]
+        self.update_loop_args_values(stmt, tile_vars, buffer_vars, current_for_args)
+        loop_args: List[Var] = self.updated_args.concatenated()
+        loop_values: List[Expr] = [self.updated_args.arg2value[arg] for arg in loop_args]
 
         # step 2.4 to 2.7 in separate visit methods
-        self.loop_args = loop_args
         self.pure_for_stmts.append(stmt)
         body = self.visit(stmt.body)
         self.pure_for_stmts.pop()
@@ -379,11 +420,6 @@ class SoftwarePipelineRewriter(IRRewriter):
             let_vars.append(Var(loop_args[idx].hint, type=loop_args[idx].type))
 
         # step 2.8
-        let_body = self.visit(stmt.let_body)
-        let_body = SeqStmt([
-            EvaluateStmt(AsyncWait(int32(0))),
-            let_body
-        ])
         for_stmt = PureForStmt(
             args=loop_args,
             values=loop_values,
@@ -391,22 +427,15 @@ class SoftwarePipelineRewriter(IRRewriter):
             extent=stmt.extent,
             body=body,
             let_vars=let_vars,
-            let_body=let_body,
+            let_body=None,
         )
-
-        # concatenate the stmts
-        body = for_stmt
-        for s in reversed(stmts):
-            if isinstance(s, LetStmt):
-                if s.body is None:
-                    body = LetStmt(s.bind_vars, s.bind_values, body)
-                else:
-                    body = SeqStmt([s, body])
-            else:
-                body = SeqStmt([s, body])
+        stmts.append(for_stmt)
+        stmts.append(AsyncWait(int32(0)))
+        let_body = self.visit(stmt.let_body)
+        stmts.append(let_body)
 
         # so far, we have finished the software pipelining
-        return body
+        return self.concat_stmts(stmts)
 
     def visit_Load(self, e: Load):
         if e not in self.loads:
@@ -415,7 +444,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         idx = self.loads.index(e)
         ptr_type: TileType = self.type_infer(e.ptr)
         cvt = ConvertLayout(
-            x=self.loop_args[self.args_count['original'] + self.args_count['num_indices'] + idx],
+            x=self.updated_args.loaded_tiles[idx],
             layout=ptr_type.layout
         )
         return cvt
@@ -424,9 +453,64 @@ class SoftwarePipelineRewriter(IRRewriter):
         if self.pure_for_stmts[-1] is not self.loop:
             return super().visit_YieldStmt(stmt)
 
-        # 2.6: update the end of loop body
-        for_extra_args: List[Var] = self.loop_args[-self.args_count['extra_args']:]
+        stmts: List[Union[Stmt, Expr, TileOp]] = []
+        arg2yield: Dict[Var, Expr] = {}
 
+        # 2.6: update the end of loop body
+        for orig_arg, orig_value in zip(self.loop.args, stmt.yields):
+            arg2yield[orig_arg] = orig_value
+
+        # rematerialize the load arguments
+        bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
+            self.updated_args.load_dependent_args
+        )
+        load_arg_map: Dict[Expr, Var] = {a: b for a, b in zip(self.load_args, remat_load_args)}
+        if len(bind_vars) > 0:
+            stmts.append(LetStmt(bind_vars, bind_values))
+
+        # load the next tile asynchronously for each load
+        for idx, load in enumerate(self.loads):
+            # calculate the ptr, mask, and other arguments
+            ptr = load_arg_map[load.ptr]
+            mask = load_arg_map[load.mask] if load.mask else None
+            other = load_arg_map[load.other] if load.other else None
+            buf_var = self.updated_args.buffers[idx]
+            op = InsertSliceAsync(
+                ptr=ptr, dst=buf_var, index=self.updated_args.insert_index(), mask=mask, other=other, axis=0
+            )
+            updated_buf_var = Var(buf_var.hint, type=buf_var.type)
+            stmts.append(LetStmt([updated_buf_var], [op.make_call()]))
+            arg2yield[buf_var] = updated_buf_var
+        stmts.append(AsyncCommitGroup())
+
+        # rematerialize the load dependent for-loop arguments
+        bind_vars, bind_values, remat_load_dependent_args = self.load_dependent_args_remat.rematerialize(
+            self.updated_args.load_dependent_args
+        )
+        if len(bind_vars) > 0:
+            stmts.append(LetStmt(bind_vars, bind_values))
+        arg2yield.update({a: b for a, b in zip(self.updated_args.load_dependent_args, remat_load_dependent_args)})
+
+        # sync and extract the next tile for each load
+        stmts.append(AsyncWait(self.num_stages - 2).make_call())
+        for idx, tile in enumerate(self.updated_args.loaded_tiles):
+            buf_var = arg2yield[self.updated_args.buffers[idx]]
+            new_tile = Var(tile.hint, type=tile.type)
+            op = ExtractSlice(buf_var, self.updated_args.extract_index(), axis=0)
+            stmts.append(LetStmt([new_tile], [op.make_call()]))
+            arg2yield[tile] = new_tile
+
+        # update indices
+        for extra_index in self.updated_args.extra_indices:
+            updated_var = Var(extra_index.hint, type=extra_index.type)
+            updated_value = (extra_index + 1) % self.num_stages
+            stmts.append(LetStmt([updated_var], [updated_value]))
+            arg2yield[extra_index] = updated_var
+
+        yield_values = [arg2yield[arg] for arg in self.updated_args.concatenated()]
+        stmts.append(YieldStmt(yield_values))
+
+        return self.concat_stmts(stmts)
 
 
 class SoftwarePipelinePass(TileFunctionPass):
@@ -445,13 +529,17 @@ class SoftwarePipelinePass(TileFunctionPass):
             yield_stmt = loop2yields[loop][0]
 
             # analyze dependency graph: depends[u] = [v | u depends on v directly]
-            dep_graph_constructor = DependencyGraphConstructor()
-            dep_graph_constructor.visit(func)
-            dependency_graph = dep_graph_constructor.depends
+            dependency_analyzer = DependencyAnalyzer()
+            dependency_analyzer.visit(func)
+            dependency_graph = dependency_analyzer.depends
 
             # step 2.1 to 2.8: rewrite the loop
             rewriter = SoftwarePipelineRewriter(loop, yield_stmt, loads, dependency_graph)
             func = rewriter(func)
+
+        # finally, remove nested convert_layout
+        func = FoldConvertLayoutTransform()(func)
+        func = DeadCodeEliminationRewriter()(func)
         return func
 
 

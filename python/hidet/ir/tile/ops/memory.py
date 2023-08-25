@@ -51,6 +51,9 @@ class Store(TileOp):
         if mask is not None:
             self.args.append(mask)
 
+    def write_memory_op(self) -> bool:
+        return True
+
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         return void
 

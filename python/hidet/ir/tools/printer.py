@@ -333,8 +333,8 @@ class IRPrinter(IRFunctor):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             self.add_scope_var(bind_var)
             doc += NewLine() + 'let ' + self(bind_var) + ': ' + self(bind_var.type) + ' = ' + self(bind_value)
-        # doc += self(stmt.body)
-        doc += self(stmt.body).indent(4)
+        doc += self(stmt.body)
+        # doc += self(stmt.body).indent(4)
         return doc
 
     def visit_ForStmt(self, stmt: ForStmt):
@@ -746,8 +746,8 @@ class IRPrinter(IRFunctor):
         values = [self(v) for v in stmt.values]
 
         self.add_scope_var(stmt.loop_var)
-        for arg in stmt.args:
-            self.add_scope_var(arg)
+        # for arg in stmt.args:
+        #     self.add_scope_var(arg)
 
         with self.scope():
             body = self.visit(stmt.body)

@@ -296,6 +296,7 @@ def main():
     #
     # demo_ldst()
 
+    hidet.logging.setConsoleLevel(hidet.logging.DEBUG)
     demo_matmul()
 
 

@@ -41,6 +41,9 @@ class TileOp(Node):
     def make_call(self):
         return CallTileOp(self)
 
+    def write_memory_op(self) -> bool:
+        return False
+
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         raise NotImplementedError(
             "'infer_type' method has not been implemented for the following operator: \n{}".format(type(self).__name__)

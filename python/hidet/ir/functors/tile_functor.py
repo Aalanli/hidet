@@ -12,6 +12,7 @@ from hidet.ir.tile.ops.reduce import ReduceOp
 from hidet.ir.tile.ops.debug import DebugPrint
 from hidet.ir.tile.ops.dot import Dot
 from hidet.ir.tile.ops.assign import Assign
+from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, ProcedureOp
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 from hidet.utils import same_list
 
@@ -58,6 +59,14 @@ class TileFunctor(BaseFunctor):
             return self.visit_Dot(node)
         elif isinstance(node, Assign):
             return self.visit_Assign(node)
+        elif isinstance(node, AllocTensor):
+            return self.visit_AllocTensor(node)
+        elif isinstance(node, InsertSliceAsync):
+            return self.visit_InsertSliceAsync(node)
+        elif isinstance(node, ExtractSlice):
+            return self.visit_ExtractSlice(node)
+        elif isinstance(node, ProcedureOp):
+            return self.visit_ProcedureOp(node)
         elif isinstance(node, TileOp):
             raise NotImplementedError(
                 'Rewriter for the following tile op is not implemented: \n{}'.format(node.op_name())
@@ -108,6 +117,18 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_Assign(self, e: Assign):
+        raise NotImplementedError()
+
+    def visit_AllocTensor(self, e: AllocTensor):
+        raise NotImplementedError()
+
+    def visit_InsertSliceAsync(self, e: InsertSliceAsync):
+        raise NotImplementedError()
+
+    def visit_ExtractSlice(self, e: ExtractSlice):
+        raise NotImplementedError()
+
+    def visit_ProcedureOp(self, e: ProcedureOp):
         raise NotImplementedError()
 
     def visit_DebugPrint(self, e: DebugPrint):
@@ -175,6 +196,18 @@ class TileVisitor(TileFunctor, BaseVisitor):
 
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
+
+    def visit_AllocTensor(self, e: AllocTensor):
+        pass
+
+    def visit_InsertSliceAsync(self, e: InsertSliceAsync):
+        self.visit(e.args)
+
+    def visit_ExtractSlice(self, e: ExtractSlice):
+        self.visit(e.args)
+
+    def visit_ProcedureOp(self, e: ProcedureOp):
+        pass
 
     def visit_PureForStmt(self, stmt: PureForStmt):
         self.visit(stmt.args)
@@ -306,6 +339,26 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e
         else:
             return e.reforward([x])
+
+    def visit_AllocTensor(self, e: AllocTensor):
+        return e
+
+    def visit_InsertSliceAsync(self, e: InsertSliceAsync):
+        args = self.visit(e.args)
+        if args is e.args:
+            return e
+        else:
+            return e.reforward([args])
+
+    def visit_ExtractSlice(self, e: ExtractSlice):
+        args = self.visit(e.args)
+        if args is e.args:
+            return e
+        else:
+            return e.reforward([args])
+
+    def visit_ProcedureOp(self, e: ProcedureOp):
+        return e
 
     def visit_PureForStmt(self, stmt: PureForStmt):
         self.pure_for_stmts.append(stmt)

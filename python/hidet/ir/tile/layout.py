@@ -16,7 +16,7 @@ class SharedLayout(TileLayout):
     def __init__(self, shape: List[int], data_layout: Optional[DataLayout] = None):
         super().__init__()
         self.shape: List[int] = shape
-        self.data_layout: DataLayout = data_layout if data_layout is not None else data_layout(*shape)
+        self.data_layout: DataLayout = data_layout if data_layout is not None else row_major(*shape)
 
     def __str__(self):
         return 'shared({})'.format(self.data_layout)

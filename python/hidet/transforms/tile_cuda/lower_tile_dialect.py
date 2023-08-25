@@ -160,7 +160,7 @@ class LowerTileDialectRewriter(IRRewriter):
     def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
         stmts = []
-        for arg, yield_value in zip(for_stmt.args, stmt.yields):
+        for arg, yield_value in zip(for_stmt.args, stmt.values):
             assert isinstance(yield_value, Var)
             if isinstance(arg.type, TileType):
                 arg_buf = self.var2buffer[arg]

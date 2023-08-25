@@ -221,7 +221,7 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(stmt.let_body)
 
     def visit_YieldStmt(self, stmt: YieldStmt):
-        self.visit(stmt.yields)
+        self.visit(stmt.values)
 
 
 class TileRewriter(TileFunctor, BaseRewriter):
@@ -391,8 +391,8 @@ class TileRewriter(TileFunctor, BaseRewriter):
             )
 
     def visit_YieldStmt(self, stmt: YieldStmt):
-        yields = self.visit(stmt.yields)
-        if yields is stmt.yields:
+        yields = self.visit(stmt.values)
+        if yields is stmt.values:
             return stmt
         else:
-            return YieldStmt(yields=yields)
+            return YieldStmt(values=yields)

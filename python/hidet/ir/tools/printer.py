@@ -775,7 +775,7 @@ class IRPrinter(IRFunctor):
         return doc
 
     def visit_YieldStmt(self, e: YieldStmt):
-        return NewLine() + 'yield ' + doc_join([self(v) for v in e.yields], ', ')
+        return NewLine() + 'yield ' + doc_join([self(v) for v in e.values], ', ')
 
 
 def astext(obj: Node) -> str:

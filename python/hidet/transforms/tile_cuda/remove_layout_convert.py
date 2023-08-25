@@ -210,7 +210,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
 
     def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
-        yields = self.visit(stmt.yields)
+        yields = self.visit(stmt.values)
         updated_yields = []
         for arg, yield_value in zip(for_stmt.args, yields):
             if arg is not self.memo[arg]:

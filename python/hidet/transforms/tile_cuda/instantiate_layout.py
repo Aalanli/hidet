@@ -78,7 +78,7 @@ class InstantiateLayoutRewriter(IRRewriter):
     def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
         args: List[Var] = self.visit(for_stmt.args)
-        yields: List[Expr] = self.visit(stmt.yields)
+        yields: List[Expr] = self.visit(stmt.values)
         updated_values = []
         for arg, yie in zip(args, yields):
             yield_type = self.type_infer(yie)

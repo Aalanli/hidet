@@ -231,7 +231,7 @@ class CoalesceAnalyzer(IRVisitor):
 
     def visit_YieldStmt(self, stmt: YieldStmt):
         for_stmt = self.pure_for_stmts[-1]
-        for arg, yield_value in zip(for_stmt.args, stmt.yields):
+        for arg, yield_value in zip(for_stmt.args, stmt.values):
             if isinstance(arg.type, TileType):
                 self.merge(arg, self.visit(yield_value))
 

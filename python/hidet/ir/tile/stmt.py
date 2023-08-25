@@ -24,6 +24,6 @@ class PureForStmt(Stmt):
 
 
 class YieldStmt(Stmt):
-    def __init__(self, yields: List[Expr]):
-        self.yields: List[Expr] = yields
+    def __init__(self, values: List[Expr]):
+        self.values: List[Expr] = values
 

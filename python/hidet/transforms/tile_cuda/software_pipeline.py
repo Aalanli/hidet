@@ -225,7 +225,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         self.load_args: List[Var] = self.get_load_args()                      # step 2.1
         self.load_dependent_args: List[Var] = self.get_load_dependent_args()  # step 2.2
         self.yield_load_dependent_values: List[Expr] = [
-            self.yield_stmt.yields[i] for i in range(len(self.loop.args))
+            self.yield_stmt.values[i] for i in range(len(self.loop.args))
             if self.loop.args[i] in self.load_dependent_args
         ]
         dep = self.dependency_graph
@@ -457,7 +457,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         arg2yield: Dict[Var, Expr] = {}
 
         # 2.6: update the end of loop body
-        for orig_arg, orig_value in zip(self.loop.args, stmt.yields):
+        for orig_arg, orig_value in zip(self.loop.args, stmt.values):
             arg2yield[orig_arg] = orig_value
 
         # rematerialize the load arguments

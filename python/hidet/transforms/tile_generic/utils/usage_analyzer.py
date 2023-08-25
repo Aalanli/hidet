@@ -74,7 +74,7 @@ class UsageAnalyzer(IRVisitor):
         self.visit(stmt.let_body)
 
     def visit_YieldStmt(self, stmt: YieldStmt):
-        for value in stmt.yields:
+        for value in stmt.values:
             for used_var in self.collect_used_vars(value):
                 self.usages[used_var].stmt_usages.append(StmtUsage(stmt))
 

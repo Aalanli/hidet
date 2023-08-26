@@ -90,6 +90,7 @@ class DeadCodeEliminationRewriter(IRRewriter):
                 return LetStmt(bind_vars, bind_values, body)
 
     def visit_PureForStmt(self, stmt: PureForStmt):
+        pass
 
 
 class DeadCodeEliminationPass(TileFunctionPass):

@@ -12,12 +12,26 @@ def init_to_zero(nargs):
 @autotune(
     configs=[
         # basic configs for compute-bound matmuls
-        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
-        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
-        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
-        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=5, num_warps=4, pre_hook=init_to_zero), #32 4096 16384 / 32 16384 4096
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 1}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
+
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 2}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
+
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
     ],
     key=['D_UP', 'D', 'D_DOWN'],
 )
@@ -25,13 +39,14 @@ def init_to_zero(nargs):
 def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
                      M, D, D_UP, D_DOWN, # shapes
                      BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr,
-                     SWIZZLE_BLOCK: tl.constexpr):
+                     SPLIT_H: tl.constexpr):
     # mlp
     # X[M, D] x UP_PROJ[D, D_UP] -> X0[M, D_UP]
     # relu X0[M, D_UP] -> X1[M, D_UP]
     # X1[M, D_UP] x DOWN_PROJ[D_UP, D_DOWN] -> Y[M, D_DOWN]
-
-    pid = tl.program_id(0)
+    
+    pid = tl.program_id(0) // SPLIT_H
+    pid_h = tl.program_id(0) % SPLIT_H
     grid_n = tl.cdiv(D_UP, BLOCK_N)
     pid_n = pid % grid_n 
 
@@ -66,64 +81,62 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
     # relu
     acc = tl.where(acc < 0, 0, acc)
     # rematerialize rm and rn to save registers
-    if SWIZZLE_BLOCK:
-        block_swizzle_offset = tl.program_id(0) % tl.cdiv(D_DOWN, BLOCK_H)
 
-        rm = tl.arange(0, BLOCK_M)
-        rk = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-        rh = tl.arange(0, BLOCK_H)
+    rm = tl.arange(0, BLOCK_M)
+    rk = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    rh = tl.arange(0, BLOCK_H)
 
-        DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :])
-        Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :])
+    DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :] + pid_h * BLOCK_H)
+    Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :] + pid_h * BLOCK_H)
 
-        for h in range(0, tl.cdiv(D_DOWN, BLOCK_H)):
-            hi = (h + block_swizzle_offset) % tl.cdiv(D_DOWN, BLOCK_H)
-            h_remain = D_DOWN - hi * BLOCK_H
-            hs = tl.load(DOWN_PROJ_ptr + hi * BLOCK_H, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
+    for h in range(0, tl.cdiv(D_DOWN, BLOCK_H * SPLIT_H)):
+        h_remain = D_DOWN - h * BLOCK_H * SPLIT_H
+        hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
 
-            res = tl.dot(acc, hs).to(tl.float16)
-            tl.atomic_add(Y_ptr + hi * BLOCK_H, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
-    else:
-        rm = tl.arange(0, BLOCK_M)
-        rk = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-        rh = tl.arange(0, BLOCK_H)
-
-        DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :])
-        Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :])
-
-        for h in range(0, tl.cdiv(D_DOWN, BLOCK_H)):
-            h_remain = D_DOWN - h * BLOCK_H
-            hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
-
-            res = tl.dot(acc, hs).to(tl.float16)
-            tl.atomic_add(Y_ptr, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
-            DOWN_PROJ_ptr += BLOCK_H
-            Y_ptr += BLOCK_H
+        res = tl.dot(acc, hs).to(tl.float16)
+        tl.atomic_add(Y_ptr, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
+        DOWN_PROJ_ptr += BLOCK_H
+        Y_ptr += BLOCK_H
         
 
 @autotune(
     configs=[
         # basic configs for compute-bound matmuls
-        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64}, num_stages=4, num_warps=8),
-        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128}, num_stages=5, num_warps=8),
-        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128}, num_stages=3, num_warps=8),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64}, num_stages=4, num_warps=8),
-        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64}, num_stages=2, num_warps=8),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=5, num_warps=4), #32 4096 16384 / 32 16384 4096
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=5, num_warps=8),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=3, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=2, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 1}, num_stages=5, num_warps=4),
 
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=5, num_warps=8),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=3, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=2, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 2}, num_stages=5, num_warps=4),
+
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4),
     ],
     key=['D_UP', 'D', 'D_DOWN'],
 )
 @jit
 def _mlp_fused_kernel(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
                      M, D, D_UP, D_DOWN, # shapes
-                     BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr):
+                     BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr,
+                     SPLIT_H: tl.constexpr):
     # mlp
     # X[M, D] x UP_PROJ[D, D_UP] -> X0[M, D_UP]
     # relu X0[M, D_UP] -> X1[M, D_UP]
     # X1[M, D_UP] x DOWN_PROJ[D_UP, D_DOWN] -> Y[M, D_DOWN]
 
-    pid = tl.program_id(0)
+    pid = tl.program_id(0) // SPLIT_H
+    pid_h = tl.program_id(0) % SPLIT_H
     grid_n = tl.cdiv(D_UP, BLOCK_N)
     pid_n = pid % grid_n 
 
@@ -163,11 +176,11 @@ def _mlp_fused_kernel(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
     rk = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     rh = tl.arange(0, BLOCK_H)
 
-    DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :])
-    Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :] + offset_block)
+    DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :] + pid_h * BLOCK_H)
+    Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :] + offset_block + pid_h * BLOCK_H)
 
-    for h in range(0, tl.cdiv(D_DOWN, BLOCK_H)):
-        h_remain = D_DOWN - h * BLOCK_H
+    for h in range(0, tl.cdiv(D_DOWN, BLOCK_H * SPLIT_H)):
+        h_remain = D_DOWN - h * BLOCK_H * SPLIT_H
         hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
 
         res = tl.dot(acc, hs).to(tl.float16)
@@ -227,7 +240,7 @@ def fused_mlp_ref(X, UP_PROJ, DOWN_PROJ):
     x1 = torch.relu(X @ UP_PROJ)
     return x1 @ DOWN_PROJ
 
-def fused_mlp_atomic(X, UP_PROJ, DOWN_PROJ, swizzle=True):
+def fused_mlp_atomic(X, UP_PROJ, DOWN_PROJ):
     Y = torch.empty((X.shape[0], DOWN_PROJ.shape[1]), device=X.device, dtype=X.dtype)
     msize = X.shape[0]
     if msize <= 16:
@@ -242,8 +255,8 @@ def fused_mlp_atomic(X, UP_PROJ, DOWN_PROJ, swizzle=True):
     D = X.shape[1]
     D_UP = UP_PROJ.shape[1]
     D_DOWN = DOWN_PROJ.shape[1]
-    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']),)
-    _mlp_fused_kernel_atomic[grid](X, UP_PROJ, DOWN_PROJ, Y, X.shape[0], D, D_UP, D_DOWN, BLOCK_M = MSIZE, SWIZZLE_BLOCK = swizzle)
+    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']) * META['SPLIT_H'],)
+    _mlp_fused_kernel_atomic[grid](X, UP_PROJ, DOWN_PROJ, Y, X.shape[0], D, D_UP, D_DOWN, BLOCK_M = MSIZE)
     return Y
 
 def fused_mlp(X, UP_PROJ, DOWN_PROJ):
@@ -260,7 +273,7 @@ def fused_mlp(X, UP_PROJ, DOWN_PROJ):
     D = X.shape[1]
     D_UP = UP_PROJ.shape[1]
     D_DOWN = DOWN_PROJ.shape[1]
-    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']),)
+    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']) * META['SPLIT_H'],)
     xs = _mlp_fused_kernel[grid](X, UP_PROJ, DOWN_PROJ, None, X.shape[0], D, D_UP, D_DOWN, BLOCK_M = MSIZE)
     return xs.sum(0)
 
@@ -270,56 +283,59 @@ class FusedMLP(torch.nn.Module):
 
 triton_max_autotune = torch.compile(FusedMLP())
 
-a = torch.randn((32, 32), device='cuda', dtype=torch.float16)
-w1 = torch.randn((32, 128), device='cuda', dtype=torch.float16)
-w2 = torch.randn((128, 32), device='cuda', dtype=torch.float16)
+def test_kernels(M, D):
+    a = torch.randn((M, D), device='cuda', dtype=torch.float16)
+    w1 = torch.randn((D, D * 4), device='cuda', dtype=torch.float16)
+    w2 = torch.randn((D * 4, D), device='cuda', dtype=torch.float16)
 
-y3 = fused_mlp(a, w1, w2)
-y1 = fused_mlp_atomic(a, w1, w2)
-y2 = fused_mlp_ref(a, w1, w2)
-print((y1 - y2).abs().max())
-print((y2 - y3).abs().max())
+    y3 = fused_mlp(a, w1, w2)
+    y1 = fused_mlp_atomic(a, w1, w2)
+    y2 = fused_mlp_ref(a, w1, w2)
+    print((y1 - y2).abs().max())
+    print((y2 - y3).abs().max())
+
+test_kernels(1, 32)
+test_kernels(1, 64)
 
 # %%
-M = 1
-@triton.testing.perf_report(
-    triton.testing.Benchmark(
-        x_names=['D'],  # Argument names to use as an x-axis for the plot
-        x_vals=[
-            64, 128, 512, 1024, 4096
-        ],  # Different possible values for `x_name`
-        line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
-        # Possible values for `line_arg`
-        line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_fused_atomic_swizzle'],
-        # Label name for the lines
-        line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_fused_atomic_swizzle'],
-        # Line styles
-        styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-')],
-        ylabel="ms",  # Label name for the y-axis
-        plot_name="matmul-performance",  # Name for the plot, used also as a file name for saving the plot.
-        args={},
+
+for M in [1, 2, 4, 8, 32]:
+    @triton.testing.perf_report(
+        triton.testing.Benchmark(
+            x_names=['D'],  # Argument names to use as an x-axis for the plot
+            x_vals=[
+                64, 128, 512, 1024, 4096
+            ],  # Different possible values for `x_name`
+            line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
+            # Possible values for `line_arg`
+            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            # Label name for the lines
+            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            # Line styles
+            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-')],
+            ylabel="ms",  # Label name for the y-axis
+            plot_name=f"matmul-performance-{M}",  # Name for the plot, used also as a file name for saving the plot.
+            args={},
+        )
     )
-)
-def benchmark(D, provider):
-    D, D_UP, D_DOWN = D, D * 4, D
-    a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-    w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-    w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+    def benchmark(D, provider):
+        D, D_UP, D_DOWN = D, D * 4, D
+        a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+        w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+        w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
 
-    quantiles = [0.5, 0.2, 0.8]
-    if provider == 'torch_naive':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
-    if provider == 'triton_fused':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
-    if provider == 'triton_fused_atomic':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2, False))
-    if provider == 'triton_fused_atomic_swizzle':
-        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2, True))
-    # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
-    # return perf(ms), perf(max_ms), perf(min_ms)
-    return ms, max_ms, min_ms
+        quantiles = [0.5, 0.2, 0.8]
+        if provider == 'torch_naive':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
+        if provider == 'triton_fused':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
+        if provider == 'triton_fused_atomic':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+        # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+        # return perf(ms), perf(max_ms), perf(min_ms)
+        return ms, max_ms, min_ms
 
-benchmark.run(show_plots=True, print_data=True)
+    benchmark.run(show_plots=True, print_data=True)
 
 
 

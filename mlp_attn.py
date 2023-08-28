@@ -106,7 +106,7 @@ def _kernel(A, B, C, M, N, K,
     # pointers
     A = A + (ram[:, None] * stride_am + rk[None, :] * stride_ak)
     B = B + (rk[:, None] * stride_bk + rbn[None, :] * stride_bn)
-    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=dot_out_dtype)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
     for k in range(0, tl.cdiv(K, BLOCK_K * SPLIT_K)):
         if EVEN_K:
             a = tl.load(A)
@@ -119,7 +119,7 @@ def _kernel(A, B, C, M, N, K,
         if AB_DTYPE:
             a = a.to(C.dtype.element_ty)
             b = b.to(C.dtype.element_ty)
-        acc += tl.dot(a, b, out_dtype=dot_out_dtype)
+        acc += tl.dot(a, b)
         A += BLOCK_K * SPLIT_K * stride_ak
         B += BLOCK_K * SPLIT_K * stride_bk
     acc = acc.to(C.dtype.element_ty)
@@ -134,112 +134,6 @@ def _kernel(A, B, C, M, N, K,
     else:
         tl.atomic_add(C, acc, mask=mask)
 
-
-MSIZE = 32
-
-def get_configs_io_bound_mlp():
-    configs = []
-    for num_stages in [2, 3, 4, 5, 6]:
-        for block_k in [32, 64]:
-            for block_n in [32, 64, 128, 256]:
-                num_warps = 2 if block_n <= 64 else 4
-                configs.append(
-                    Config({'BLOCK_N': block_n, 'BLOCK_K': block_k, 'SPLIT_K': 1},
-                            num_stages=num_stages, num_warps=num_warps))
-                # split_k
-                for split_k in [2, 4, 8, 16]:
-                    configs.append(Config({'BLOCK_N': block_n, 'BLOCK_K': block_k, 'SPLIT_K': split_k},
-                                            num_stages=num_stages, num_warps=num_warps, pre_hook=init_to_zero('C')))
-    return configs
-
-@autotune(
-    configs=[
-        # basic configs for compute-bound matmuls
-        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=3, num_warps=8, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=3, num_warps=8, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 64,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 64,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 32,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=4, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 32,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=5, num_warps=2, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 32,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=4, num_warps=2, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 32,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=3, num_warps=2, pre_hook=init_to_zero('Y')),
-        Config({'BLOCK_N': 32,  'BLOCK_K': 32, 'BLOCK_H': 32}, num_stages=2, num_warps=2, pre_hook=init_to_zero('Y')),
-    ],
-    key=['D_UP', 'D', 'D_DOWN'],
-)
-@heuristics({
-    'EVEN_K': lambda args: args['D'] % (args['BLOCK_K']) == 0,
-    'EVEN_M': lambda args: args['M'] % MSIZE == 0,
-    'EVEN_H': lambda args: args['D_DOWN'] % (args['BLOCK_H']) == 0,
-})
-@jit
-def mlp_fused(
-    X, UP_PROJ, DOWN_PROJ, Y,  # pointers
-    M, D, D_UP, D_DOWN, # shapes
-    BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr,
-    EVEN_K: tl.constexpr, EVEN_M: tl.constexpr, EVEN_H: tl.constexpr
-):
-    # mlp
-    # X[M, D] x UP_PROJ[D, D_UP] -> X0[M, D_UP]
-    # relu X0[M, D_UP] -> X1[M, D_UP]
-    # X1[M, D_UP] x DOWN_PROJ[D_UP, D_DOWN] -> Y[M, D_DOWN]
-
-    pid = tl.program_id(0)
-    grid_n = tl.cdiv(D_UP, BLOCK_N)
-    pid_n = pid % grid_n 
-
-    rm = tl.arange(0, MSIZE)
-    rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-
-    # rbn = tl.max_contiguous(tl.multiple_of(rn % D_UP, BLOCK_N), BLOCK_N)
-    rk = tl.arange(0, BLOCK_K)
-    # pointers
-    X = X + (rm[:, None] * D + rk[None, :])
-    UP_PROJ = UP_PROJ + (rk[:, None] * D_UP + rn[None, :])
-    
-    acc = tl.zeros((MSIZE, BLOCK_N))
-
-    for k in range(0, tl.cdiv(D, BLOCK_K)):
-        if EVEN_K:
-            xs = tl.load(X)
-        else:
-            k_remaining = D - k * BLOCK_K
-            xs = tl.load(X, mask=rk[None, :] < k_remaining, other=0)
-        
-        if EVEN_M and EVEN_K:
-            ds = tl.load(UP_PROJ)
-        else:
-            m_remain = M - MSIZE
-            ds = tl.load(UP_PROJ, mask=(rk[:, None] < k_remaining) & (rm[None, :] < m_remain), other=0)
-
-        acc += tl.dot(xs, ds)
-        X += BLOCK_K
-        UP_PROJ += BLOCK_K * D_UP
-
-    # relu
-    acc = tl.where(acc < 0, 0, acc)
-    # rematerialize rm and rn to save registers
-    rm = tl.arange(0, MSIZE)
-    rk = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-    rh = tl.arange(0, BLOCK_H)
-
-    DOWN_PROJ = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :])
-    Y = Y + (rm[:, None] * D_DOWN + rh[None, :])
-
-    for h in range(0, tl.cdiv(D_DOWN, BLOCK_H)):
-        h_remain = D_DOWN - h * BLOCK_H
-        if EVEN_H:
-            hs = tl.load(DOWN_PROJ)
-        else:
-            hs = tl.load(DOWN_PROJ, mask=(rh[None, :] < h_remain), other=0)
-
-        res = tl.dot(acc, hs)
-        tl.atomic_add(Y, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
-        DOWN_PROJ += BLOCK_H
-        Y += BLOCK_H
 
 
 class _matmul(torch.autograd.Function):
@@ -260,11 +154,12 @@ class _matmul(torch.autograd.Function):
         M, K = a.shape
         _, N = b.shape
         # allocates output
-        if a.dtype in [tl.float8e4nv, tl.float8e4b15, tl.float8e5] or\
-           b.dtype in [tl.float8e4nv, tl.float8e4b15, tl.float8e5]:
-            c_dtype = torch.float16
-        else:
-            c_dtype = get_higher_dtype(a.dtype, b.dtype)
+        # if a.dtype in [tl.float8e4nv, tl.float8e4b15, tl.float8e5] or\
+        #    b.dtype in [tl.float8e4nv, tl.float8e4b15, tl.float8e5]:
+        #     c_dtype = torch.float16
+        # else:
+        #     c_dtype = get_higher_dtype(a.dtype, b.dtype)
+        c_dtype = get_higher_dtype(a.dtype, b.dtype)
         c = torch.empty((M, N), device=device, dtype=c_dtype)
         if dot_out_dtype is None:
             if c_dtype in [torch.float16, torch.float32, torch.bfloat16]:
@@ -280,8 +175,8 @@ class _matmul(torch.autograd.Function):
             else:
                 dot_out_dtype = tl.int32
         ab_dtype = True
-        if a.dtype in [tl.float8e4nv, tl.float8e5] and b.dtype in [tl.float8e4nv, tl.float8e5]:
-            ab_dtype = False
+        # if a.dtype in [tl.float8e4nv, tl.float8e5] and b.dtype in [tl.float8e4nv, tl.float8e5]:
+        #     ab_dtype = False
         # launch kernel
         grid = lambda META: (cdiv(M, META['BLOCK_M']) * cdiv(N, META['BLOCK_N']), META['SPLIT_K'])
         _kernel[grid](a, b, c, M, N, K,
@@ -296,29 +191,6 @@ class _matmul(torch.autograd.Function):
     def forward(ctx, a, b, dot_out_dtype=None):
         return _matmul._call(a, b, dot_out_dtype=dot_out_dtype)
 
-
-def fused_mlp_ref(X, UP_PROJ, DOWN_PROJ):
-    x1 = torch.relu(X @ UP_PROJ)
-    return x1 @ DOWN_PROJ
-
-def fused_mlp(X, UP_PROJ, DOWN_PROJ):
-    Y = torch.empty((X.shape[0], DOWN_PROJ.shape[1]), device=X.device, dtype=X.dtype)
-    assert X.shape[0] <= MSIZE
-    D = X.shape[1]
-    D_UP = UP_PROJ.shape[1]
-    D_DOWN = DOWN_PROJ.shape[1]
-    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']),)
-    mlp_fused[grid](X, UP_PROJ, DOWN_PROJ, Y, X.shape[0], D, D_UP, D_DOWN)
-    return Y
-
-
-D = 512
-D_UP = D * 4
-D_DOWN = D
-
-a = torch.randn([MSIZE, D], dtype=torch.float16, device='cuda')
-w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-
-y1 = fused_mlp_ref(a, w1, w2)
-y2 = fused_mlp(a, w1, w2)
+a = torch.randn([512, 512], dtype=torch.float16, device='cuda')
+b = torch.randn([512, 512], dtype=torch.float16, device='cuda')
+_matmul.apply(a, b)

@@ -237,7 +237,6 @@ class SoftwarePipelineRewriter(IRRewriter):
         )
         self.updated_args: Optional[LoopArgs] = None
 
-
     def depends(self, users: List[Var]):
         # find all the variables that are the dependencies of users
         stack: List[Var] = list(users)
@@ -274,6 +273,13 @@ class SoftwarePipelineRewriter(IRRewriter):
         while True:
             orig_num = len(load_dependent_args)
             load_dependent_args = [v for v in self.depends(users=load_dependent_args) if v in self.loop.args]
+            yielded_values: List[Expr] = [self.yield_stmt.values[self.loop.args.index(v)] for v in load_dependent_args]
+            yielded_vars: List[Var] = [v for v in yielded_values if isinstance(v, Var)]
+            assert len(yielded_vars) == len(yielded_values)
+            for v in self.depends(users=yielded_vars):
+                if v in self.loop.args and v not in load_dependent_args:
+                    assert isinstance(v, Var)
+                    load_dependent_args.append(v)
             if len(load_dependent_args) == orig_num:
                 # converged to a self-contained set of arguments to compute themselves during loop iteration
                 break

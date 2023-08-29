@@ -32,13 +32,9 @@ class DependencyAnalyzer(IRVisitor):
     def visit_PureForStmt(self, stmt: PureForStmt):
         for arg, value in zip(stmt.args, stmt.values):
             self.add_depends(arg, self.get_direct_depends(value))
+        for let_var, arg in zip(stmt.let_vars, stmt.args):
+            self.add_depends(let_var, self.get_direct_depends(arg))
         self.pure_for_stmts.append(stmt)
         self.visit(stmt.body)
         self.pure_for_stmts.pop()
         self.visit(stmt.let_body)
-
-    def visit_YieldStmt(self, stmt: YieldStmt):
-        loop_stmt = self.pure_for_stmts[-1]
-        for let_var, yield_value in zip(loop_stmt.let_vars, stmt.values):
-            self.add_depends(let_var, self.get_direct_depends(yield_value))
-

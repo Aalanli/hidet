@@ -66,6 +66,8 @@ class DeadCodeEliminationRewriter(IRRewriter):
         self.live: Set[Var] = set(roots)
         while len(stack) > 0:
             u = stack.pop()
+            if u not in depends:
+                continue
             for v in depends[u]:
                 if v not in self.live:
                     self.live.add(v)
@@ -90,7 +92,41 @@ class DeadCodeEliminationRewriter(IRRewriter):
                 return LetStmt(bind_vars, bind_values, body)
 
     def visit_PureForStmt(self, stmt: PureForStmt):
-        pass
+        args = []
+        values = []
+        let_vars = []
+        for arg, value, let_var in zip(stmt.args, stmt.values, stmt.let_vars):
+            if arg in self.live:
+                args.append(arg)
+                values.append(value)
+                let_vars.append(let_var)
+        self.pure_for_stmts.append(stmt)
+        body = self.visit(stmt.body)
+        self.pure_for_stmts.pop()
+        let_body = self.visit(stmt.let_body)
+        if len(args) == len(stmt.args) and body is stmt.body and let_body is stmt.let_body:
+            return stmt
+        else:
+            return PureForStmt(
+                args=args,
+                values=values,
+                loop_var=stmt.loop_var,
+                extent=stmt.extent,
+                body=body,
+                let_vars=let_vars,
+                let_body=let_body
+            )
+
+    def visit_YieldStmt(self, stmt: YieldStmt):
+        for_stmt = self.pure_for_stmts[-1]
+        values = []
+        for arg, value in zip(for_stmt.args, stmt.values):
+            if arg in self.live:
+                values.append(value)
+        if len(values) == len(stmt.values):
+            return stmt
+        else:
+            return YieldStmt(values)
 
 
 class DeadCodeEliminationPass(TileFunctionPass):

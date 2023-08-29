@@ -9,7 +9,10 @@ class YieldStmtCollector(IRVisitor):
         self.for2yield: Dict[PureForStmt, List[YieldStmt]] = {}
 
     def visit_YieldStmt(self, stmt: YieldStmt):
-        self.for2yield[self.pure_for_stmts[-1]].append(stmt)
+        for_stmt = self.pure_for_stmts[-1]
+        if for_stmt not in self.for2yield:
+            self.for2yield[for_stmt] = []
+        self.for2yield[for_stmt].append(stmt)
 
 
 def collect_yield_stmts(node):

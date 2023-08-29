@@ -331,13 +331,13 @@ for M in [1, 2, 4, 8, 32]:
 
         quantiles = [0.5, 0.2, 0.8]
         if provider == 'torch_naive':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused_atomic':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_default':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2), quantiles=quantiles)
         # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         # return perf(ms), perf(max_ms), perf(min_ms)
         return ms, max_ms, min_ms
@@ -346,57 +346,57 @@ for M in [1, 2, 4, 8, 32]:
 
 
 
-# %%
-from hidet.utils.benchmark import Bench
+# # %%
+# from hidet.utils.benchmark import Bench
 
-benchmark.run(show_plots=True, print_data=True)
+# benchmark.run(show_plots=True, print_data=True)
 
-def torch_naive(C, **kwargs):
-    M = kwargs['M']
-    D, D_UP, D_DOWN = C, C * 4, C
-    a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-    w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-    w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-    return lambda: fused_mlp_ref(a, w1, w2)
+# def torch_naive(C, **kwargs):
+#     M = kwargs['M']
+#     D, D_UP, D_DOWN = C, C * 4, C
+#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+#     return lambda: fused_mlp_ref(a, w1, w2)
 
-def triton_fused(C, **kwargs):
-    M = kwargs['M']
-    D, D_UP, D_DOWN = C, C * 4, C
-    a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-    w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-    w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+# def triton_fused(C, **kwargs):
+#     M = kwargs['M']
+#     D, D_UP, D_DOWN = C, C * 4, C
+#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
 
-    return lambda: fused_mlp_atomic(a, w1, w2, swizzle=False)
+#     return lambda: fused_mlp_atomic(a, w1, w2, swizzle=False)
 
-def triton_fused_swizzle(C, **kwargs):
-    M = kwargs['M']
-    D, D_UP, D_DOWN = C, C * 4, C
-    a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-    w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-    w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+# def triton_fused_swizzle(C, **kwargs):
+#     M = kwargs['M']
+#     D, D_UP, D_DOWN = C, C * 4, C
+#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
 
-    return lambda: fused_mlp_atomic(a, w1, w2, swizzle=True)
+#     return lambda: fused_mlp_atomic(a, w1, w2, swizzle=True)
 
-def triton_default(C, **kwargs):
-    M = kwargs['M']
-    D, D_UP, D_DOWN = C, C * 4, C
-    a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-    w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-    w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+# def triton_default(C, **kwargs):
+#     M = kwargs['M']
+#     D, D_UP, D_DOWN = C, C * 4, C
+#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
 
-    return lambda: triton_max_autotune.forward(a, w1, w2)
+#     return lambda: triton_max_autotune.forward(a, w1, w2)
 
-for M in [1, 2, 4, 8]:
-    bn = Bench(x_vals=[64, 128, 512, 1024, 4096], x_name='C', M=M)
-    # bn.measure_flops(lambda C: C**2 * 2)
-    bn.bench(torch_naive)
-    bn.bench(triton_fused)
-    # bn.bench(triton_fused_swizzle)
-    bn.bench(triton_default)
+# for M in [1, 2, 4, 8]:
+#     bn = Bench(x_vals=[64, 128, 512, 1024, 4096], x_name='C', M=M)
+#     # bn.measure_flops(lambda C: C**2 * 2)
+#     bn.bench(torch_naive)
+#     bn.bench(triton_fused)
+#     # bn.bench(triton_fused_swizzle)
+#     bn.bench(triton_default)
 
-    data = bn.run()
-    data.show_plot(title=f'M={M}')
+#     data = bn.run()
+#     data.show_plot(title=f'M={M}')
 
 
 
-# %%
+# # %%

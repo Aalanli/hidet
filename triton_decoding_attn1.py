@@ -1,4 +1,7 @@
 # %%
+import os
+os.chdir('/home/allan/Programs/triton/python')
+
 import triton
 import triton.language as tl
 from triton import autotune, Config
@@ -77,7 +80,7 @@ def decoding_attn_kernel(
     # store k, v back into kv_cache[batch_id, head_id, L:L+S, :]
     kvl = tl.arange(0, BLOCK_M)
     kvd = tl.arange(0, BLOCK_DH)
-    kv_cache_idx = kvl[:, None] * LS + L + kvd[None, :] + BLOCK_DH * L + head_id * LS * BLOCK_DH + batch_id * BLOCK_DH * LS * H
+    kv_cache_idx = kvl[:, None] * BLOCK_DH + kvd[None, :] + BLOCK_DH * L + head_id * LS * BLOCK_DH + batch_id * BLOCK_DH * LS * H
     k_cache_ptr = k_cache + kv_cache_idx
     tl.store(k_cache_ptr, k, mask=kvl[:, None] < S)
     v_cache_ptr = v_cache + kv_cache_idx
@@ -97,8 +100,8 @@ def decoding_attn_kernel(
     kvl = tl.arange(0, BLOCK_N)
     kvd = tl.arange(0, BLOCK_DH)
     # kv_cache_idx = kvl[:, None] * LS + kvd[None, :] + head_id * LS * BLOCK_DH + batch_id * BLOCK_DH * LS * H
-    k_cache_ptr = k_cache + (kvl[None, :] * LS + kvd[:, None] + head_id * LS * BLOCK_DH + batch_id * BLOCK_DH * LS * H)
-    v_cache_ptr = v_cache + (kvl[:, None] * LS + kvd[None, :] + head_id * LS * BLOCK_DH + batch_id * BLOCK_DH * LS * H)
+    k_cache_ptr = k_cache + (kvl[None, :] * BLOCK_DH + kvd[:, None] + head_id * LS * BLOCK_DH + batch_id * H * LS * BLOCK_DH)
+    v_cache_ptr = v_cache + (kvl[:, None] * BLOCK_DH + kvd[None, :] + head_id * LS * BLOCK_DH + batch_id * H * LS * BLOCK_DH)
 
     acc = tl.zeros([BLOCK_M, BLOCK_DH], dtype=tl.float32) # + y_acc
     for l in range(0, tl.cdiv(L + S, BLOCK_N)):
@@ -225,3 +228,11 @@ y2 = ref_decoding_attn(x, wq, wk, wv, wo, k_cache2, v_cache2, L, H, DH)
 
 print(y1)
 print(y2)
+print((k_cache1 - k_cache2).abs().max())
+
+
+y_prime1 = triton_decoding_attn(x, wq, wk, wv, wo, k_cache1, v_cache1, L, H, DH)
+y_prime2 = ref_decoding_attn(x, wq, wk, wv, wo, k_cache2, v_cache2, L, H, DH)
+
+print((y1 - y_prime1).abs().max())
+print((y2 - y_prime2).abs().max())

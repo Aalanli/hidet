@@ -350,14 +350,15 @@ class FusedMLP(torch.nn.Module):
 
 triton_max_autotune = torch.compile(FusedMLP())
 
-# a = torch.randn((32, 32), device='cuda', dtype=torch.float16)
-# w1 = torch.randn((32, 128), device='cuda', dtype=torch.float16)
-# w2 = torch.randn((128, 32), device='cuda', dtype=torch.float16)
+a = torch.randn((32, 32), device='cuda', dtype=torch.float16)
+w1 = torch.randn((32, 128), device='cuda', dtype=torch.float16)
+w2 = torch.randn((128, 32), device='cuda', dtype=torch.float16)
 
-# y1 = fused_mlp(a, w1, w2, swizzle=False)
-# y2 = fused_mlp_ref(a, w1, w2)
-# print((y1 - y2).abs().max())
+y1 = fused_mlp(a, w1, w2, swizzle=False)
+y2 = fused_mlp_ref(a, w1, w2)
+print((y1 - y2).abs().max())
 
+# %%
 from hidet.utils.benchmark import Bench
 
 

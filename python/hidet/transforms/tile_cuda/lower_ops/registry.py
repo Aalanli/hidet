@@ -4,14 +4,65 @@ from hidet.ir.type import DataType, PointerType, TensorPointerType, tensor_point
 from hidet.ir.expr import Expr, Var, tensor_var
 from hidet.ir.stmt import AssignStmt, DeclareStmt, DeclareScope
 from hidet.ir.mapping import spatial_map, repeat_map
+from hidet.ir.tile.layout import TileLayout, BlockLayout, DistributedLayout, FlattenBlockLayout, SharedLayout
+from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp
-from hidet.ir.tile.layout import SharedLayout, DistributedLayout
 from hidet.ir.primitives.cuda import syncthreads
 from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
 from hidet.ir.builders import StmtBuilder
 from hidet.utils import prod
-from .buffer import Buffer
+
+
+class Buffer:
+    def __init__(
+        self,
+        buf_var: Var,
+        dtype: Union[PointerType, DataType],
+        shape: List[int],
+        local_shape: List[int],
+        layout: TileLayout,
+    ):
+        self.var: Var = buf_var
+        self.dtype: Union[PointerType, DataType] = dtype
+        self.shape: List[int] = shape
+        self.local_shape: List[int] = local_shape
+        self.layout: TileLayout = layout
+
+    def __getitem__(self, item):
+        return self.var[item]
+
+    @property
+    def block_layout(self) -> BlockLayout:
+        assert isinstance(self.layout, BlockLayout)
+        return self.layout
+
+    @property
+    def shared_layout(self) -> SharedLayout:
+        assert isinstance(self.layout, SharedLayout)
+        return self.layout
+
+    @property
+    def flatten_block_layout(self) -> FlattenBlockLayout:
+        assert isinstance(self.layout, FlattenBlockLayout)
+        return self.layout
+
+    @property
+    def distributed_layout(self) -> DistributedLayout:
+        assert isinstance(self.layout, DistributedLayout)
+        return self.layout
+
+    def is_shared(self):
+        return isinstance(self.layout, SharedLayout)
+
+    def is_block(self):
+        return isinstance(self.layout, BlockLayout)
+
+    def is_flatten_block(self):
+        return isinstance(self.layout, FlattenBlockLayout)
+
+    def is_distributed(self):
+        return isinstance(self.layout, DistributedLayout)
 
 
 class TileOpImpl(StmtBuilder):

@@ -38,6 +38,8 @@ class InsertSliceAsync(TileOp):
         self.dst: Expr = dst
         self.index: Expr = index
         self.mask: Optional[Expr] = mask
+        self.other: Optional[Expr] = other
+        self.axis: int = axis
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         dst_type = arg_types[1]
@@ -52,6 +54,7 @@ class AsyncCommitGroup(ProcedureOp):
 class AsyncWait(ProcedureOp):
     def __init__(self, n: int):
         super().__init__(attrs={"n": n})
+        self.n: int = n
 
 
 class ExtractSlice(TileOp):

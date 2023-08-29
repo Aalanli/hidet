@@ -3,8 +3,7 @@ from typing import List, Union, Optional
 from hidet.ir.expr import Expr, Var, logical_and
 from hidet.ir.tile.layout import DistributedLayout
 from hidet.ir.tile.ops.debug import DebugPrint
-from .buffer import Buffer
-from .registry import TileOpImpl, register_impl
+from .registry import TileOpImpl, Buffer, register_impl
 
 
 @register_impl(DebugPrint)

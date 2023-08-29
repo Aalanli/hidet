@@ -125,15 +125,24 @@ class Rematerializer:
         self.results: List[Var] = results
 
     def __str__(self):
-        from hidet.ir.tools.printer import IRPrinter, Doc, NewLine
+        from hidet.ir.tools.printer import IRPrinter, Doc, NewLine, doc_join
         printer = IRPrinter()
-        doc = Doc()
-        doc += printer(self.args)
+        args_doc = Doc()
+        for arg in self.args:
+            args_doc += NewLine() + printer(arg) + ': ' + printer(arg.type)
         body = Doc()
         for bind_var, bind_value in zip(self.bind_vars, self.bind_values):
-            body += NewLine() + printer(bind_var) + ' = ' + printer(bind_value)
-        doc += body.indent()
+            body += NewLine() + printer(bind_var) + ': ' + printer(bind_var.type) + ' = ' + printer(bind_value)
+        doc = Doc()
+        doc += NewLine() + 'args:'
+        doc += args_doc.indent()
+        if len(self.bind_vars) > 0:
+            doc += NewLine() + 'body:'
+            doc += body.indent()
         doc += NewLine() + 'return ' + printer(self.results)
+        attrs = [b + ' = ' + a for a, b in printer.attributes.items()]
+        if len(attrs) > 0:
+            doc = NewLine() + doc_join(attrs, NewLine()) + doc
         return str(doc)
 
     @staticmethod
@@ -225,8 +234,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         self.load_args: List[Var] = self.get_load_args()                      # step 2.1
         self.load_dependent_args: List[Var] = self.get_load_dependent_args()  # step 2.2
         self.yield_load_dependent_values: List[Expr] = [
-            self.yield_stmt.values[i] for i in range(len(self.loop.args))
-            if self.loop.args[i] in self.load_dependent_args
+            self.yield_stmt.values[self.loop.args.index(arg)] for arg in self.load_dependent_args
         ]
         dep = self.dependency_graph
         self.load_args_remat: Rematerializer = Rematerializer.create(
@@ -236,6 +244,9 @@ class SoftwarePipelineRewriter(IRRewriter):
             loop=self.loop, depends=dep, args=self.load_dependent_args, values=self.yield_load_dependent_values
         )
         self.updated_args: Optional[LoopArgs] = None
+
+        logger.debug('load_args_remat: %s', self.load_args_remat)
+        logger.debug('load_dependent_args_remat: %s', self.load_dependent_args_remat)
 
     def depends(self, users: List[Var]):
         # find all the variables that are the dependencies of users
@@ -338,11 +349,6 @@ class SoftwarePipelineRewriter(IRRewriter):
             tile_var = Var('ext_slice', type=self.type_infer(op.make_call()))
             stmts.append(LetStmt(tile_var, op.make_call()))
             tile_vars.append(tile_var)
-
-        # # iterate the for_args
-        # bind_vars, bind_values, current_for_args = self.load_dependent_args_remat.rematerialize(current_for_args)
-        # if len(bind_vars) > 0:
-        #     stmts.append(LetStmt(bind_vars, bind_values))
 
         return stmts, current_for_args, tile_vars, buffer_vars
 
@@ -502,7 +508,8 @@ class SoftwarePipelineRewriter(IRRewriter):
         for idx, tile in enumerate(self.updated_args.loaded_tiles):
             buf_var = arg2yield[self.updated_args.buffers[idx]]
             new_tile = Var(tile.hint, type=tile.type)
-            op = ExtractSlice(buf_var, self.updated_args.extract_index(), axis=0)
+            shape: List[int] = [int(v) for v in tile.type.shape]
+            op = ExtractSlice(buf_var, self.updated_args.extract_index(), axis=0, layout=SharedLayout(shape))
             stmts.append(LetStmt([new_tile], [op.make_call()]))
             arg2yield[tile] = new_tile
 

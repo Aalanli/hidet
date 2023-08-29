@@ -1,6 +1,4 @@
-from .buffer import Buffer
-from .registry import TileOpImpl, register_impl, implement_tile_op
-from . import buffer
+from .registry import TileOpImpl, Buffer, register_impl, implement_tile_op
 from . import registry
 from . import reduce
 from . import creation
@@ -11,3 +9,4 @@ from . import transform
 from . import debug
 from . import assign
 from . import dot
+from . import smem

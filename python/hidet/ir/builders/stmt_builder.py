@@ -165,4 +165,4 @@ class StmtBuilder:
 
     def finish(self):
         assert len(self.scope_stack) == 1
-        return SeqStmt(self.scope_stack[0])
+        return SeqStmt(self.scope_stack.pop())

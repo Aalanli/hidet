@@ -270,10 +270,10 @@ def demo_matmul():
     print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
 
     import torch
-    ta, tb, tc = a.torch(), b.torch(), c.torch()
+    ta, tb, tc = a.torch(), b.torch(), c.torch().clone()
     print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
 
-    hidet.utils.assert_close(c, tc)
+    hidet.utils.assert_close(c, tc, atol=1e-5, rtol=1e-5)
 
     # report = ncu_run(func, a, b, c)
     # report.visualize()

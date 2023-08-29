@@ -5,13 +5,14 @@ from hidet.ir.type import TensorPointerType, PointerType
 from hidet.ir.expr import Var, Call, Expr, var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
-from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
+from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt, SeqStmt
 from hidet.ir.module import IRModule
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
 from hidet.ir.tile.ops import Construct, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.primitives import lookup_primitive_function
 from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
+from hidet.ir.primitives.cuda.tile import alloc_shared
 from hidet.ir.tile.layout import TileLayout, SharedLayout, BlockLayout, DotOperandLayout, FlattenBlockLayout
 from hidet.ir.tile.layout import BlockDotOperandLayout
 from hidet.ir.tile.type import TileType
@@ -19,7 +20,9 @@ from hidet.ir.tools import TypeInfer, simplify_to_int
 from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
 from hidet.transforms.base import FunctionPass
+from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
 
+alloc_name = 'cuda_alloc_shared'
 
 class Alloc:
     def __init__(self, v: Var, nbytes: int):
@@ -118,6 +121,73 @@ class SharedMemoryAllocator(IRVisitor):
             self.let_scoped_alloc.pop()
 
 
+class AllocSharedMarkerVisitor(IRVisitor):
+    def __init__(self):
+        super().__init__()
+        self.var2alloc: Dict[Var, int] = {}
+
+    def mark(self, v: Var, nbytes: int):
+        if v in self.var2alloc:
+            raise ValueError('Variable {} has already been marked.'.format(v.name))
+        self.var2alloc[v] = nbytes
+
+    def is_call_to_alloc_shared(self, call: Expr) -> bool:
+        return isinstance(call, Call) and call.func_var.name == alloc_name
+
+    def get_nbytes(self, call: Expr) -> int:
+        assert isinstance(call, Call) and call.func_var.name == alloc_name
+        return int(call.args[0])
+
+    def visit_LetStmt(self, stmt: LetStmt):
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            if self.is_call_to_alloc_shared(bind_value):
+                self.mark(bind_var, self.get_nbytes(bind_value))
+                self.visit(bind_value.args)
+            else:
+                self.visit(bind_value)
+        self.visit(stmt.body)
+
+    def visit_DeclareStmt(self, stmt: DeclareStmt):
+        if stmt.init and self.is_call_to_alloc_shared(stmt.init):
+            self.mark(stmt.var, self.get_nbytes(stmt.init))
+        else:
+            super().visit_DeclareStmt(stmt)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        if isinstance(stmt.value, Call) and self.is_call_to_alloc_shared(stmt.value):
+            self.mark(stmt.var, int(stmt.value.args[0]))
+        else:
+            super().visit_AssignStmt(stmt)
+
+    def visit_Call(self, call: Call):
+        if call.func_var.name == 'cuda_alloc_shared':
+            raise ValueError('cuda_alloc_shared should directly assigned to a variable via let or declare.')
+        super().visit_Call(call)
+
+
+class CanonicalizeAllocSharedRewriter(IRRewriter):
+    def __init__(self):
+        super().__init__()
+        self.marker = AllocSharedMarkerVisitor()
+
+    def visit_Function(self, func: Function):
+        self.marker.visit(func)
+        return super().visit_Function(func)
+
+    def visit_DeclareStmt(self, stmt: DeclareStmt):
+        if stmt.var in self.marker.var2alloc:
+            nbytes = self.marker.var2alloc[stmt.var]
+            return DeclareStmt(stmt.var, init=alloc_shared(nbytes))
+        else:
+            return super().visit_DeclareStmt(stmt)
+
+    def visit_AssignStmt(self, stmt: AssignStmt):
+        if stmt.var in self.marker.var2alloc:
+            return SeqStmt([])
+        else:
+            return super().visit_AssignStmt(stmt)
+
+
 class PlanSharedMemoryRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
@@ -164,7 +234,14 @@ class PlanSharedMemoryRewriter(IRRewriter):
 
 class PlanSharedMemoryPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
-        return self.apply_transforms(func, [PlanSharedMemoryRewriter()])
+        return self.apply_transforms(
+            func, [
+                CanonicalizeAllocSharedRewriter(),
+                DeclareToLetRewriter(),
+                UpliftLetBodyRewriter(),
+                PlanSharedMemoryRewriter()
+            ]
+        )
 
 
 def plan_shared_memory_pass() -> FunctionPass:

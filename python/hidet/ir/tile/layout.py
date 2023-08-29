@@ -29,7 +29,7 @@ class SharedLayout(TileLayout):
     def __hash__(self):
         return hash(self.data_layout)
 
-    def local_shape(self, shape: List[int]) -> List[int]:
+    def calc_local_shape(self, shape: List[int]) -> List[int]:
         return shape
 
 

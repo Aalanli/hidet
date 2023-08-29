@@ -8,8 +8,7 @@ from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
 from hidet.utils import prod, is_power_of_two, log_two
-from .registry import TileOpImpl, register_impl
-from .buffer import Buffer
+from .registry import TileOpImpl, Buffer, register_impl
 
 
 @register_impl(UnaryTileOp)

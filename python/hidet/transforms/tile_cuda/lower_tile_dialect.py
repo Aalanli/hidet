@@ -4,7 +4,7 @@ from hidet.ir.type import sizeof
 from hidet.ir.expr import Var, Expr, tensor_var, tensor_pointer_var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
-from hidet.ir.stmt import LetStmt, DeclareStmt, ForStmt
+from hidet.ir.stmt import LetStmt, DeclareStmt, ForStmt, AssignStmt
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DistributedLayout
@@ -35,6 +35,7 @@ class LowerTileDialectRewriter(IRRewriter):
             ttype: TileType = self.type_infer(CallTileOp(tile_op_or_type))
         else:
             ttype: TileType = tile_op_or_type
+        assert ttype.layout is not None
         layout: TileLayout = ttype.layout
         shape: List[int] = ttype.shape
         dtype: Union[DataType, PointerType] = ttype.type
@@ -43,16 +44,12 @@ class LowerTileDialectRewriter(IRRewriter):
             buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
             self.append_stmt(DeclareStmt(buf_var))
         elif isinstance(layout, SharedLayout):
-            from hidet.ir.primitives.cuda.tile import alloc_shared
-            local_shape = layout.local_shape(shape)
-            buf_var: Var = tensor_pointer_var(hint, shape, dtype, layout=layout.data_layout)
-            self.append_stmt(DeclareStmt(buf_var, init=alloc_shared(sizeof(buf_var.type.tensor_type))))
-            # buf_var: Var = tensor_var(hint, shape, dtype, layout=layout.data_layout)
-            # self.append_stmt(DeclareStmt(buf_var, scope=DeclareScope.Shared))
+            local_shape = layout.calc_local_shape(shape)
+            buf_var: Var = tensor_pointer_var(hint=hint, shape=shape, dtype=dtype, layout=layout.data_layout)
+            self.append_stmt(DeclareStmt(buf_var))
         else:
             raise NotImplementedError()
         buf = Buffer(buf_var, dtype, shape, local_shape, layout)
-        # self.var2buffer[buf_var] = buf
         return buf
 
     def append_stmt(self, stmt: Union[Stmt, Expr]):
@@ -64,6 +61,16 @@ class LowerTileDialectRewriter(IRRewriter):
         stmts = self.stmts
         self.stmts = []
         return stmts
+
+    def assign_buffer(self, dst: Buffer, src: Buffer):
+        if src.is_distributed() and dst.is_distributed():
+            assign_impl = AssignImpl()
+            assign_impl.implement(None, args=[src, dst], output=None)
+            self.stmts.append(assign_impl.finish())
+        elif src.is_shared() and dst.is_shared():
+            self.append_stmt(AssignStmt(dst.var, src.var))
+        else:
+            raise NotImplementedError()
 
     def visit_CallTileOp(self, call: CallTileOp):
         args: List[Union[Expr, Buffer]] = []
@@ -99,13 +106,12 @@ class LowerTileDialectRewriter(IRRewriter):
                     )
                 self.var2buffer[bind_var] = buf
                 buf.var.hint = bind_var.hint
-                stmts.extend(self.flush_stmts())
-                # self.memo[bind_var] = buf.var
             elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
                 self.memo[bind_var] = bind_value
             else:
                 # scalar expression, or pure tile var to var binding
-                stmts.append(DeclareStmt(bind_var, self.visit(bind_value)))
+                self.append_stmt(DeclareStmt(bind_var, self.visit(bind_value)))
+            stmts.extend(self.flush_stmts())
         stmts.append(self.visit(stmt.body))
         if len(stmts) == 1:
             return stmts[0]
@@ -114,13 +120,6 @@ class LowerTileDialectRewriter(IRRewriter):
 
     def visit_PureForStmt(self, stmt: PureForStmt):
         stmts = []
-        # allocate buffer for the loop arguments
-        # for arg in stmt.args:
-        #     if isinstance(arg.type, TileType):
-        #         self.var2buffer[arg] = self.alloc_buffer(arg.hint, arg.type)
-        #     else:
-        #         raise NotImplementedError()
-        # stmts.extend(self.flush_stmts())
 
         # copy the argument initial values to argument buffers
         for arg, value in zip(stmt.args, stmt.values):
@@ -131,14 +130,12 @@ class LowerTileDialectRewriter(IRRewriter):
                     self.var2buffer[arg] = self.var2buffer[value]
                 else:
                     # otherwise, we need to create a buffer for the arg and copy the value to the buffer
-                    arg_buf = self.alloc_buffer(arg.hint, arg.type)
-                    value_buf = self.var2buffer[value]
-                    assign_impl = AssignImpl()
-                    assign_impl.implement(None, args=[arg_buf, value_buf], output=None)
-                    stmts.append(assign_impl.finish())
+                    arg_buf: Buffer = self.alloc_buffer(arg.hint, arg.type)
+                    self.assign_buffer(dst=arg_buf, src=self.var2buffer[value])
                     self.var2buffer[arg] = arg_buf
             else:
-                raise NotImplementedError()
+                self.append_stmt(DeclareStmt(arg, init=self.visit(value)))
+            stmts.extend(self.flush_stmts())
 
         # implement the loop body
         self.pure_for_stmts.append(stmt)
@@ -151,7 +148,7 @@ class LowerTileDialectRewriter(IRRewriter):
             if isinstance(arg.type, TileType):
                 self.var2buffer[let_var] = self.var2buffer[arg]
             else:
-                raise NotImplementedError()
+                self.memo[let_var] = arg
 
         # implement the let body
         stmts.append(self.visit(stmt.let_body))
@@ -163,13 +160,10 @@ class LowerTileDialectRewriter(IRRewriter):
         for arg, yield_value in zip(for_stmt.args, stmt.values):
             assert isinstance(yield_value, Var)
             if isinstance(arg.type, TileType):
-                arg_buf = self.var2buffer[arg]
-                yield_buf = self.var2buffer[yield_value]
-                assign_impl = AssignImpl()
-                assign_impl.implement(None, args=[arg_buf, yield_buf], output=None)
-                stmts.append(assign_impl.finish())
+                self.assign_buffer(dst=self.var2buffer[arg], src=self.var2buffer[yield_value])
             else:
-                raise NotImplementedError()
+                self.append_stmt(AssignStmt(arg, self.visit(yield_value)))
+            stmts.extend(self.flush_stmts())
         return SeqStmt(stmts)
 
     def visit_EvaluateStmt(self, stmt: EvaluateStmt):

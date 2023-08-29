@@ -3,8 +3,7 @@ from typing import List, Union
 from hidet.ir.expr import Expr
 from hidet.ir.tile.ops.dot import SimtDot
 from hidet.ir.tile.layout import BlockDotOperandLayout, BlockLayout
-from ..buffer import Buffer
-from ..registry import TileOpImpl, register_impl
+from ..registry import TileOpImpl, Buffer, register_impl
 
 
 @register_impl(SimtDot)

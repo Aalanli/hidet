@@ -33,6 +33,10 @@ class BinaryTileOp(TileOp):
         self.x: Expr = x
         self.y: Expr = y
 
+        if isinstance(x, Var) and isinstance(y, Var) and isinstance(x.type, TileType) and isinstance(y.type, TileType):
+            if x.type.layout and y.type.layout:
+                assert x.type.layout == y.type.layout
+
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         from hidet.ir.dtypes import boolean
 

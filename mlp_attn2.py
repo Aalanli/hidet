@@ -116,12 +116,12 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
         Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=2, num_warps=8),
         Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 2}, num_stages=5, num_warps=4),
 
-        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
-        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8),
-        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
-        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8),
-        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4),
+        # Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
+        # Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8),
+        # Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8),
+        # Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8),
+        # Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8),
+        # Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4),
     ],
     key=['D_UP', 'D', 'D_DOWN'],
 )
@@ -279,9 +279,14 @@ def fused_mlp(X, UP_PROJ, DOWN_PROJ):
 
 class FusedMLP(torch.nn.Module):
     def forward(self, X, UP_PROJ, DOWN_PROJ):
-        return fused_mlp_ref(X, UP_PROJ, DOWN_PROJ)
+        return torch.relu(X @ UP_PROJ) @ DOWN_PROJ
 
 triton_max_autotune = torch.compile(FusedMLP())
+
+from triton.ops.matmul import matmul
+def two_triton(X, UP_PROJ, DOWN_PROJ):
+    x1 = matmul(X, UP_PROJ)
+    return matmul(x1, DOWN_PROJ)
 
 def test_kernels(M, D):
     a = torch.randn((M, D), device='cuda', dtype=torch.float16)
@@ -308,13 +313,13 @@ for M in [1, 2, 4, 8, 32]:
             ],  # Different possible values for `x_name`
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
-            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
             # Label name for the lines
-            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
             # Line styles
-            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-')],
+            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
             ylabel="ms",  # Label name for the y-axis
-            plot_name=f"matmul-performance-{M}",  # Name for the plot, used also as a file name for saving the plot.
+            plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
             args={},
         )
     )
@@ -331,6 +336,8 @@ for M in [1, 2, 4, 8, 32]:
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
         if provider == 'triton_fused_atomic':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+        if provider == 'triton_default':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
         # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         # return perf(ms), perf(max_ms), perf(min_ms)
         return ms, max_ms, min_ms

@@ -63,7 +63,6 @@ class ConvertLayoutImpl(TileOpImpl):
                 return src[global_indices]
 
             self.iterate_dist_buffer_and_compute(dst, f_compute)
-            self.sync_threads()
         elif src.is_shared() and dst.is_shared():
             raise NotImplementedError()
         else:

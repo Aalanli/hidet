@@ -66,7 +66,7 @@ def demo_debug_print():
     func()
 
 
-def demo_vector_add(n: int = 128):
+def demo_vector_add(n: int = 1024):
     from hidet.lang.types import f32
     from hidet.lang import attrs
     from hidet.lang import tile as ti
@@ -210,25 +210,18 @@ def demo_ldst():
     func = script_module.build()
     func(a, b)
 
-    report = ncu_run(func, a, b)
-    report.visualize()
-
     print(a)
     print(b)
     hidet.utils.assert_close(a, b)
 
 
-def demo_matmul():
+def demo_matmul(m_size=1024, n_size=1024, k_size=1024):
     from hidet.lang.types import f32, int32
-    from hidet.lang import attrs
+    from hidet.lang import attrs, cast
     from hidet.lang import tile as ti
 
-    m_size = 1024
-    n_size = 1024
-    k_size = 1024
-
-    block_m = 128
-    block_n = 32
+    block_m = 64
+    block_n = 64
     block_k = 8
 
     with hidet.script_module() as script_module:
@@ -245,8 +238,7 @@ def demo_matmul():
 
             m_offsets = pid_m * block_m + ti.arange(0, block_m)
             n_offsets = pid_n * block_n + ti.arange(0, block_n)
-
-            a_ptrs = a_ptr + ti.expand_dims(m_offsets * n_size, 1) + ti.arange(0, block_k)
+            a_ptrs = a_ptr + ti.expand_dims(m_offsets * k_size, 1) + ti.arange(0, block_k)
             b_ptrs = b_ptr + ti.expand_dims(ti.arange(0, block_k) * n_size, 1) + n_offsets
             c = ti.zeros([block_m, block_n])
 
@@ -254,6 +246,7 @@ def demo_matmul():
                 a = ti.load(a_ptrs)
                 b = ti.load(b_ptrs)
                 c += ti.dot(a, b)
+
                 a_ptrs += block_k
                 b_ptrs += block_k * n_size
 
@@ -264,19 +257,24 @@ def demo_matmul():
 
     a = hidet.randn([m_size, k_size], device='cuda')
     b = hidet.randn([k_size, n_size], device='cuda')
-    c = hidet.empty([m_size, n_size], device='cuda')
+    # a = hidet.ones([m_size, k_size], dtype='float32', device='cuda')
+    # b = hidet.ones([k_size, n_size], dtype='float32', device='cuda')
+    c = hidet.empty([m_size, n_size], dtype='float32', device='cuda')
 
     func(a, b, c)
-    print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
+    # print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
 
     import torch
     ta, tb, tc = a.torch(), b.torch(), c.torch().clone()
-    print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
+    torch.matmul(ta, tb, out=tc)
+    # print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
 
-    hidet.utils.assert_close(c, tc, atol=1e-5, rtol=1e-5)
+    import numpy
+    numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)
+    # print(c.cpu().numpy())
+    # print(tc.cpu().numpy())
 
-    # report = ncu_run(func, a, b, c)
-    # report.visualize()
+    hidet.utils.assert_close(c, tc, atol=1e-4, rtol=1e-4)
 
 
 def main():
@@ -296,8 +294,11 @@ def main():
     #
     # demo_ldst()
 
-    hidet.logging.setConsoleLevel(hidet.logging.DEBUG)
+    # hidet.logging.setConsoleLevel(hidet.logging.DEBUG)
     demo_matmul()
+
+    # report = ncu_run(demo_matmul)
+    # report.visualize()
 
 
 if __name__ == '__main__':

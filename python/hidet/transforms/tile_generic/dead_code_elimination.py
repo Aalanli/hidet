@@ -8,7 +8,7 @@ from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.tools import collect
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops import Full, Arange, Construct, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops import Full, Arange, Construct, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp, DebugPrint
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
@@ -56,7 +56,7 @@ class DeadCodeEliminationRewriter(IRRewriter):
         roots: List[Var] = []
         for call_tile_op in collect(func, CallTileOp):
             op: TileOp = call_tile_op.op
-            if op.write_memory_op():
+            if op.write_memory_op() or isinstance(op, DebugPrint):
                 for arg in op.args:
                     assert isinstance(arg, Var), 'DeadCodeEliminationRewriter only works on SSA form'
                     roots.append(arg)

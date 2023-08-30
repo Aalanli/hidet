@@ -7,6 +7,7 @@ from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, AsyncCommitGroup, AsyncWait, ExtractSlice
 from hidet.ir.type import PointerType, DataType, void_p, sizeof, BaseType
 from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async, cp_async_wait_group
+from hidet.ir.primitives.cuda.sync import syncthreads
 from hidet.ir.dtypes import uint8, uint16, uint32, uint64, int32
 from hidet.utils import prod
 from .registry import TileOpImpl, Buffer, register_impl
@@ -94,6 +95,7 @@ class AsyncCommitGroupImpl(TileOpImpl):
 class AsyncWaitImpl(TileOpImpl):
     def implement(self, op: AsyncWait, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         self.append(cp_async_wait_group(op.n))
+        self.append(syncthreads())
 
 
 @register_impl(ExtractSlice)

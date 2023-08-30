@@ -65,7 +65,7 @@ class LowerTileDialectRewriter(IRRewriter):
     def assign_buffer(self, dst: Buffer, src: Buffer):
         if src.is_distributed() and dst.is_distributed():
             assign_impl = AssignImpl()
-            assign_impl.implement(None, args=[src, dst], output=None)
+            assign_impl.implement(None, args=[dst, src], output=None)
             self.stmts.append(assign_impl.finish())
         elif src.is_shared() and dst.is_shared():
             self.append_stmt(AssignStmt(dst.var, src.var))

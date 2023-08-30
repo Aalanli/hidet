@@ -148,7 +148,7 @@ class AllocSharedMarkerVisitor(IRVisitor):
         self.visit(stmt.body)
 
     def visit_DeclareStmt(self, stmt: DeclareStmt):
-        if stmt.init and self.is_call_to_alloc_shared(stmt.init):
+        if stmt.init is not None and self.is_call_to_alloc_shared(stmt.init):
             self.mark(stmt.var, self.get_nbytes(stmt.init))
         else:
             super().visit_DeclareStmt(stmt)

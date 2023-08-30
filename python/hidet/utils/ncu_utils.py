@@ -8,49 +8,33 @@ from hidet.runtime import CompiledModule
 
 _ncu_path: str = '/usr/local/cuda/bin/ncu'
 _ncu_ui_path: str = '/usr/local/cuda/bin/ncu-ui'
+_ncu_ui_template = "{ncu_ui_path} {report_path}"
 _ncu_template = """
 {ncu_path}
 --export {report_path}
 --force-overwrite
---target-processes application-only
---replay-mode kernel
---kernel-name-base function
---launch-skip-before-match 0
---filter-mode global
---section ComputeWorkloadAnalysis
---section InstructionStats
---section LaunchStats
---section MemoryWorkloadAnalysis
---section Occupancy
---section SchedulerStats
---section SourceCounters
---section SpeedOfLight
---section SpeedOfLight_RooflineChart
---section WarpStateStats
---sampling-interval auto
---sampling-max-passes 5
---sampling-buffer-size 33554432
---profile-from-start 1
---cache-control all
---clock-control base
---rule CPIStall
---rule FPInstructions
---rule HighPipeUtilization
---rule IssueSlotUtilization
---rule LaunchConfiguration
---rule Occupancy
---rule PCSamplingData
---rule SOLBottleneck
---rule SOLFPRoofline
---rule SlowPipeLimiter
---rule ThreadDivergence
+--set full
+--rule CPIStall 
+--rule FPInstructions 
+--rule HighPipeUtilization 
+--rule IssueSlotUtilization 
+--rule LaunchConfiguration 
+--rule Occupancy 
+--rule PCSamplingData 
+--rule SOLBottleneck 
+--rule SOLFPRoofline 
+--rule SharedMemoryConflicts 
+--rule SlowPipeLimiter 
+--rule ThreadDivergence 
 --rule UncoalescedGlobalAccess
---rule UncoalescedSharedAccess
+--rule UncoalescedSharedAccess 
 --import-source yes
 --check-exit-code yes
 {python_executable} {python_script} {args}
 """.replace('\n', ' ').strip()
-_ncu_ui_template = "{ncu_ui_path} {report_path}"
+"""
+/opt/nvidia/nsight-compute/2023.2.1/target/linux-desktop-glibc_2_11_3-x64/ncu --config-file off --export "/home/yaoyao/Documents/NVIDIA Nsight Compute/report%i" --force-overwrite --set detailed --rule CPIStall --rule FPInstructions --rule HighPipeUtilization --rule IssueSlotUtilization --rule LaunchConfiguration --rule Occupancy --rule PCSamplingData --rule SOLBottleneck --rule SOLFPRoofline --rule SharedMemoryConflicts --rule SlowPipeLimiter --rule ThreadDivergence --rule UncoalescedGlobalAccess --rule UncoalescedSharedAccess /home/yaoyao/miniconda3/bin/python /home/yaoyao/repos/triton/python/tutorials/03-matrix-multiplication.py 
+"""
 
 
 class NsightComputeReport:
@@ -97,6 +81,10 @@ def ncu_run(func, *args) -> NsightComputeReport:
 
     # report path
     report_path: str = os.path.join(os.path.dirname(script_path), 'report.ncu-rep')
+    idx = 0
+    while os.path.exists(report_path):
+        report_path = os.path.join(os.path.dirname(script_path), 'report{}.ncu-rep'.format(idx))
+        idx += 1
 
     # dump args
     args_path: str = tempfile.mktemp() + '.pkl'

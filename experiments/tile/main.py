@@ -215,14 +215,80 @@ def demo_ldst():
     hidet.utils.assert_close(a, b)
 
 
-def demo_matmul(m_size=1024, n_size=1024, k_size=1024):
+def demo_ldgsts_lds128():
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs, cast, shared_tensor, register_tensor
+    from hidet.lang.cuda import threadIdx, cp_async, cp_async_wait_all
+    from hidet.ir.mapping import spatial_map
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def func(out: f32[256]):
+            attrs.func_kind = 'cuda_kernel'
+            attrs.cuda.block_dim = 32
+            attrs.cuda.grid_dim = 1
+
+            s = 0.0
+            tid = threadIdx.x
+            a = shared_tensor('float32', shape=[256])
+
+            # ldgsts
+            # L1 exc, L1, L1 ideal, L2 exc, L2, L2 ideal
+            # 0	4	4	0	16	16
+            cp_async(
+                dst=~a[tid * 4],
+                src=~out[tid * 4],
+                cp_size=16
+            )
+            cp_async_wait_all()
+
+            # 4	8	4	16	32	16
+            cp_async(
+                dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 4],
+                src=~out[tid * 8],
+                cp_size=16
+            )
+            cp_async_wait_all()
+
+            # 4	8	4	16	32	16
+            cp_async(
+                dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 8],
+                src=~out[tid * 8],
+                cp_size=16
+            )
+            cp_async_wait_all()
+
+
+            # lds
+            b = register_tensor('float32', shape=[4])
+            c = register_tensor('float32', shape=[4])
+            for i in range(4):
+                b[i] = a[tid * 4 + i]
+            for i in range(4):
+                group_id = tid // 8
+                id_in_group = tid % 8
+                c[i] = a[((3 - group_id) * 8 + id_in_group) * 4 + i]
+            for i in range(4):
+                s += b[i]
+            for i in range(4):
+                s += c[i]
+
+            for i in range(4):
+                out[tid] = s
+
+    func = script_module.build()
+    out = hidet.empty([256], device='cuda')
+    func(out)
+
+
+def demo_matmul(m_size=1024, n_size=1024, k_size=1024, bench=False):
     from hidet.lang.types import f32, int32
     from hidet.lang import attrs, cast
     from hidet.lang import tile as ti
 
     block_m = 64
     block_n = 64
-    block_k = 8
+    block_k = 32
 
     with hidet.script_module() as script_module:
         @hidet.script
@@ -262,12 +328,14 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024):
     c = hidet.empty([m_size, n_size], dtype='float32', device='cuda')
 
     func(a, b, c)
-    # print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
+    if bench:
+        print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
 
     import torch
     ta, tb, tc = a.torch(), b.torch(), c.torch().clone()
     torch.matmul(ta, tb, out=tc)
-    # print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
+    if bench:
+        print(' torch: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: torch.matmul(ta, tb, out=tc), repeat=20)))
 
     import numpy
     numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)
@@ -291,11 +359,13 @@ def main():
     # demo_reduce()
     #
     # demo_dot_simt()
-    #
+
     # demo_ldst()
 
-    # hidet.logging.setConsoleLevel(hidet.logging.DEBUG)
-    demo_matmul()
+    demo_matmul(bench=True)
+
+    # demo_ldgsts_lds128()
+    # ncu_run(demo_ldgsts_lds128).visualize()
 
     # report = ncu_run(demo_matmul)
     # report.visualize()

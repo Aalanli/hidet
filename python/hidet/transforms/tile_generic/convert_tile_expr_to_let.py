@@ -53,6 +53,7 @@ class ConvertTileExprToLetRewriter(IRRewriter):
         call = super().visit_CallTileOp(call)
         ret_type = self.type_infer(call)
         if isinstance(ret_type, TileType):
+            assert isinstance(call.op, TileOp)
             v = var(hint=call.op.var_name_hint, dtype=ret_type)
             return Let(v, call, v)
         else:

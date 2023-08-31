@@ -8,7 +8,7 @@ class Attribute:
     pass
 
 
-_ScalarConst = Union[str, int, float, bool, Attribute]
+_ScalarConst = Union[str, int, float, bool, Attribute, BaseType]
 CConst = Union[_ScalarConst, List[_ScalarConst]]  # compile-time constant
 
 

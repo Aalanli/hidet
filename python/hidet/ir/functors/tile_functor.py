@@ -6,7 +6,7 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops.creation import Arange, Full, Construct
 from hidet.ir.tile.ops.memory import Load, Store
-from hidet.ir.tile.ops.transform import Broadcast, ExpandDims
+from hidet.ir.tile.ops.transform import Broadcast, ExpandDims, CastOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
 from hidet.ir.tile.ops.reduce import ReduceOp
@@ -52,6 +52,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_ConvertLayout(node)
         elif isinstance(node, ExpandDims):
             return self.visit_ExpandDims(node)
+        elif isinstance(node, CastOp):
+            return self.visit_CastOp(node)
         elif isinstance(node, DebugPrint):
             return self.visit_DebugPrint(node)
         elif isinstance(node, ReduceOp):
@@ -103,6 +105,9 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_ExpandDims(self, e: ExpandDims):
+        raise NotImplementedError()
+
+    def visit_CastOp(self, e: CastOp):
         raise NotImplementedError()
 
     def visit_Full(self, e: Full):
@@ -175,6 +180,9 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.x)
 
     def visit_ExpandDims(self, e: ExpandDims):
+        self.visit(e.x)
+
+    def visit_CastOp(self, e: CastOp):
         self.visit(e.x)
 
     def visit_Full(self, e: Full):
@@ -295,6 +303,13 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e.reforward([x])
 
     def visit_ExpandDims(self, e: ExpandDims):
+        x = self.visit(e.x)
+        if x is e.x:
+            return e
+        else:
+            return e.reforward([x])
+
+    def visit_CastOp(self, e: CastOp):
         x = self.visit(e.x)
         if x is e.x:
             return e

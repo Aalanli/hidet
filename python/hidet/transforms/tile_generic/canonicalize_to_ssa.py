@@ -10,7 +10,7 @@ from hidet.ir.stmt import Stmt, DeclareStmt, SeqStmt, AssignStmt, EvaluateStmt, 
 from hidet.ir.stmt import WhileStmt, ForMappingStmt, BreakStmt, ContinueStmt, IfStmt, ReturnStmt, AssertStmt, AsmStmt
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tools import TypeInfer, collect
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.expand_let_expr import LetExprExpander
@@ -50,7 +50,9 @@ class ConvertTileExprToLetRewriter(IRRewriter):
         call = super().visit_CallTileOp(call)
         ret_type = self.type_infer(call)
         if isinstance(ret_type, TileType):
-            v = var(hint=call.op.var_name_hint, dtype=ret_type)
+            op = call.op
+            assert isinstance(op, TileOp)
+            v = var(hint=op.var_name_hint, dtype=ret_type)
             return Let(v, call, v)
         else:
             return call

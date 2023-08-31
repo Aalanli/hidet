@@ -2,7 +2,7 @@ from typing import List, Union, Optional
 
 from hidet.ir.expr import Expr, Var, logical_and
 from hidet.ir.tile.layout import DistributedLayout
-from hidet.ir.tile.ops.transform import ExpandDims, Broadcast
+from hidet.ir.tile.ops.transform import ExpandDims, Broadcast, CastOp
 from .registry import TileOpImpl, Buffer, register_impl
 
 
@@ -35,6 +35,20 @@ class BroadcastImpl(TileOpImpl):
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 local_indices = [idx if i not in broadcast_dims else 0 for i, idx in enumerate(local_indices)]
+                return src[local_indices]
+
+            self.iterate_dist_buffer_and_compute(dst, f_compute)
+        else:
+            raise NotImplementedError()
+
+
+@register_impl(CastOp)
+class CastOpImpl(TileOpImpl):
+    def implement(self, op: CastOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
+        src: Buffer = args[0]
+        dst: Buffer = output
+        if src.is_distributed() and dst.is_distributed() and src.layout == dst.layout:
+            def f_compute(local_indices, global_indices, not_duplicated):
                 return src[local_indices]
 
             self.iterate_dist_buffer_and_compute(dst, f_compute)

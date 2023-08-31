@@ -1,6 +1,7 @@
 from typing import List, Union, Optional
 
 from hidet.ir.expr import Expr, logical_and
+from hidet.ir.dtypes import uint32, uint16
 from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.type import PointerType, DataType, void_p
@@ -86,19 +87,29 @@ class StoreImpl(TileOpImpl):
         if isinstance(layout, BlockLayout):
             axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
-            # TODO: use u32 if vec_size > 4
-            vec_size = min(vec_size, 4)
             if vec_size > 1 and mask is None:
                 local_shape: List[int] = layout.calc_local_shape(ptr.shape)
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
 
                 with self.for_mapping(repeat_map(mapping_shape)) as indices:
                     local_indices = [idx if dim != axis else idx * vec_size for dim, idx in enumerate(indices)]
-                    src_addrs = []
                     local_indices_iter = local_indices.copy()
+
+                    src_addrs = []
                     for i in range(vec_size):
                         src_addrs.append(~value.var[local_indices_iter])
                         local_indices_iter[axis] += 1
+
+                    if dtype.nbytes == 1 and len(src_addrs) > 4:
+                        dtype = uint32
+                        src_addrs = [src_addrs[i] for i in range(0, len(src_addrs), 4)]
+                    elif dtype.nbytes == 1 and len(src_addrs) > 2:
+                        dtype = uint16
+                        src_addrs = [src_addrs[i] for i in range(0, len(src_addrs), 2)]
+                    elif dtype.nbytes == 2:
+                        dtype = uint32
+                        src_addrs = [src_addrs[i] for i in range(0, len(src_addrs), 2)]
+
                     self.append(
                         store(dtype, addr=ptr[local_indices], src_addrs=src_addrs)
                     )

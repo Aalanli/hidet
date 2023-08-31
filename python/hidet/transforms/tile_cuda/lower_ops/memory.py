@@ -86,6 +86,8 @@ class StoreImpl(TileOpImpl):
         if isinstance(layout, BlockLayout):
             axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
+            # TODO: use u32 if vec_size > 4
+            vec_size = min(vec_size, 4)
             if vec_size > 1 and mask is None:
                 local_shape: List[int] = layout.calc_local_shape(ptr.shape)
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]

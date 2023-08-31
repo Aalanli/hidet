@@ -258,7 +258,6 @@ def demo_ldgsts_lds128():
             )
             cp_async_wait_all()
 
-
             # lds
             b = register_tensor('float32', shape=[4])
             c = register_tensor('float32', shape=[4])
@@ -281,20 +280,23 @@ def demo_ldgsts_lds128():
     func(out)
 
 
-def demo_matmul(m_size=1024, n_size=1024, k_size=1024, bench=False):
+def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=False):
+    from hidet.ir.type import data_type
     from hidet.lang.types import f32, int32
     from hidet.lang import attrs, cast
     from hidet.lang import tile as ti
 
+    num_warps = 4
     block_m = 128
     block_n = 64
     block_k = 32
+    dtype = data_type(dtype)
 
     with hidet.script_module() as script_module:
         @hidet.script
-        def matmul(a_ptr: ~f32, b_ptr: ~f32, c_ptr: ~f32):
+        def matmul(a_ptr: ~dtype, b_ptr: ~dtype, c_ptr: ~dtype):
             attrs.func_kind = 'cuda_tile'
-            attrs.cuda.block_dim = 128
+            attrs.cuda.block_dim = num_warps * 32
             attrs.cuda.grid_dim = (m_size // block_m) * (n_size // block_n)
 
             pid = ti.program_id()
@@ -360,13 +362,13 @@ def main():
 
     # demo_ldst()
 
-    # demo_matmul(bench=True)
+    demo_matmul(dtype='float32', bench=True)
 
     # demo_ldgsts_lds128()
     # ncu_run(demo_ldgsts_lds128).visualize()
 
-    report = ncu_run(demo_matmul)
-    report.visualize()
+    # report = ncu_run(demo_matmul)
+    # report.visualize()
 
 
 if __name__ == '__main__':

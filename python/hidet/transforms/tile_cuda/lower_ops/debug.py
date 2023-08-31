@@ -10,7 +10,7 @@ from .registry import TileOpImpl, Buffer, register_impl
 class DebugPrintImpl(TileOpImpl):
     def implement(self, op: DebugPrint, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         from hidet.ir.primitives.debug import printf
-        from hidet.ir.dtypes import float32, int32
+        from hidet.ir.dtypes import float32, float16, int32
 
         buffer: Buffer = args[0]
 
@@ -21,7 +21,11 @@ class DebugPrintImpl(TileOpImpl):
             shape = buffer.shape
             with self.for_grid(buffer.shape) as indices:
                 local_indices, is_valid = layout.global_to_local(indices, shape)
-                dtype2fmt = {float32: '%.2f', int32: '%d'}
+                dtype2fmt = {
+                    float32: '%.2f',
+                    float16: '%.2f',
+                    int32: '%d'
+                }
                 with self.if_then(is_valid):
                     if len(shape) == 0:
                         self.append(printf(f'{dtype2fmt[buffer.dtype]}\n', buffer[local_indices]))
@@ -35,7 +39,10 @@ class DebugPrintImpl(TileOpImpl):
                             with self.otherwise():
                                 with self.if_then(indices[-1] == 0):
                                     self.append(printf(' ['))
-                        self.append(printf(f'{dtype2fmt[buffer.dtype]}', buffer[local_indices]))
+                        value = buffer[local_indices]
+                        if buffer.dtype.is_float():
+                            value = float32(value)
+                        self.append(printf(f'{dtype2fmt[buffer.dtype]}', value))
                         with self.if_then(indices[-1] == shape[-1] - 1):
                             if len(shape) == 1:
                                 self.append(printf(']\n'))

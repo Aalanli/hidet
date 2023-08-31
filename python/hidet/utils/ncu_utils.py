@@ -47,7 +47,7 @@ class NsightComputeReport:
 
 def _ncu_run_func(script_path, func_name, args_pickled_path):
     with open(args_pickled_path, 'rb') as f:
-        args = pickle.load(f)
+        args, kwargs = pickle.load(f)
 
     try:
         sys.path.append(os.path.dirname(script_path))
@@ -61,7 +61,7 @@ def _ncu_run_func(script_path, func_name, args_pickled_path):
     func = getattr(module, func_name)
 
     try:
-        func(*args)
+        func(*args, **kwargs)
     except Exception as e:
         raise RuntimeError('Error when running the function "{}"'.format(func_name)) from e
 
@@ -71,7 +71,7 @@ def ncu_set_path(ncu_path: str):
     _ncu_path = ncu_path
 
 
-def ncu_run(func, *args) -> NsightComputeReport:
+def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
     import inspect
     import tempfile
 
@@ -89,7 +89,7 @@ def ncu_run(func, *args) -> NsightComputeReport:
     # dump args
     args_path: str = tempfile.mktemp() + '.pkl'
     with open(args_path, 'wb') as f:
-        pickle.dump(args, f)
+        pickle.dump((args, kwargs), f)
 
     subprocess.run(
         _ncu_template.format(

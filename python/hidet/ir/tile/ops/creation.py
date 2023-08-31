@@ -46,10 +46,10 @@ class Construct(TileOp):
         return rewrite(self.value, remap)
 
     @staticmethod
-    def from_compute(shape: List[int], f_compute: Callable[[List[Var]], Expr]):
+    def from_compute(shape: List[int], f_compute: Callable[[List[Var]], Expr], layout: Optional[TileLayout] = None):
         axes: List[Var] = index_vars(num_vars=len(shape))
         value: Expr = f_compute(axes)
-        return Construct(value, shape, axes)
+        return Construct(value, shape, axes, layout)
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]

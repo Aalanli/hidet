@@ -11,7 +11,9 @@ from hidet.ir.stmt import LetStmt, Stmt, EvaluateStmt, SeqStmt
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.ops import AllocTensor, Load, InsertSliceAsync, AsyncCommitGroup, ExtractSlice, AsyncWait
-from hidet.ir.tile.ops import ConvertLayout
+from hidet.ir.tile.ops.arthimatic import And
+from hidet.ir.tile.ops import ConvertLayout, Construct
+from hidet.ir.tile.ops import construct
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer, rewrite
@@ -61,7 +63,7 @@ convert to:
      x = convert_layout(s, x's layout)
      ...
      ptr = ptr_expr(ptr_args)
-     insert_slice_async(ptr, buf, mask=mask && i < n, other, axis=0, index=insert_index)
+     insert_slice_async(ptr, buf, mask=mask && i + stages - 1 < n, other, axis=0, index=insert_index)
      ptr_args' = iter_expr(ptr_args)
      async_wait(staged - 2)
      s' = extract_slice(buf, axis=0, index=extract_index)
@@ -486,6 +488,16 @@ class SoftwarePipelineRewriter(IRRewriter):
             ptr = load_arg_map[load.ptr]
             mask = load_arg_map[load.mask] if load.mask else None
             other = load_arg_map[load.other] if load.other else None
+            assert isinstance(ptr.type, TileType)
+            extra_mask = Construct.from_compute(
+                shape=ptr.type.shape,
+                f_compute=lambda *indices: self.loop.loop_var + self.num_stages - 1 < self.loop.extent,
+                layout=ptr.type.layout,
+            ).make_call()
+            if mask is None:
+                mask = extra_mask
+            else:
+                mask = And(mask, extra_mask).make_call()
             buf_var = self.updated_args.buffers[idx]
             op = InsertSliceAsync(
                 ptr=ptr, dst=buf_var, index=self.updated_args.insert_index(), mask=mask, other=other, axis=0

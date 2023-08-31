@@ -27,7 +27,15 @@ class AllocTensor(TileOp):
 
 
 class InsertSliceAsync(TileOp):
-    def __init__(self, ptr: Expr, dst: Expr, index: Expr, mask: Optional[Expr], other: Optional[Expr], axis: int):
+    def __init__(
+        self,
+        ptr: Expr,
+        dst: Expr,
+        index: Expr,
+        mask: Optional[Expr] = None,
+        other: Optional[Expr] = None,
+        axis: int = 0
+    ):
         super().__init__(args=[ptr, dst, index], attrs={"axis": axis})
         if mask is not None:
             self.args.append(mask)
@@ -64,7 +72,8 @@ class ExtractSlice(TileOp):
         self.extent: int = extent
         self.layout: Optional[TileLayout] = layout
 
-    def op_name(cls):
+    @property
+    def var_name_hint(self):
         return "ext_slice"
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:

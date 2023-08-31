@@ -108,3 +108,11 @@ class Equal(BinaryTileOp):
 
 class NotEqual(BinaryTileOp):
     pass
+
+
+class And(BinaryTileOp):
+    pass
+
+
+class Or(BinaryTileOp):
+    pass

@@ -103,6 +103,10 @@ class ExtractSliceImpl(TileOpImpl):
     def implement(self, op: ExtractSlice, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         src: Buffer = args[0]
         index: Expr = args[1]
-        indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
-        indices = indices[:op.axis] + [index] + indices[op.axis:]
+        if op.extent == 1:
+            indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
+            indices = indices[:op.axis] + [index] + indices[op.axis:]
+        else:
+            indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
+            indices[op.axis] = index
         self.assign(output.var, ~src[indices])

@@ -131,7 +131,7 @@ class BlockLayout(DistributedLayout):
         warps_per_block = []
         remaining_threads = 32
         remaining_warps = num_warps
-        for extent in shape:
+        for extent in reversed(shape):  # from innermost to outermost
             if extent <= remaining_threads:
                 assert remaining_threads % extent == 0
                 thread_per_warp.append(extent)
@@ -160,6 +160,9 @@ class BlockLayout(DistributedLayout):
             assert remaining_warps % 2 == 0
             warps_per_block[argmin(warps_per_block)] *= 2
             remaining_warps //= 2
+
+        thread_per_warp = list(reversed(thread_per_warp))
+        warps_per_block = list(reversed(warps_per_block))
 
         assert prod(warps_per_block) == num_warps
         assert prod(thread_per_warp) == 32

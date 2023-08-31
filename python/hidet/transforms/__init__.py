@@ -49,6 +49,7 @@ from .tile_cuda.instantiate_layout import instantiate_layout_pass
 from .tile_cuda.coalesce_memory_access import coalesce_memory_access_pass
 from .tile_cuda.remove_layout_convert import remove_layout_convert_pass
 from .tile_cuda.software_pipeline import software_pipeline_pass
+from .tile_cuda.split_dot_k import split_dot_k_pass
 from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
 from .tile_cuda.plan_shared_memory import plan_shared_memory_pass
 
@@ -81,6 +82,7 @@ def lower(ir_module: IRModule) -> IRModule:
         coalesce_memory_access_pass(),
         remove_layout_convert_pass(),
         software_pipeline_pass(),
+        split_dot_k_pass(),
         lower_tile_dialect_pass(),
         plan_shared_memory_pass(),
     ]

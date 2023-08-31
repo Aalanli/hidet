@@ -450,7 +450,7 @@ class Let(Expr):
         self.value: Expr = value
         self.body: Expr = body
 
-        assert isinstance(var, Var) and isinstance(value, Expr) and isinstance(body, Expr)
+        assert isinstance(var, Var) and isinstance(value, Expr) and (isinstance(body, Expr) or body is None)
 
 
 class Cast(Expr):

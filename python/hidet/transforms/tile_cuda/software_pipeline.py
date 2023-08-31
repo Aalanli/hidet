@@ -345,7 +345,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         tile_vars: List[Var] = []
         for idx, buf_var in enumerate(buffer_vars):
             shape = load_types[idx].shape
-            op = ExtractSlice(buf_var, index=int32(0), axis=0, layout=SharedLayout(shape))
+            op = ExtractSlice(buf_var, start=int32(0), axis=0, extent=1, layout=SharedLayout(shape))
             tile_var = Var('ext_slice', type=self.type_infer(op.make_call()))
             stmts.append(LetStmt(tile_var, op.make_call()))
             tile_vars.append(tile_var)
@@ -509,7 +509,7 @@ class SoftwarePipelineRewriter(IRRewriter):
             buf_var = arg2yield[self.updated_args.buffers[idx]]
             new_tile = Var(tile.hint, type=tile.type)
             shape: List[int] = [int(v) for v in tile.type.shape]
-            op = ExtractSlice(buf_var, self.updated_args.extract_index(), axis=0, layout=SharedLayout(shape))
+            op = ExtractSlice(buf_var, self.updated_args.extract_index(), axis=0, extent=1, layout=SharedLayout(shape))
             stmts.append(LetStmt([new_tile], [op.make_call()]))
             arg2yield[tile] = new_tile
 

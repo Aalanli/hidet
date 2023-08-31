@@ -8,12 +8,11 @@ from .creation import zeros
 
 
 class Dot(TileOp):
-    def __init__(self, a: Expr, b: Expr, c: Expr, layout: Optional[TileLayout] = None):
-        super().__init__(args=[a, b, c], attrs={"layout": layout})
+    def __init__(self, a: Expr, b: Expr, c: Expr):
+        super().__init__(args=[a, b, c], attrs={})
         self.a: Expr = a
         self.b: Expr = b
         self.c: Expr = c
-        self.layout: Optional[TileLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         return arg_types[2]

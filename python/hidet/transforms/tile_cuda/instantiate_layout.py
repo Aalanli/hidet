@@ -194,7 +194,7 @@ class InstantiateLayoutRewriter(IRRewriter):
                 b = convert_layout(b, BlockDotOperandLayout(parent=layout, op_idx=1))
             if c_type.layout != layout:
                 c = convert_layout(c, layout)
-            return SimtDot(a, b, c, layout)
+            return SimtDot(a, b, c)
         else:
             raise NotImplementedError()
 

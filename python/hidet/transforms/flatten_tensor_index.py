@@ -77,7 +77,7 @@ class FlattenTensorAccessRewriter(IRRewriter):
         layout = self.get_layout(e.base)
         if len(indices) != len(layout.shape):
             raise ValueError(
-                'Access {}-d tensor {} named {} with {}-d indices {}'.format(
+                'Access {}-d tensor {} named "{}" with {}-d indices {}'.format(
                     len(layout.shape), list(layout.shape), var.hint, len(indices), list(indices)
                 )
             )

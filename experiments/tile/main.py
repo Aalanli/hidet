@@ -286,7 +286,7 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, bench=False):
     from hidet.lang import attrs, cast
     from hidet.lang import tile as ti
 
-    block_m = 64
+    block_m = 128
     block_n = 64
     block_k = 32
 
@@ -323,8 +323,6 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, bench=False):
 
     a = hidet.randn([m_size, k_size], device='cuda')
     b = hidet.randn([k_size, n_size], device='cuda')
-    # a = hidet.ones([m_size, k_size], dtype='float32', device='cuda')
-    # b = hidet.ones([k_size, n_size], dtype='float32', device='cuda')
     c = hidet.empty([m_size, n_size], dtype='float32', device='cuda')
 
     func(a, b, c)
@@ -362,13 +360,13 @@ def main():
 
     # demo_ldst()
 
-    demo_matmul(bench=True)
+    # demo_matmul(bench=True)
 
     # demo_ldgsts_lds128()
     # ncu_run(demo_ldgsts_lds128).visualize()
 
-    # report = ncu_run(demo_matmul)
-    # report.visualize()
+    report = ncu_run(demo_matmul)
+    report.visualize()
 
 
 if __name__ == '__main__':

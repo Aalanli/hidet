@@ -236,6 +236,7 @@ class CanonicalizeToSSAPass(TileFunctionPass):
 
 def canonicalize_to_ssa(node: Union[Function, IRModule]):
     transforms = [
+        LetExprExpander(),
         CanonicalizeToSSARewriter(),
         ConvertTileExprToLetRewriter(),
         LetExprExpander()

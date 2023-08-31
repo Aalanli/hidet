@@ -58,17 +58,29 @@ class AsyncWait(ProcedureOp):
 
 
 class ExtractSlice(TileOp):
-    def __init__(self, src: Expr, index: Expr, axis: int, layout: Optional[TileLayout] = None):
-        super().__init__(args=[src, index], attrs={"axis": axis, "layout": layout})
+    def __init__(self, src: Expr, start: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):
+        super().__init__(args=[src, start], attrs={"axis": axis, "extent": extent, "layout": layout})
         self.axis: int = axis
+        self.extent: int = extent
         self.layout: Optional[TileLayout] = layout
+
+    def op_name(cls):
+        return "ext_slice"
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         src_type = arg_types[0]
         assert isinstance(src_type, TileType)
         src_shape: List[int] = src_type.shape
+        if self.extent == 1:
+            shape = src_shape[:self.axis] + src_shape[self.axis + 1:]
+        else:
+            shape = src_shape[:self.axis] + [self.extent] + src_shape[self.axis + 1:]
         return TileType(
             type_=src_type.type,
-            shape=src_shape[:self.axis] + src_shape[self.axis + 1:],
+            shape=shape,
             layout=self.layout
         )
+
+
+def extract_slice(src: Expr, start_index: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):
+    return ExtractSlice(src, start_index, axis, extent, layout).make_call()

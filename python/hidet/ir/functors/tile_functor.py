@@ -1,5 +1,6 @@
 from typing import List
 from hidet.ir.node import Node
+from hidet.ir.expr import Expr
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
@@ -237,7 +238,12 @@ class TileRewriter(TileFunctor, BaseRewriter):
         if op is call.op:
             return call
         else:
-            return op.make_call()
+            if isinstance(op, TileOp):
+                return op.make_call()
+            else:
+                # we allow the visitor of TileOp to return an Expr
+                assert isinstance(op, Expr)
+                return op
 
     def visit_UnaryTileOp(self, e: UnaryTileOp):
         x = self.visit(e.x)
@@ -348,14 +354,14 @@ class TileRewriter(TileFunctor, BaseRewriter):
         if args is e.args:
             return e
         else:
-            return e.reforward([args])
+            return e.reforward(args)
 
     def visit_ExtractSlice(self, e: ExtractSlice):
         args = self.visit(e.args)
         if args is e.args:
             return e
         else:
-            return e.reforward([args])
+            return e.reforward(args)
 
     def visit_ProcedureOp(self, e: ProcedureOp):
         return e

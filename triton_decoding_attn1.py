@@ -9,7 +9,8 @@ from triton import autotune, Config
 import torch
 
 def set_y(nargs):
-    nargs['Y'].zero_()
+    # nargs['Y'].zero_()
+    pass
 
 
 @autotune(
@@ -86,15 +87,17 @@ def decoding_attn_kernel(
     v_cache_ptr = v_cache + kv_cache_idx
     tl.store(v_cache_ptr, v, mask=kvl[:, None] < S)
 
-    # qk_ = tl.dot(q, tl.trans(k))
-    # qk_max = tl.max(qk_, 1)
-    # qk_ = tl.exp(qk_ - qk_max[:, None])
-    # qk_sum = tl.sum(qk_, 1)
-    # qk_ = qk_ / qk_sum[:, None]
-    # qk_ = qk_.to(tl.float16)
-    # y_acc = tl.dot(qk_, v) # [BLOCK_M, BLOCK_DH]
-    qk_max = tl.zeros([BLOCK_M], dtype=tl.float32) - float('inf')
-    qk_sum = tl.zeros([BLOCK_M], dtype=tl.float32)
+    qk_ = tl.dot(q, tl.trans(k))
+    qk_max = tl.max(qk_, 1)
+    qk_ = tl.exp(qk_ - qk_max[:, None])
+    qk_sum = tl.sum(qk_, 1)
+    qk_ = qk_ / qk_sum[:, None]
+    qk_ = qk_.to(tl.float16)
+    y_acc = tl.dot(qk_, v) # [BLOCK_M, BLOCK_DH]
+    acc = tl.zeros([BLOCK_M, BLOCK_DH], dtype=tl.float32)
+    acc = tl.where(xm[:, None] < S, y_acc, acc)
+    # qk_max = tl.zeros([BLOCK_M], dtype=tl.float32) - float('inf')
+    # qk_sum = tl.zeros([BLOCK_M], dtype=tl.float32)
 
     # now do flash attention on the kv_cache for [0, L]
     kvl = tl.arange(0, BLOCK_N)
@@ -103,7 +106,6 @@ def decoding_attn_kernel(
     k_cache_ptr = k_cache + (kvl[None, :] * BLOCK_DH + kvd[:, None] + head_id * LS * BLOCK_DH + batch_id * H * LS * BLOCK_DH)
     v_cache_ptr = v_cache + (kvl[:, None] * BLOCK_DH + kvd[None, :] + head_id * LS * BLOCK_DH + batch_id * H * LS * BLOCK_DH)
 
-    acc = tl.zeros([BLOCK_M, BLOCK_DH], dtype=tl.float32) # + y_acc
     for l in range(0, tl.cdiv(L + S, BLOCK_N)):
         l_remaining = L + S - l * BLOCK_N
         k_ = tl.load(k_cache_ptr, mask=kvl[:, None] < l_remaining)
@@ -137,15 +139,15 @@ def decoding_attn_kernel(
     yd = tl.arange(0, BLOCK_DH)
     oh = tl.arange(0, BLOCK_O)
 
-
-    y_ptr = Y + (ym[:, None] * D + oh[None, :] + batch_id * S * D) # [BLOCK_M, BLOCK_O]
+    # [B, H, S, D]
+    y_ptr = Y + (ym[:, None] * D + oh[None, :] + head_id * S * D + batch_id * H * S * D) # [BLOCK_M, BLOCK_O]
     wo_ptr = WO + (yd[:, None] * D + oh[None, :] + head_id * BLOCK_DH * D) # [BLOCK_DH, BLOCK_O]
     for i in range(0, tl.cdiv(D, BLOCK_O)):
         d_remaining = D - i * BLOCK_O
         wo = tl.load(wo_ptr, mask=oh[None, :] < d_remaining)
         y = tl.dot(acc, wo)
         y = y.to(tl.float16)
-        tl.atomic_add(y_ptr, y, mask=(ym[:, None] < S) & (oh[None, :] < d_remaining))
+        tl.store(y_ptr, y, mask=(ym[:, None] < S) & (oh[None, :] < d_remaining))
         y_ptr += BLOCK_O
         wo_ptr += BLOCK_O
 
@@ -180,7 +182,7 @@ def triton_decoding_attn(x, WQ, WK, WV, WO, k_cache, v_cache, L, heads, head_dim
         BLOCK_M = 32
     else:
         raise RuntimeError(f"Unsupported sequence length {S}")
-    y = torch.empty((B, S, D), dtype=x.dtype, device=x.device)
+    y = torch.ones((B, H, S, D), dtype=x.dtype, device=x.device) * -1
     decoding_attn_kernel[(H, B)](
         x, y, WQ, WK, WV, WO, 1.0 / (DH ** 0.5), k_cache, v_cache, S, B, H, L, LS, D,
         BLOCK_M=BLOCK_M, BLOCK_DH=DH
@@ -193,46 +195,46 @@ def ref_decoding_attn(x, WQ, WK, WV, WO, k_cache, v_cache, L, heads, head_dim):
     D = x.shape[2]
     assert WQ.shape == WK.shape == WV.shape == (D, heads * head_dim)
     assert WO.shape == (heads * head_dim, D)
-    q = (x @ WQ).reshape([B, heads, -1, head_dim])
-    k = (x @ WK).reshape([B, heads, -1, head_dim])
-    v = (x @ WV).reshape([B, heads, -1, head_dim])
+    q = (x @ WQ).reshape([B, S, heads, head_dim]).transpose(1, 2)
+    k = (x @ WK).reshape([B, S, heads, head_dim]).transpose(1, 2)
+    v = (x @ WV).reshape([B, S, heads, head_dim]).transpose(1, 2)
     k_cache[:, :, L:L+S, :] = k
     v_cache[:, :, L:L+S, :] = v
 
     qk = q @ (k_cache[:, :, :L+S, :]).transpose(-1, -2)
     qk = torch.softmax(qk, dim=-1)
-    y = (qk @ v_cache[:, :, :L+S, :]).reshape([B, -1, heads * head_dim]) @ WO
+    y = (qk @ v_cache[:, :, :L+S, :]).transpose(1, 2).reshape([B, S, heads * head_dim]) @ WO
     return y
 
-B = 1
-S = 32
-D = 1024
-H = 8
-DH = 64
-L = 128
-LS = 2048
+def test():
+    B = 1
+    S = 32
+    D = 64
+    H = 1
+    DH = 64
+    L = 0
+    LS = 32
 
-x = torch.randn(B, S, D, dtype=torch.float16, device='cuda')
-wq = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
-wk = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
-wv = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
-wo = torch.randn(H * DH, D, dtype=torch.float16, device='cuda')
-k_cache1 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
-v_cache1 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
+    x = torch.randn(B, S, D, dtype=torch.float16, device='cuda')
+    wq = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
+    wk = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
+    wv = torch.randn(D, H * DH, dtype=torch.float16, device='cuda')
+    wo = torch.randn(H * DH, D, dtype=torch.float16, device='cuda')
+    k_cache1 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
+    v_cache1 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
 
-k_cache2 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
-v_cache2 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
+    k_cache2 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
+    v_cache2 = torch.zeros(B, H, LS, DH, dtype=torch.float16, device='cuda')
 
-y1 = triton_decoding_attn(x, wq, wk, wv, wo, k_cache1, v_cache1, L, H, DH)
-y2 = ref_decoding_attn(x, wq, wk, wv, wo, k_cache2, v_cache2, L, H, DH)
+    y1 = triton_decoding_attn(x, wq, wk, wv, wo, k_cache1, v_cache1, L, H, DH)
+    y2 = ref_decoding_attn(x, wq, wk, wv, wo, k_cache2, v_cache2, L, H, DH)
 
+    # print(y1)
+    # print(y2)
+    # print((k_cache1 - k_cache2).abs().max())
+    # print((y1 - y2).abs().max())
+    return y1, y2
+
+y1, y2 = test()
 print(y1)
-print(y2)
-print((k_cache1 - k_cache2).abs().max())
 
-
-y_prime1 = triton_decoding_attn(x, wq, wk, wv, wo, k_cache1, v_cache1, L, H, DH)
-y_prime2 = ref_decoding_attn(x, wq, wk, wv, wo, k_cache2, v_cache2, L, H, DH)
-
-print((y1 - y_prime1).abs().max())
-print((y2 - y_prime2).abs().max())

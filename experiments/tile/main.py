@@ -421,25 +421,6 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
 
 
 def main():
-    # demo_arange()
-    #
-    # demo_debug_print()
-    #
-    # demo_vector_add()
-    #
-    # demo_expand_dims()
-    #
-    # demo_for_and_increment()
-    #
-    # demo_reduce()
-    #
-    # demo_dot_simt()
-
-    # demo_ldst()
-
-    # demo_ldgsts_lds128()
-    # ncu_run(demo_ldgsts_lds128).visualize()
-
     for m_size, n_size, k_size in [
         [1024, 1024, 1024],
         # [1000, 1000, 1000],

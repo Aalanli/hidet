@@ -28,6 +28,8 @@ _convert_table: Dict[Type[Expr], Type[Union[UnaryTileOp, BinaryTileOp]]] = {
     expr.LessEqual: arith.LessEqual,
     expr.Equal: arith.Equal,
     expr.NotEqual: arith.NotEqual,
+    expr.LogicalAnd: arith.LogicalAnd,
+    expr.LogicalOr: arith.LogicalOr,
 }
 
 

@@ -1,17 +1,21 @@
-from typing import Any, Optional, List, Dict
-from hidet.ir.expr import Var
+from __future__ import annotations
+from typing import Any, Optional, List, Dict, Type, Callable
+import operator
+from hidet.ir.type import DataType, PointerType
+from hidet.ir.expr import Var, Constant, Add, Multiply, Sub, Expr, BinaryExpr, LessThan, LogicalAnd
 from hidet.ir.stmt import LetStmt
 from hidet.ir.func import Function
 from hidet.ir.tile.type import TileType
-from hidet.ir.tile.ops import Construct
-from hidet.ir.tile.ops.arthimatic import Add
+from hidet.ir.tile.expr import CallTileOp, TileOp
+from hidet.ir.tile.stmt import PureForStmt, YieldStmt
+from hidet.ir.tile.ops import Construct, BinaryTileOp
 from hidet.ir.functors import IRVisitor
+from hidet.utils import gcd, same_list
 
 
 class Constancy:
-    def __init__(self, is_constant: bool, known_value: Optional[Any]):
+    def __init__(self, is_constant: bool):
         self.is_constant: bool = is_constant
-        self.known_value: Optional[Any] = known_value
 
 
 class Divisibility:
@@ -25,55 +29,333 @@ class Continuity:
 
 
 class ValueInfo:
-    def as_tensor_value(self):
-        assert isinstance(self, TensorValueInfo)
+    def as_tensor_info(self):
+        assert isinstance(self, TensorInfo)
         return self
 
-    def as_scalar_value(self):
-        assert isinstance(self, ScalarValueInfo)
+    def as_scalar_info(self):
+        assert isinstance(self, ScalarInfo)
+        return self
+
+    def merge(self, other: ValueInfo) -> ValueInfo:
+        raise NotImplementedError()
+
+
+class OptionalInt:
+    def __init__(self, v: Optional[int] = None):
+        self.v: Optional[int] = v
+
+    def _binary(self, other, op):
+        assert isinstance(other, OptionalInt)
+        if self.v is None or other.v is None:
+            return OptionalInt(None)
+        return OptionalInt(op(self.v, other.v))
+
+    def __str__(self):
+        if self.v is None:
+            return 'none'
+        return str(self.v)
+
+    def __eq__(self, other):
+        assert isinstance(other, OptionalInt)
+        return self.v == other.v
+
+    def __add__(self, other):
+        return self._binary(other, operator.add)
+
+    def __sub__(self, other):
+        return self._binary(other, operator.sub)
+
+    def __mul__(self, other):
+        return self._binary(other, operator.mul)
+
+    def __lt__(self, other):
+        return self._binary(other, lambda a, b: int(a < b))
+
+    def __and__(self, other):
+        return self._binary(other, lambda a, b: int(a & b))
+
+    def merge(self, other: OptionalInt) -> OptionalInt:
+        if self.v is None or other.v is None or self.v != other.v:
+            return OptionalInt(None)
         return self
 
 
-class ScalarValueInfo:
-    def __init__(self, constancy: Constancy, divisibility: Divisibility):
-        self.constancy: Constancy = constancy
-        self.divisibility: Divisibility = divisibility
+class ScalarInfo(ValueInfo):
+    def __init__(self, divisibility: int = None, const_value=None):
+        self.divisibility: int = divisibility if divisibility is not None else 1
+        self.const_value: OptionalInt = const_value if const_value is not None else OptionalInt(None)
+
+    def __str__(self):
+        return 'scalar(divisibility={}, const={})'.format(self.divisibility, self.const_value)
+
+    def __eq__(self, other):
+        assert isinstance(other, ScalarInfo)
+        return self.divisibility == other.divisibility and self.const_value == other.const_value
+
+    def __add__(self, other):
+        if isinstance(other, TensorInfo):
+            return NotImplemented
+        assert isinstance(other, ScalarInfo)
+        return ScalarInfo(
+            divisibility=gcd(self.divisibility, other.divisibility),
+            const_value=self.const_value + other.const_value
+        )
+
+    def __sub__(self, other):
+        if isinstance(other, TensorInfo):
+            return NotImplemented
+        assert isinstance(other, ScalarInfo)
+        return ScalarInfo(
+            divisibility=gcd(self.divisibility, other.divisibility),
+            const_value=self.const_value - other.const_value
+        )
+
+    def __mul__(self, other):
+        if isinstance(other, TensorInfo):
+            return NotImplemented
+        assert isinstance(other, ScalarInfo)
+        return ScalarInfo(
+            divisibility=self.divisibility * other.divisibility,
+            const_value=self.const_value * other.const_value
+        )
+
+    def __lt__(self, other):
+        if isinstance(other, TensorInfo):
+            return NotImplemented
+        assert isinstance(other, ScalarInfo)
+        return ScalarInfo(
+            divisibility=1,
+            const_value=self.const_value < other.const_value
+        )
+
+    def merge(self, info: ValueInfo):
+        if isinstance(info, ScalarInfo):
+            return ScalarInfo(
+                divisibility=gcd(self.divisibility, info.divisibility),
+                const_value=self.const_value.merge(info.const_value)
+            )
+        elif isinstance(info, TensorInfo):
+            return info.merge(TensorInfo.from_scalar(info.shape, self))
+        else:
+            raise NotImplementedError()
 
 
-class TensorValueInfo:
-    def __init__(self, constancy: List[Constancy], divisibility: List[Divisibility], continuity: List[Continuity]):
-        self.constancy: List[Constancy] = constancy
-        self.divisibility: List[Divisibility] = divisibility
-        self.continuity: List[Continuity] = continuity
+class TensorInfo(ValueInfo):
+    def __init__(
+        self,
+        shape: List[int],
+        divisibility: List[int],
+        continuity: List[int],
+        constancy: List[int],
+        const_value=None
+    ):
+        self.shape: List[int] = shape
+        self.continuity: List[int] = continuity
+        self.divisibility: List[int] = divisibility
+        self.constancy: List[int] = constancy
+        self.const_value: OptionalInt = const_value if const_value else OptionalInt()
+
+    def _convert_other(self, other) -> TensorInfo:
+        if isinstance(other, ScalarInfo):
+            other = TensorInfo.from_scalar(self.shape, other)
+        assert isinstance(other, TensorInfo)
+        assert same_list(self.shape, other.shape)
+        return other
+
+    def __str__(self):
+        return 'tensor(shape={}, continuity={}, divisibility={}, constancy={}, value={})'.format(
+            self.shape, self.continuity, self.divisibility, self.constancy, self.const_value
+        )
+
+    def __eq__(self, other):
+        if not isinstance(other, TensorInfo):
+            return False
+        return (
+            same_list(self.shape, other.shape) and
+            same_list(self.continuity, other.continuity) and
+            same_list(self.divisibility, other.divisibility) and
+            same_list(self.constancy, other.constancy) and
+            self.const_value == other.const_value
+        )
+
+    def __add__(self, other):
+        other = self._convert_other(other)
+        continuity, constancy, divisibility = [], [], []
+        for i, extent in enumerate(self.shape):
+            constancy.append(gcd(self.constancy[i], other.constancy[i]))
+            if self.constancy[i] > 1 and other.constancy[i] > 1:
+                continuity.append(1)
+                divisibility.append(gcd(self.divisibility[i], other.divisibility[i]))
+            elif self.constancy[i] > 1:
+                continuity.append(gcd(self.constancy[i], other.continuity[i]))
+                divisibility.append(gcd(other.divisibility[i], continuity[-1]))
+            elif other.constancy[i] > 1:
+                continuity.append(gcd(self.continuity[i], other.constancy[i]))
+                divisibility.append(gcd(self.divisibility[i], continuity[-1]))
+            else:
+                continuity.append(1)
+                divisibility.append(1)
+        return TensorInfo(self.shape, divisibility, continuity, constancy, self.const_value + other.const_value)
+
+    def __sub__(self, other):
+        other = self._convert_other(other)
+        add_result = self + other
+        add_result.const_value = add_result.const_value - other.const_value
+        return add_result
+
+    def __mul__(self, other):
+        other = self._convert_other(other)
+        continuity, constancy, divisibility = [], [], []
+        for i, extent in enumerate(self.shape):
+            constancy.append(gcd(self.constancy[i], other.constancy[i]))
+            if self.constancy[i] > 1 and other.constancy[i] > 1:
+                continuity.append(1)
+                divisibility.append(self.divisibility[i] * other.divisibility[i])
+            else:
+                continuity.append(1)
+                divisibility.append(1)
+        return TensorInfo(self.shape, divisibility, continuity, constancy, self.const_value * other.const_value)
+
+    def __lt__(self, other):
+        other = self._convert_other(other)
+        continuity, constancy, divisibility = [], [], []
+        for i, extent in enumerate(self.shape):
+            continuity.append(1)
+            divisibility.append(1)
+            if self.constancy[i] > 1 and other.constancy[i] > 1:
+                constancy.append(gcd(self.constancy[i], other.constancy[i]))
+            elif self.constancy[i] > 1:
+                constancy.append(
+                    gcd(self.constancy[i], self.divisibility[i], other.continuity[i], other.divisibility[i])
+                )
+            elif other.constancy[i] > 1:
+                constancy.append(
+                    gcd(other.constancy[i], other.divisibility[i], self.continuity[i], self.divisibility[i])
+                )
+            else:
+                constancy.append(gcd(self.constancy[i], other.constancy[i]))
+        return TensorInfo(self.shape, divisibility, continuity, constancy, self.const_value < other.const_value)
+
+    def __and__(self, other):
+        other = self._convert_other(other)
+        continuity, constancy, divisibility = [], [], []
+        for i, extent in enumerate(self.shape):
+            constancy.append(gcd(self.constancy[i], other.constancy[i]))
+            continuity.append(1)
+            divisibility.append(1)
+        return TensorInfo(self.shape, divisibility, continuity, constancy, self.const_value & other.const_value)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __rsub__(self, other):
+        other = self._convert_other(other)
+        return other - self
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    @staticmethod
+    def from_axis(shape: List[int], dim: int):
+        continuity, constancy, divisibility = [], [], []
+        for i, extent in enumerate(shape):
+            if i == dim:
+                continuity.append(extent)
+                divisibility.append(0)
+                constancy.append(1)
+            else:
+                continuity.append(1)
+                divisibility.append(1)
+                constancy.append(extent)
+        return TensorInfo(shape, divisibility, continuity, constancy)
+
+    @staticmethod
+    def from_scalar(shape: List[int], scalar_info: ScalarInfo):
+        continuity, constancy, divisibility = [], [], []
+        for extent in shape:
+            continuity.append(1)
+            divisibility.append(scalar_info.divisibility)
+            constancy.append(extent)
+        return TensorInfo(shape, divisibility, continuity, constancy, const_value=scalar_info.const_value)
+
+    @staticmethod
+    def from_shape(shape: List[int]):
+        continuity, constancy, divisibility = [], [], []
+        for extent in shape:
+            continuity.append(1)
+            divisibility.append(1)
+            constancy.append(1)
+        return TensorInfo(shape, divisibility, continuity, constancy)
+
+    def merge(self, info: ValueInfo):
+        if isinstance(info, ScalarInfo):
+            return self.merge(TensorInfo.from_scalar(self.shape, info))
+        elif isinstance(info, TensorInfo):
+            continuity, constancy, divisibility = [], [], []
+            for i, extent in enumerate(self.shape):
+                continuity.append(gcd(self.continuity[i], info.continuity[i]))
+                constancy.append(gcd(self.constancy[i], info.constancy[i]))
+                divisibility.append(gcd(self.divisibility[i], info.divisibility[i]))
+            return TensorInfo(self.shape, divisibility, continuity, constancy, self.const_value.merge(info.const_value))
+        else:
+            raise NotImplementedError()
 
 
 class ValueAnalyzer(IRVisitor):
+    """
+    Given a variable, it may have multiple potential values
+    a := 8
+    b := 16
+       | a + 4
+    c := b
+       | a + b
+    Let value(x) be the Value (with constancy and divisibility) of x.
+    Then we have the following equations:
+    value(a) = value(8)
+    value(b) = merge(value(16), value(a) + value(4))
+    value(c) = merge(value(b), value(a) + value(b))
+
+    This class implements an iterative algorithm to solve the above equations.
+    """
     def __init__(self):
         super().__init__()
         self.var2value: Dict[Var, ValueInfo] = {}
         self.updated: bool = False
 
+    def analyze(self, func: Function):
+        # repeat the update until it converges to a fixed point, which is the solution of the coalesce analysis
+        while True:
+            self.updated = False
+            self.visit(func)
+            if not self.updated:
+                break
+
     def merge(self, v: Var, value: Optional[ValueInfo]):
-        pass
+        if value is None:
+            return
+        if v not in self.var2value:
+            self.var2value[v] = value
+            self.updated = True
+        else:
+            new_value = self.var2value[v].merge(value)
+            if new_value != self.var2value[v]:
+                self.var2value[v] = new_value
+                self.updated = True
 
     def visit_Function(self, func: Function):
         for arg in func.params:
-            if arg.type.is_pointer():
-                # we assume that the pointer is aligned to 16 bytes
-                self.merge(arg, ScalarValue(divisibility=Divisibility(16)))
-            elif arg.type.is_data_type() and arg.type.as_data_type().is_integer():
-                self.merge(arg, ScalarValue())
+            if arg.type.is_pointer() or (arg.type.is_data_type() and arg.type.as_data_type().is_integer()):
+                self.merge(arg, ScalarInfo(divisibility=1))
         self.visit(func.body)
 
     def visit_LetStmt(self, stmt: LetStmt):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             assert isinstance(bind_var, Var)
-            if isinstance(bind_var.type, TileType):
+            var_type = bind_var.type
+            if isinstance(var_type, TileType):
                 self.merge(bind_var, self.visit(bind_value))
-            elif (
-                isinstance(bind_var.type, DataType) and bind_var.type.is_integer()
-                or isinstance(bind_var.type, PointerType)
-            ):
+            elif isinstance(var_type, DataType) and var_type.is_integer() or isinstance(var_type, PointerType):
                 self.merge(bind_var, self.visit(bind_value))
             else:
                 # do nothing for other types
@@ -109,41 +391,67 @@ class ValueAnalyzer(IRVisitor):
 
     def visit_Constant(self, e: Constant):
         if e.type.is_data_type() and e.type.is_integer() or e.type.is_pointer():
-            return ScalarValue(constant=Constancy(e.value), divisibility=Divisibility(e.value))
+            return ScalarInfo(
+                divisibility=int(e.value),
+                const_value=OptionalInt(int(e.value))
+            )
+
+    def visit_binary(self, e: BinaryExpr):
+        a = self.visit(e.a)
+        b = self.visit(e.b)
+        if a is None:
+            a = ScalarInfo()
+        if b is None:
+            b = ScalarInfo()
+        op_dict: Dict[Type[Expr], Callable] = {
+            Add: operator.add,
+            Sub: operator.sub,
+            Multiply: operator.mul,
+            LessThan: operator.lt,
+            LogicalAnd: operator.and_
+        }
+        if type(e) not in op_dict:
+            raise NotImplementedError()
+        return op_dict[type(e)](a, b)
 
     def visit_Add(self, e: Add):
-        a = self.visit(e.a)
-        b = self.visit(e.b)
-        if a is None:
-            a = ScalarValue()
-        if b is None:
-            b = ScalarValue()
-        return a + b
+        return self.visit_binary(e)
+
+    def visit_Sub(self, e: Sub):
+        return self.visit_binary(e)
 
     def visit_Multiply(self, e: Multiply):
-        a = self.visit(e.a)
-        b = self.visit(e.b)
-        if a is None:
-            a = ScalarValue()
-        if b is None:
-            b = ScalarValue()
-        return a * b
+        return self.visit_binary(e)
+
+    def visit_LessThan(self, e: LessThan):
+        return self.visit_binary(e)
+
+    def visit_And(self, e: LogicalAnd):
+        return self.visit_binary(e)
 
     # tile operators
 
     def visit_Construct(self, e: Construct):
-        affine: Optional[List[Expr]] = affine_decompose(e.value, e.axes)
-        if affine is not None:
-            weights: List[Optional[ScalarValue]] = [self.visit(w) for w in affine]
-            return TileValue([w if w is not None else ScalarValue() for w in weights])
+        for dim, axis in enumerate(e.axes):
+            self.memo[axis] = TensorInfo.from_axis(shape=e.shape, dim=dim)
+        info: Optional[ValueInfo] = self.visit(e.value)
+        if info is None:
+            return None
+        if isinstance(info, TensorInfo):
+            return info
+        elif isinstance(info, ScalarInfo):
+            return TensorInfo.from_scalar(e.shape, info)
+        else:
+            assert False
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
-        from hidet.ir.tile.ops.arthimatic import Add, Sub, Multiply, Mod
+        import hidet.ir.tile.ops.arthimatic as ops
         op_dict: Dict[Type[TileOp], Callable] = {
-            Add: operator.add,
-            Sub: operator.sub,
-            Multiply: operator.mul,
-            Mod: operator.mod,
+            ops.Add: operator.add,
+            ops.Sub: operator.sub,
+            ops.Multiply: operator.mul,
+            ops.Mod: operator.mod,
+            ops.LogicalAnd: operator.and_   # use bitwise and as a proxy for logical and
         }
         if type(e) in op_dict:
             op = op_dict[type(e)]
@@ -155,5 +463,8 @@ class ValueAnalyzer(IRVisitor):
                 return op(x, y)
 
 
-
+def analyze_value(func: Function):
+    analyzer = ValueAnalyzer()
+    analyzer.analyze(func)
+    return analyzer.var2value
 

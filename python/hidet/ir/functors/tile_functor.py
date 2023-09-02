@@ -281,10 +281,11 @@ class TileRewriter(TileFunctor, BaseRewriter):
     def visit_Load(self, e: Load):
         ptr = self.visit(e.ptr)
         mask = self.visit(e.mask)
-        if ptr is e.ptr and mask is e.mask:
+        other = self.visit(e.other)
+        if ptr is e.ptr and mask is e.mask and other is e.other:
             return e
         else:
-            return e.reforward([ptr, mask])
+            return e.reforward([ptr, mask, other])
 
     def visit_Store(self, e: Store):
         ptr = self.visit(e.ptr)

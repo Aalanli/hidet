@@ -11,6 +11,7 @@ from hidet.ir.primitives.cuda import syncthreads
 from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
 from hidet.ir.builders import StmtBuilder
+from hidet.transforms.tile_generic.analyzers.value_analyzer import TensorInfo
 from hidet.utils import prod
 
 
@@ -22,12 +23,14 @@ class Buffer:
         shape: List[int],
         local_shape: List[int],
         layout: TileLayout,
+        info=None
     ):
         self.var: Var = buf_var
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
         self.local_shape: List[int] = local_shape
         self.layout: TileLayout = layout
+        self.info: TensorInfo = info
 
     def __getitem__(self, item):
         return self.var[item]

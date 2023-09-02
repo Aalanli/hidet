@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from typing import List, Dict, Set, Optional, Tuple, Union
 
+import hidet.ir.tools
 from hidet.ir.dtypes import int32
 from hidet.ir.expr import Expr
 from hidet.ir.expr import Var
@@ -11,7 +12,7 @@ from hidet.ir.stmt import LetStmt, Stmt, EvaluateStmt, SeqStmt
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.ops import AllocTensor, Load, InsertSliceAsync, AsyncCommitGroup, ExtractSlice, AsyncWait
-from hidet.ir.tile.ops.arthimatic import And
+from hidet.ir.tile.ops.arthimatic import LogicalAnd
 from hidet.ir.tile.ops import ConvertLayout, Construct
 from hidet.ir.tile.ops import construct
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
@@ -19,8 +20,8 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer, rewrite
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile_cuda.remove_layout_convert import FoldConvertLayoutTransform, DeadCodeEliminationRewriter
-from hidet.transforms.tile_generic.utils.definition_analyzer import DefinitionAnalyzer, VarDefinition, LetDefinition
-from hidet.transforms.tile_generic.utils.dependency_analyzer import DependencyAnalyzer
+from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
+from hidet.transforms.tile_generic.analyzers import DefinitionAnalyzer, VarDefinition, LetDefinition, DependencyAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,6 @@ class DetectLoadInLoopVisitor(IRVisitor):
         super().visit_YieldStmt(stmt)
 
 
-
 class Rematerializer:
     def __init__(self, args: List[Var], bind_vars: List[Var], bind_values: List[Expr], results: List[Var]):
         super().__init__()
@@ -188,10 +188,15 @@ class Rematerializer:
         bind_values.reverse()
         return Rematerializer(args, bind_vars, bind_values, values)
 
-    def rematerialize(self, updated_args: List[Var]) -> Tuple[List[Var], List[Expr], List[Var]]:
+    def rematerialize(
+        self, updated_args: List[Var], extra_remap: Dict[Var, Expr] = None
+    ) -> Tuple[List[Var], List[Expr], List[Var]]:
         bind_vars = []
         bind_values = []
-        remap = {a: b for a, b in zip(self.args, updated_args)}
+        assert len(self.args) == len(updated_args)
+        remap: Dict[Var, Expr] = {a: b for a, b in zip(self.args, updated_args)}
+        if extra_remap is not None:
+            remap.update(extra_remap)
         for bind_var, bind_value in zip(self.bind_vars, self.bind_values):
             updated_bind_value = rewrite(bind_value, remap)
             updated_bind_var = Var(bind_var.hint, bind_var.type)
@@ -233,7 +238,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         self.type_infer = TypeInfer()
 
         # the information that will be used by Load and YieldStmt visitors, filled by PureForStmt visitor
-        self.load_args: List[Var] = self.get_load_args()                      # step 2.1
+        self.load_args: List[Var] = self.get_load_args()  # step 2.1
         self.load_dependent_args: List[Var] = self.get_load_dependent_args()  # step 2.2
         self.yield_load_dependent_values: List[Expr] = [
             self.yield_stmt.values[self.loop.args.index(arg)] for arg in self.load_dependent_args
@@ -271,10 +276,10 @@ class SoftwarePipelineRewriter(IRRewriter):
         for load in self.loads:
             assert isinstance(load.ptr, Var)
             load_args.add(load.ptr)
-            if load.mask:
+            if load.mask is not None:
                 assert isinstance(load.mask, Var)
                 load_args.add(load.mask)
-            if load.other:
+            if load.other is not None:
                 assert isinstance(load.other, Var)
                 load_args.add(load.other)
         return list(load_args)
@@ -319,7 +324,9 @@ class SoftwarePipelineRewriter(IRRewriter):
         current_for_args: List[Var] = [arg2init[arg] for arg in self.load_dependent_args]
         for i in range(self.num_stages - 1):
             # rematerialize the load arguments computations
-            bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(current_for_args)
+            bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
+                current_for_args, extra_remap={self.loop.loop_var: int32(i)}
+            )
             if len(bind_vars) > 0:
                 stmts.append(LetStmt(bind_vars, bind_values))
 
@@ -328,8 +335,8 @@ class SoftwarePipelineRewriter(IRRewriter):
             for idx, load in enumerate(self.loads):
                 # calculate the ptr, mask, and other arguments
                 ptr = load_arg_map[load.ptr]
-                mask = load_arg_map[load.mask] if load.mask else None
-                other = load_arg_map[load.other] if load.other else None
+                mask = load_arg_map[load.mask] if load.mask is not None else None
+                other = load_arg_map[load.other] if load.other is not None else None
                 buf_var = buffer_vars[idx]
                 op = InsertSliceAsync(ptr=ptr, dst=buf_var, index=int32(i), mask=mask, other=other, axis=0)
                 new_buf_var = Var(buf_var.hint, type=buf_var.type)
@@ -338,7 +345,9 @@ class SoftwarePipelineRewriter(IRRewriter):
             stmts.append(AsyncCommitGroup())
 
             # rematerialize the loop arguments computations
-            bind_vars, bind_values, current_for_args = self.load_dependent_args_remat.rematerialize(current_for_args)
+            bind_vars, bind_values, current_for_args = self.load_dependent_args_remat.rematerialize(
+                current_for_args, extra_remap={self.loop.loop_var: int32(i)}
+            )
             if len(bind_vars) > 0:
                 stmts.append(LetStmt(bind_vars, bind_values))
 
@@ -476,7 +485,9 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # rematerialize the load arguments
         bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
-            self.updated_args.load_dependent_args
+            self.updated_args.load_dependent_args, extra_remap={
+                self.loop.loop_var: self.loop.loop_var + self.num_stages - 1
+            }
         )
         load_arg_map: Dict[Expr, Var] = {a: b for a, b in zip(self.load_args, remat_load_args)}
         if len(bind_vars) > 0:
@@ -486,8 +497,8 @@ class SoftwarePipelineRewriter(IRRewriter):
         for idx, load in enumerate(self.loads):
             # calculate the ptr, mask, and other arguments
             ptr = load_arg_map[load.ptr]
-            mask = load_arg_map[load.mask] if load.mask else None
-            other = load_arg_map[load.other] if load.other else None
+            mask = load_arg_map[load.mask] if load.mask is not None else None
+            other = load_arg_map[load.other] if load.other is not None else None
             assert isinstance(ptr.type, TileType)
             extra_mask = Construct.from_compute(
                 shape=ptr.type.shape,
@@ -497,7 +508,7 @@ class SoftwarePipelineRewriter(IRRewriter):
             if mask is None:
                 mask = extra_mask
             else:
-                mask = And(mask, extra_mask).make_call()
+                mask = LogicalAnd(mask, extra_mask).make_call()
             buf_var = self.updated_args.buffers[idx]
             op = InsertSliceAsync(
                 ptr=ptr, dst=buf_var, index=self.updated_args.insert_index(), mask=mask, other=other, axis=0
@@ -509,7 +520,9 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # rematerialize the load dependent for-loop arguments
         bind_vars, bind_values, remat_load_dependent_args = self.load_dependent_args_remat.rematerialize(
-            self.updated_args.load_dependent_args
+            self.updated_args.load_dependent_args, extra_remap={
+                self.loop.loop_var: self.loop.loop_var + self.num_stages - 1
+            }
         )
         if len(bind_vars) > 0:
             stmts.append(LetStmt(bind_vars, bind_values))
@@ -563,6 +576,7 @@ class SoftwarePipelinePass(TileFunctionPass):
             func = rewriter(func)
 
         # finally, remove nested convert_layout
+        func = canonicalize_to_ssa(func)
         func = FoldConvertLayoutTransform()(func)
         func = DeadCodeEliminationRewriter()(func)
         return func

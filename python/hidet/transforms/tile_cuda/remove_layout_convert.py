@@ -16,7 +16,7 @@ from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile_generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
 from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
-from hidet.transforms.tile_generic.utils.usage_analyzer import VarUsage, UsageAnalyzer
+from hidet.transforms.tile_generic.analyzers import VarUsage, UsageAnalyzer
 from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.utils import same_list
 

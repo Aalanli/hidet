@@ -9,7 +9,7 @@ from hidet.ir.type import PointerType, DataType, void_p, sizeof, BaseType
 from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async, cp_async_wait_group
 from hidet.ir.primitives.cuda.sync import syncthreads
 from hidet.ir.dtypes import uint8, uint16, uint32, uint64, int32
-from hidet.utils import prod
+from hidet.utils import prod, is_power_of_two
 from .registry import TileOpImpl, Buffer, register_impl
 from .utils import get_type_erased_dtype
 
@@ -38,11 +38,30 @@ class InsertSliceAsyncImpl(TileOpImpl):
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
         if isinstance(layout, BlockLayout):
-            axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
-            cp_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16)
-            vec_size = cp_size // dtype.nbytes
-            if cp_size > 4 and mask is None:
-                # todo: check the ptr contiguity and dst layout contiguity
+            axis: int = len(layout.layout_shape) - 1  # the last axis is the innermost axis
+
+            # the number of elements loaded by each thread
+            vec_size: int = layout.size_per_thread[axis]
+
+            # we need to make sure that the ptr and optional mask/other are contiguous in the axis
+            vec_size = min(vec_size, ptr.info.continuity[axis])
+            if mask:
+                vec_size = min(vec_size, mask.info.constancy[axis])
+            if other:
+                vec_size = min(vec_size, other.info.constancy[axis])
+
+            # each thread can load at most 16 bytes (128 bits) at a time
+            vec_size = min(vec_size, 16 // dtype.nbytes)
+
+            # get the cp size per thread in the unit of bytes
+            cp_size = vec_size * dtype.nbytes
+
+            assert is_power_of_two(cp_size)
+
+            # cp.async requires
+            # 1. cp_size in [4, 8, 16] bytes
+            # 2. the other value can only be zero, thus do not support explicit other
+            if cp_size >= 4 and other is None:
                 local_shape: List[int] = layout.calc_local_shape(ptr.shape)
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
 
@@ -56,6 +75,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
                                 dst=~dst[global_indices],
                                 src=ptr[local_indices],
                                 cp_size=cp_size,
+                                src_size=if_then_else(mask[local_indices], cp_size, 0) if mask else None
                             )
                         )
                 self.assign(output.var, dst.var)

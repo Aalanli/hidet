@@ -1,5 +1,6 @@
 from typing import List, Dict, Union, Optional
 
+import hidet.ir.tools
 from hidet.ir.type import sizeof
 from hidet.ir.expr import Var, Expr, tensor_var, tensor_pointer_var
 from hidet.ir.func import Function
@@ -17,7 +18,7 @@ from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
 from hidet.transforms.tile_cuda.lower_ops.assign import AssignImpl
 from .lower_ops import Buffer, implement_tile_op
-from hidet.transforms.tile_generic.utils.usage_analyzer import UsageAnalyzer, VarUsage
+from hidet.transforms.tile_generic.analyzers import UsageAnalyzer, VarUsage, TensorInfo, ValueInfo, analyze_value
 
 
 class LowerTileDialectRewriter(IRRewriter):
@@ -29,6 +30,7 @@ class LowerTileDialectRewriter(IRRewriter):
         self.var2buffer: Dict[Var, Buffer] = {}
         self.stmts: List[Stmt] = []
         self.type_infer = TypeInfer()
+        self.var2value: Dict[Var, ValueInfo] = {}
 
     def alloc_buffer(self, hint: str, tile_op_or_type: Union[TileOp, TileType]) -> Buffer:
         if isinstance(tile_op_or_type, TileOp):
@@ -105,6 +107,7 @@ class LowerTileDialectRewriter(IRRewriter):
                         + '  {}'.format(type(bind_value.op).__name__)
                     )
                 self.var2buffer[bind_var] = buf
+                buf.info = self.var2value[bind_var] if bind_var in self.var2value else TensorInfo.from_shape(buf.shape)
                 buf.var.hint = bind_var.hint
             elif isinstance(bind_value, Var) and isinstance(bind_value.type, TileType):
                 self.memo[bind_var] = bind_value
@@ -133,6 +136,9 @@ class LowerTileDialectRewriter(IRRewriter):
                     arg_buf: Buffer = self.alloc_buffer(arg.hint, arg.type)
                     self.assign_buffer(dst=arg_buf, src=self.var2buffer[value])
                     self.var2buffer[arg] = arg_buf
+                    arg_buf.info = (
+                        self.var2value[arg] if arg in self.var2value else TensorInfo.from_shape(arg_buf.shape)
+                    )
             else:
                 self.append_stmt(DeclareStmt(arg, init=self.visit(value)))
             stmts.extend(self.flush_stmts())
@@ -182,6 +188,7 @@ class LowerTileDialectRewriter(IRRewriter):
         usage_analyzer = UsageAnalyzer()
         usage_analyzer.visit(func)
         self.usages = usage_analyzer.usages
+        self.var2value = analyze_value(func)
         ret = super().visit_Function(func)
         if ret.kind == 'cuda_tile':
             ret.kind = 'cuda_kernel'

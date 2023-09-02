@@ -230,6 +230,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
 class CanonicalizeToSSAPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         return self.apply_transforms(func, [
+            LetExprExpander(),
             CanonicalizeToSSARewriter(),
             ConvertTileExprToLetRewriter(),
             LetExprExpander()

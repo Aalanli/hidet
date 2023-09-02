@@ -15,7 +15,8 @@ from hidet.ir.type import DataType
 from hidet.utils import same_list
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import repeat_until_converge
-from hidet.transforms.tile_generic.utils import DependencyAnalyzer, collect_yield_stmts
+from hidet.transforms.tile_generic.analyzers import DependencyAnalyzer
+from hidet.transforms.tile_generic.utils import collect_yield_stmts
 
 
 """

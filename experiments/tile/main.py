@@ -372,30 +372,31 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
 
             m_offsets = pid_m * block_m + ti.arange(0, block_m)
             n_offsets = pid_n * block_n + ti.arange(0, block_n)
+            k_offsets = ti.arange(0, block_k)
             a_ptrs = a_ptr + ti.expand_dims(m_offsets * k_size, 1) + ti.arange(0, block_k)
             b_ptrs = b_ptr + ti.expand_dims(ti.arange(0, block_k) * n_size, 1) + n_offsets
             c = ti.zeros([block_m, block_n], dtype=dtype)
 
             for k in range(k_size // block_k):
-                a = ti.load(a_ptrs)
-                b = ti.load(b_ptrs)
+                a = ti.load(a_ptrs, mask=ti.expand_dims(k_offsets, axis=0) < k_size - k * block_k)
+                b = ti.load(b_ptrs, mask=ti.expand_dims(k_offsets, axis=1) < k_size - k * block_k)
                 c += ti.dot(a, b)
 
                 a_ptrs += block_k
                 b_ptrs += block_k * n_size
 
             c_ptrs = c_ptr + ti.expand_dims(m_offsets * n_size, 1) + n_offsets
-            ti.store(c_ptrs, ti.cast(c, dtype))
+            c_mask = ti.expand_dims(m_offsets, axis=1) < m_size and ti.expand_dims(n_offsets, axis=0) < n_size
+            ti.store(c_ptrs, ti.cast(c, dtype), mask=c_mask)
 
     func = script_module.build()
 
-    c = hidet.empty([m_size, n_size], dtype=dtype, device='cuda')
     a = hidet.randn([m_size, k_size], dtype=dtype, stddev=0.1, device='cuda')
     b = hidet.randn([k_size, n_size], dtype=dtype, stddev=0.1, device='cuda')
+    c = hidet.empty([m_size, n_size], dtype=dtype, device='cuda')
 
-    print(hex(a.storage.addr), hex(a.storage.addr + a.storage.num_bytes))
-    print(hex(b.storage.addr), hex(b.storage.addr + b.storage.num_bytes))
-    print(hex(c.storage.addr))
+    if bench:
+        print('{} x {} x {}'.format(m_size, n_size, k_size))
 
     func(a, b, c)
     if bench:
@@ -439,7 +440,13 @@ def main():
     # demo_ldgsts_lds128()
     # ncu_run(demo_ldgsts_lds128).visualize()
 
-    demo_matmul(dtype='float32', bench=True)
+    for m_size, n_size, k_size in [
+        [1024, 1024, 1024],
+        # [1000, 1000, 1000],
+        # [1023, 1023, 1024],
+        # [1024, 1024, 1023],
+    ]:
+        demo_matmul(m_size, n_size, k_size, dtype='float32', bench=True)
 
     # report = ncu_run(demo_matmul, dtype='float32')
     # report.visualize()

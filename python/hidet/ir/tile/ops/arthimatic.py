@@ -47,7 +47,7 @@ class BinaryTileOp(TileOp):
 
         if isinstance(self, (Add, Sub, Multiply, Div, Mod)):
             return arg_types[0]
-        elif isinstance(self, (LessThan, LessEqual, Equal, NotEqual)):
+        elif isinstance(self, (LessThan, LessEqual, Equal, NotEqual, LogicalAnd, LogicalOr)):
             return tile_type(type_=boolean, shape=a_type.shape, layout=a_type.layout)
         else:
             raise NotImplementedError()
@@ -110,9 +110,9 @@ class NotEqual(BinaryTileOp):
     pass
 
 
-class And(BinaryTileOp):
+class LogicalAnd(BinaryTileOp):
     pass
 
 
-class Or(BinaryTileOp):
+class LogicalOr(BinaryTileOp):
     pass

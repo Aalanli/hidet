@@ -23,10 +23,7 @@ class DotAddTransform(PatternTransform):
         self.c = self.any_tile()
         self.zero = self.any_tile()
 
-        self.pattern = self.add(
-            self.dot(self.a, self.b, self.zero),
-            self.c
-        )
+        self.pattern = self.add(self.dot(self.a, self.b, self.zero), self.c)
 
     def source(self) -> Pattern:
         return self.pattern
@@ -54,7 +51,5 @@ class PatternTransformPass(TileFunctionPass):
 
 
 def pattern_transform_pass() -> TileFunctionPass:
-    transforms = [
-        DotAddTransform(),
-    ]
+    transforms = [DotAddTransform()]
     return PatternTransformPass(transforms)

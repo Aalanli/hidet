@@ -92,6 +92,7 @@ def register_functions():
                         registered.add(func_name)
 
                         if vec == 1:
+
                             @script
                             def cuda_load(addr: void_p, v0: void_p):
                                 attrs.func_kind = 'cuda_internal'
@@ -102,6 +103,7 @@ def register_functions():
 
                             register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
                         if vec == 2:
+
                             @script
                             def cuda_load(addr: void_p, v0: void_p, v1: void_p):
                                 attrs.func_kind = 'cuda_internal'
@@ -112,6 +114,7 @@ def register_functions():
 
                             register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
                         if vec == 4:
+
                             @script
                             def cuda_load(addr: void_p, v0: void_p, v1: void_p, v2: void_p, v3: void_p):
                                 attrs.func_kind = 'cuda_internal'
@@ -134,6 +137,7 @@ def register_functions():
                     registered.add(func_name)
 
                     if vec == 1:
+
                         @script
                         def cuda_store(addr: void_p, v0: void_p):
                             attrs.func_kind = 'cuda_internal'
@@ -144,6 +148,7 @@ def register_functions():
 
                         register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
                     if vec == 2:
+
                         @script
                         def cuda_store(addr: void_p, v0: void_p, v1: void_p):
                             attrs.func_kind = 'cuda_internal'
@@ -154,6 +159,7 @@ def register_functions():
 
                         register_primitive_function(name=cuda_store.name, func_or_type=cuda_store)
                     if vec == 4:
+
                         @script
                         def cuda_store(addr: void_p, v0: void_p, v1: void_p, v2: void_p, v3: void_p):
                             attrs.func_kind = 'cuda_internal'
@@ -261,11 +267,15 @@ def load(dtype, addr: Expr, dst_addrs: List[Expr], space: str = 'generic', sync=
         The loaded data.
     """
     dtype = data_type(dtype)
-    func_name = normalize_func_name(resolve_load_inst_name(dtype.nbytes * 8, space, sync, nc_cache, len(dst_addrs), scope))
+    func_name = normalize_func_name(
+        resolve_load_inst_name(dtype.nbytes * 8, space, sync, nc_cache, len(dst_addrs), scope)
+    )
     return call_primitive_func(func_name, [addr, *dst_addrs])
 
 
-def store(dtype, addr: Expr, src_addrs: List[Expr], space: str = 'generic', sync: Optional[str] = None, scope: str = 'gpu'):
+def store(
+    dtype, addr: Expr, src_addrs: List[Expr], space: str = 'generic', sync: Optional[str] = None, scope: str = 'gpu'
+):
     """
     Store data to memory.
 

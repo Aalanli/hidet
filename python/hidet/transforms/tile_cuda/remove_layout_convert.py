@@ -9,7 +9,7 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
-from hidet.ir.tile.ops import Construct, Assign, convert_layout, ConvertLayout
+from hidet.ir.tile.ops import Construct, Assign, convert_layout, ConvertLayout, CastOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
@@ -41,10 +41,12 @@ class IdentityConvertLayoutTransform(PatternTransform):
         else:
             return None
 
+
 class FoldConvertLayoutTransform(PatternTransform):
     """
     convert_layout(convert_layout(x, layout1), layout2) -> convert_layout(x, layout2)
     """
+
     def __init__(self):
         self.x = self.any_tile()
         self.cvt1 = self.convert_layout(self.x)
@@ -78,6 +80,7 @@ class ConvertConstructLayoutTransform(PatternTransform):
         updated_cst = Construct(value=cst.value, shape=cst.shape, axes=cst.axes, layout=cvt.layout)
         return updated_cst.make_call()
 
+
 class PushConvertLayoutForBinaryOpTransform(PatternTransform):
     """
     convert_layout(op(x, y), layout) -> op(convert_layout(x, layout), convert_layout(y, layout))
@@ -100,15 +103,36 @@ class PushConvertLayoutForBinaryOpTransform(PatternTransform):
         return op.reforward(args=[convert_layout(x, cvt.layout), convert_layout(y, cvt.layout)]).make_call()
 
 
+class FoldConvertLayoutBeforeAndAfterCast(PatternTransform):
+    """
+    convert_layout(cast(convert_layout(x, layout1)), layout2) -> cast(convert_layout(x, layout2))
+    """
+
+    def __init__(self):
+        self.x = self.any_tile()
+        self.cvt1 = self.convert_layout(self.x)
+        self.cst = self.cast(self.cvt1)
+        self.cvt2 = self.convert_layout(self.cst)
+
+    def source(self) -> TilePattern:
+        return self.cvt2
+
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
+        from hidet.ir.tile.ops import cast, convert_layout
+
+        x = matched[self.x]
+        cst: CastOp = self.get_tile_op(self.cst, matched, var2call)
+        cvt2: ConvertLayout = self.get_tile_op(self.cvt2, matched, var2call)
+        return cast(convert_layout(x, cvt2.layout), cst.dtype)
+
+
 class ChangeForArgLayoutRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
         self.usages: Dict[Var, VarUsage] = dict()
 
     def anchor_priority(self, op: Type[TileOp]):
-        order = [
-            Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, Arange, Full
-        ]
+        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, Arange, Full]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):
                 return len(order) - idx
@@ -199,13 +223,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
         self.pure_for_stmts.pop()
         let_body = self.visit(stmt.let_body)
         return PureForStmt(
-            args=args,
-            values=values,
-            loop_var=loop_var,
-            extent=extent,
-            body=body,
-            let_vars=let_vars,
-            let_body=let_body,
+            args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=let_vars, let_body=let_body
         )
 
     def visit_YieldStmt(self, stmt: YieldStmt):
@@ -237,6 +255,7 @@ class RemoveLayoutConvertPass(TileFunctionPass):
             ConvertConstructLayoutTransform(),
             FoldConvertLayoutTransform(),
             PushConvertLayoutForBinaryOpTransform(),
+            FoldConvertLayoutBeforeAndAfterCast(),
             DeadCodeEliminationRewriter(),
         ]
         while True:

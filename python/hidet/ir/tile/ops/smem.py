@@ -34,7 +34,7 @@ class InsertSliceAsync(TileOp):
         index: Expr,
         mask: Optional[Expr] = None,
         other: Optional[Expr] = None,
-        axis: int = 0
+        axis: int = 0,
     ):
         super().__init__(args=[ptr, dst, index], attrs={"axis": axis})
         if mask is not None:
@@ -81,14 +81,10 @@ class ExtractSlice(TileOp):
         assert isinstance(src_type, TileType)
         src_shape: List[int] = src_type.shape
         if self.extent == 1:
-            shape = src_shape[:self.axis] + src_shape[self.axis + 1:]
+            shape = src_shape[: self.axis] + src_shape[self.axis + 1 :]
         else:
-            shape = src_shape[:self.axis] + [self.extent] + src_shape[self.axis + 1:]
-        return TileType(
-            type_=src_type.type,
-            shape=shape,
-            layout=self.layout
-        )
+            shape = src_shape[: self.axis] + [self.extent] + src_shape[self.axis + 1 :]
+        return TileType(type_=src_type.type, shape=shape, layout=self.layout)
 
 
 def extract_slice(src: Expr, start_index: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):

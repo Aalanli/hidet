@@ -136,10 +136,7 @@ class UpliftLetBodyRewriter(IRRewriter):
 
 class DeclareToLetPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
-        return self.apply_transforms(func, [
-            DeclareToLetRewriter(),
-            UpliftLetBodyRewriter()
-        ])
+        return self.apply_transforms(func, [DeclareToLetRewriter(), UpliftLetBodyRewriter()])
 
 
 def declare_to_let_pass() -> Pass:

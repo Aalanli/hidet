@@ -24,6 +24,7 @@ class SimtDot(Dot):
 
 def dot(a: Expr, b: Expr):
     from hidet.ir.tools import infer_type
+
     a_type = infer_type(a)
     b_type = infer_type(b)
     assert isinstance(a_type, TileType) and isinstance(b_type, TileType), (a_type, b_type)

@@ -88,10 +88,7 @@ class SplitDotKRewriter(IRRewriter):
                     'b',
                     convert_layout(extract_slice(b, start, extent=k, axis=0, layout=SharedLayout([ks, n])), b_layout),
                 )
-                d = cb.let(
-                    'c',
-                    SimtDot(ai, bi, d).make_call(),
-                )
+                d = cb.let('c', SimtDot(ai, bi, d).make_call())
             return cb.make_expr(d)
         else:
             raise NotImplementedError()
@@ -100,13 +97,14 @@ class SplitDotKRewriter(IRRewriter):
 class SplitDotKPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         return self.apply_transforms(
-            func, [
+            func,
+            [
                 SplitDotKRewriter(),
                 canonicalize_to_ssa,
                 FoldConvertLayoutTransform(),
                 IdentityConvertLayoutTransform(),
                 DeadCodeEliminationRewriter(),
-            ]
+            ],
         )
 
 

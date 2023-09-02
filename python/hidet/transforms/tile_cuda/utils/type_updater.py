@@ -43,13 +43,7 @@ class TypeUpdater(IRRewriter):
 
         let_body = self.visit(stmt.let_body)
         return PureForStmt(
-            args=args,
-            values=values,
-            loop_var=loop_var,
-            extent=extent,
-            body=body,
-            let_vars=let_vars,
-            let_body=let_body,
+            args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=let_vars, let_body=let_body
         )
 
 

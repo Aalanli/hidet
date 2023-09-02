@@ -198,11 +198,7 @@ class LowerTileDialectRewriter(IRRewriter):
 class LowerTileDialectPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         return self.apply_transforms(
-            func, [
-                LowerTileDialectRewriter(),
-                DeclareToLetRewriter(),
-                UpliftLetBodyRewriter(),
-            ]
+            func, [LowerTileDialectRewriter(), DeclareToLetRewriter(), UpliftLetBodyRewriter()]
         )
 
 

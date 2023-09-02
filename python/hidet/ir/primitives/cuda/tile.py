@@ -7,9 +7,7 @@ from hidet.utils import initialize
 
 @initialize()
 def register_functions():
-    register_primitive_function(
-        f'cuda_alloc_shared', func_or_type=FuncType(param_types=[int32], ret_type=void_p)
-    )
+    register_primitive_function(f'cuda_alloc_shared', func_or_type=FuncType(param_types=[int32], ret_type=void_p))
 
 
 def alloc_shared(nbytes: int) -> Call:

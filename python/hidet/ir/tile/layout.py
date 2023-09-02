@@ -93,7 +93,7 @@ class BlockLayout(DistributedLayout):
     def __init__(self, size_per_thread: List[int], thread_per_warp: List[int], warps_per_block: List[int]):
         super().__init__(
             layout_shape=[a * b * c for a, b, c in zip(size_per_thread, thread_per_warp, warps_per_block)],
-            num_warps=prod(warps_per_block)
+            num_warps=prod(warps_per_block),
         )
         self.size_per_thread: List[int] = size_per_thread
         self.thread_per_warp: List[int] = thread_per_warp
@@ -262,8 +262,7 @@ class BlockLayout(DistributedLayout):
 class FlattenBlockLayout(DistributedLayout):
     def __init__(self, parent: BlockLayout, axis: int):
         super().__init__(
-            layout_shape=parent.layout_shape[:axis] + parent.layout_shape[axis + 1:],
-            num_warps=parent.num_warps,
+            layout_shape=parent.layout_shape[:axis] + parent.layout_shape[axis + 1 :], num_warps=parent.num_warps
         )
         self.parent: BlockLayout = parent
         self.axis: int = axis
@@ -279,7 +278,7 @@ class FlattenBlockLayout(DistributedLayout):
         return hash((self.parent, self.axis, 'flatten_block'))
 
     def expanded_shape(self, shape: List[int]):
-        return shape[: self.axis] + [1] + shape[self.axis:]
+        return shape[: self.axis] + [1] + shape[self.axis :]
 
     def warp_indices(self) -> List[Expr]:
         return self.parent.warp_indices()
@@ -292,13 +291,13 @@ class FlattenBlockLayout(DistributedLayout):
 
     def local_to_global(self, local_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         global_indices, not_duplicated = self.parent.local_to_global(local_indices, self.expanded_shape(global_shape))
-        global_indices = global_indices[: self.axis] + global_indices[self.axis + 1:]
+        global_indices = global_indices[: self.axis] + global_indices[self.axis + 1 :]
         return global_indices, not_duplicated
 
     def global_to_local(self, global_indices: List[Expr], global_shape: List[int]) -> Tuple[List[Expr], Expr]:
         from hidet.ir.dtypes import int32
 
-        global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis:]
+        global_indices = global_indices[: self.axis] + [int32.zero] + global_indices[self.axis :]
         return self.parent.global_to_local(global_indices, self.expanded_shape(global_shape))
 
 
@@ -308,10 +307,7 @@ class DotOperandLayout(DistributedLayout):
 
 class BlockDotOperandLayout(DotOperandLayout):
     def __init__(self, parent: BlockLayout, op_idx: int):
-        super().__init__(
-            layout_shape=[],  # initialize later
-            num_warps=parent.num_warps,
-        )
+        super().__init__(layout_shape=[], num_warps=parent.num_warps)  # initialize later
         self.parent: BlockLayout = parent
         self.op_idx: int = op_idx
         self.axis: int = op_idx

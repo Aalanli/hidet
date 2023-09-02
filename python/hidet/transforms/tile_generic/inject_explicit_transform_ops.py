@@ -30,9 +30,11 @@ class InjectExplicitTransformOpsRewriter(IRRewriter):
                 src = expand_dims(src, 0)
             for a, b in zip(src_shape, dst_shape):
                 if a != b and a != 1:
-                    raise ValueError('Cannot transform from shape {} to shape {} with expand_dims and broadcast'.format(
-                        src_shape, dst_shape
-                    ))
+                    raise ValueError(
+                        'Cannot transform from shape {} to shape {} with expand_dims and broadcast'.format(
+                            src_shape, dst_shape
+                        )
+                    )
             if not same_list(src_shape, dst_shape):
                 src = broadcast(src, dst_shape)
             return src

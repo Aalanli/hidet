@@ -68,6 +68,11 @@ class BaseType(Node):
             return None
         return self
 
+    def as_pointer_type(self) -> Optional[PointerType]:
+        if not isinstance(self, PointerType):
+            return None
+        return self
+
     def as_tile_type(self):
         from hidet.ir.tile.type import TileType
 

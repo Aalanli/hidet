@@ -24,6 +24,7 @@ from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyR
 
 alloc_name = 'cuda_alloc_shared'
 
+
 class Alloc:
     def __init__(self, v: Var, nbytes: int):
         self.var: Var = v
@@ -201,6 +202,7 @@ class PlanSharedMemoryRewriter(IRRewriter):
     @staticmethod
     def get_max_smem_size():
         from hidet.cuda.capability import capability
+
         return capability().sharedMemPerBlock
 
     def visit_Function(self, func: Function):
@@ -235,12 +237,13 @@ class PlanSharedMemoryRewriter(IRRewriter):
 class PlanSharedMemoryPass(FunctionPass):
     def process_func(self, func: Function) -> Function:
         return self.apply_transforms(
-            func, [
+            func,
+            [
                 CanonicalizeAllocSharedRewriter(),
                 DeclareToLetRewriter(),
                 UpliftLetBodyRewriter(),
-                PlanSharedMemoryRewriter()
-            ]
+                PlanSharedMemoryRewriter(),
+            ],
         )
 
 

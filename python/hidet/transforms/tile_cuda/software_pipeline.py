@@ -4,7 +4,7 @@ from typing import List, Dict, Set, Optional, Tuple, Union
 
 import hidet.ir.tools
 from hidet.ir.dtypes import int32
-from hidet.ir.expr import Expr
+from hidet.ir.expr import Expr, less_than
 from hidet.ir.expr import Var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
@@ -128,6 +128,7 @@ class Rematerializer:
 
     def __str__(self):
         from hidet.ir.tools.printer import IRPrinter, Doc, NewLine, doc_join
+
         printer = IRPrinter()
         args_doc = Doc()
         for arg in self.args:
@@ -271,7 +272,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         return list(visited)
 
     def get_load_args(self) -> List[Var]:
-        """ step 2.1: find the arguments of the loads """
+        """step 2.1: find the arguments of the loads"""
         load_args: Set[Var] = set()
         for load in self.loads:
             assert isinstance(load.ptr, Var)
@@ -285,7 +286,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         return list(load_args)
 
     def get_load_dependent_args(self) -> List[Var]:
-        """ step 2.2: find the self-contained set of arguments to compute load args as well as themselves """
+        """step 2.2: find the self-contained set of arguments to compute load args as well as themselves"""
         load_args = self.load_args
         load_dependent_args = load_args
         while True:
@@ -466,10 +467,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         # step 2.5: replace the load(...) with convert_layout(s, load's layout)
         idx = self.loads.index(e)
         ptr_type: TileType = self.type_infer(e.ptr)
-        cvt = ConvertLayout(
-            x=self.updated_args.loaded_tiles[idx],
-            layout=ptr_type.layout
-        )
+        cvt = ConvertLayout(x=self.updated_args.loaded_tiles[idx], layout=ptr_type.layout)
         return cvt
 
     def visit_YieldStmt(self, stmt: YieldStmt):
@@ -485,9 +483,8 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # rematerialize the load arguments
         bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
-            self.updated_args.load_dependent_args, extra_remap={
-                self.loop.loop_var: self.loop.loop_var + self.num_stages - 1
-            }
+            self.updated_args.load_dependent_args,
+            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages - 1},
         )
         load_arg_map: Dict[Expr, Var] = {a: b for a, b in zip(self.load_args, remat_load_args)}
         if len(bind_vars) > 0:
@@ -502,7 +499,7 @@ class SoftwarePipelineRewriter(IRRewriter):
             assert isinstance(ptr.type, TileType)
             extra_mask = Construct.from_compute(
                 shape=ptr.type.shape,
-                f_compute=lambda *indices: self.loop.loop_var + self.num_stages - 1 < self.loop.extent,
+                f_compute=lambda *indices: less_than(self.loop.loop_var + self.num_stages - 1, self.loop.extent),
                 layout=ptr.type.layout,
             ).make_call()
             if mask is None:
@@ -520,9 +517,8 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # rematerialize the load dependent for-loop arguments
         bind_vars, bind_values, remat_load_dependent_args = self.load_dependent_args_remat.rematerialize(
-            self.updated_args.load_dependent_args, extra_remap={
-                self.loop.loop_var: self.loop.loop_var + self.num_stages - 1
-            }
+            self.updated_args.load_dependent_args,
+            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages - 1},
         )
         if len(bind_vars) > 0:
             stmts.append(LetStmt(bind_vars, bind_values))

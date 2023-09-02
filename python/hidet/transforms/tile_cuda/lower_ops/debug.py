@@ -21,11 +21,7 @@ class DebugPrintImpl(TileOpImpl):
             shape = buffer.shape
             with self.for_grid(buffer.shape) as indices:
                 local_indices, is_valid = layout.global_to_local(indices, shape)
-                dtype2fmt = {
-                    float32: '%.2f',
-                    float16: '%.2f',
-                    int32: '%d'
-                }
+                dtype2fmt = {float32: '%.2f', float16: '%.2f', int32: '%d'}
                 with self.if_then(is_valid):
                     if len(shape) == 0:
                         self.append(printf(f'{dtype2fmt[buffer.dtype]}\n', buffer[local_indices]))

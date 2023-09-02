@@ -666,7 +666,7 @@ class IRPrinter(IRFunctor):
             else:
                 attrs_doc.append(self(k) + '=' + self(v))
         return op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'
-    
+
     def visit_Arange(self, e: Arange):
         return self.visit_TileOp(e)
 
@@ -696,7 +696,7 @@ class IRPrinter(IRFunctor):
 
     def visit_Load(self, e: Load):
         return self.visit_TileOp(e)
-    
+
     def visit_Store(self, e: Store):
         return self.visit_TileOp(e)
 

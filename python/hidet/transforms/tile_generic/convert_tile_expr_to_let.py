@@ -20,6 +20,7 @@ from hidet.transforms.base import TileFunctionPass
 class TileDeclareToLetRewriter(DeclareToLetRewriter):
     def update_assigns(self, node):
         from hidet.ir.tile.ops import Assign
+
         super().update_assigns(node)
 
         # mark the dst of all Assign ops
@@ -79,7 +80,10 @@ class ConvertTileExprToLetPass(TileFunctionPass):
 
 def convert_to_let(node: Union[IRModule, Function]):
     rewrites = [
-        TileDeclareToLetRewriter(), ConvertTileExprToLetRewriter(), LetExprExpander(), FlattenLetChainRewriter()
+        TileDeclareToLetRewriter(),
+        ConvertTileExprToLetRewriter(),
+        LetExprExpander(),
+        FlattenLetChainRewriter(),
     ]
     for r in rewrites:
         node = r(node)

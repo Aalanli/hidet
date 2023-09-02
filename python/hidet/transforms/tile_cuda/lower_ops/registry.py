@@ -23,7 +23,7 @@ class Buffer:
         shape: List[int],
         local_shape: List[int],
         layout: TileLayout,
-        info=None
+        info=None,
     ):
         self.var: Var = buf_var
         self.dtype: Union[PointerType, DataType] = dtype
@@ -73,16 +73,11 @@ class TileOpImpl(StmtBuilder):
         self, dtype: Union[DataType, PointerType], shape: List[int], hint: str, data_layout=None
     ) -> Buffer:
         from hidet.ir.primitives.cuda.tile import alloc_shared
+
         buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape, layout=data_layout))
         self.declare(buf_var, init=alloc_shared(nbytes=sizeof(dtype) * prod(shape)))
         # buf_var = self.declare(tensor_var(hint, shape, dtype, layout=data_layout), scope=DeclareScope.Shared)
-        return Buffer(
-            buf_var=buf_var,
-            dtype=dtype,
-            shape=shape,
-            local_shape=shape,
-            layout=SharedLayout(shape),
-        )
+        return Buffer(buf_var=buf_var, dtype=dtype, shape=shape, local_shape=shape, layout=SharedLayout(shape))
 
     def sync_threads(self):
         self.append(syncthreads())

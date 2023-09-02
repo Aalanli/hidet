@@ -18,6 +18,7 @@ from .utils import get_type_erased_dtype
 class AllocTensorImpl(TileOpImpl):
     def implement(self, op: AllocTensor, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         from hidet.ir.primitives.cuda.tile import alloc_shared
+
         nbytes: int = prod(op.shape) * sizeof(op.dtype)
         self.assign(output.var, alloc_shared(nbytes=nbytes))
 
@@ -27,6 +28,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
     def implement(self, op: InsertSliceAsync, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         from hidet.ir.primitives.cuda.cp_async import cp_async
         from hidet.ir.primitives.cuda.ldst import load
+
         ptr: Buffer = args[0]
         dst: Buffer = args[1]
         index: Expr = args[2]
@@ -44,7 +46,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
             vec_size: int = layout.size_per_thread[axis]
 
             # we need to make sure that the ptr and optional mask/other are contiguous in the axis
-            vec_size = min(vec_size, ptr.info.continuity[axis])
+            vec_size = min(vec_size, ptr.info.continuity[axis], ptr.info.divisibility[axis])
             if mask:
                 vec_size = min(vec_size, mask.info.constancy[axis])
             if other:
@@ -75,7 +77,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
                                 dst=~dst[global_indices],
                                 src=ptr[local_indices],
                                 cp_size=cp_size,
-                                src_size=if_then_else(mask[local_indices], cp_size, 0) if mask else None
+                                src_size=if_then_else(mask[local_indices], cp_size, 0) if mask else None,
                             )
                         )
                 self.assign(output.var, dst.var)
@@ -125,7 +127,7 @@ class ExtractSliceImpl(TileOpImpl):
         index: Expr = args[1]
         if op.extent == 1:
             indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
-            indices = indices[:op.axis] + [index] + indices[op.axis:]
+            indices = indices[: op.axis] + [index] + indices[op.axis :]
         else:
             indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
             indices[op.axis] = index

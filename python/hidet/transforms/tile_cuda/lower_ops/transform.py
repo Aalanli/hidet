@@ -48,6 +48,7 @@ class CastOpImpl(TileOpImpl):
         src: Buffer = args[0]
         dst: Buffer = output
         if src.is_distributed() and dst.is_distributed() and src.layout == dst.layout:
+
             def f_compute(local_indices, global_indices, not_duplicated):
                 return src[local_indices]
 

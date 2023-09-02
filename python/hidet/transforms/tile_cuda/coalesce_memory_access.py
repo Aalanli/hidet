@@ -39,7 +39,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         # in cuda, we can load at most 16 bytes per thread
         elem_type: PointerType = ptr.type.as_tile_type().type.base_type
         dtype_bytes: int = sizeof(elem_type)
-        vector_elements: int = min(tv.continuity[-1] * dtype_bytes, 16) // dtype_bytes
+        vector_elements: int = min(min(tv.divisibility[-1], tv.continuity[-1]) * dtype_bytes, 16) // dtype_bytes
         if vector_elements == 1:
             return None
 
@@ -49,9 +49,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         return BlockLayout.from_shape(
             shape=ttype.shape,
             num_warps=orig_layout.num_warps,
-            size_per_thread=[
-                vector_elements if i == len(ttype.shape) - 1 else 1 for i in range(len(ttype.shape))
-            ]
+            size_per_thread=[vector_elements if i == len(ttype.shape) - 1 else 1 for i in range(len(ttype.shape))],
         )
 
     def visit_Function(self, func: Function):

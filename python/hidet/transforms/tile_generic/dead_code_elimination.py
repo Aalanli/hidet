@@ -39,7 +39,7 @@ class DeadCodeEliminationRewriter(IRRewriter):
         self.live: Set[Var] = set()
 
     def visit_Function(self, func: Function):
-        self.memo.clear()   # in case calling this rewriter multiple times
+        self.memo.clear()  # in case calling this rewriter multiple times
 
         # get the dependency relation-ship
         dependency_analyzer = DependencyAnalyzer()
@@ -115,7 +115,7 @@ class DeadCodeEliminationRewriter(IRRewriter):
                 extent=stmt.extent,
                 body=body,
                 let_vars=let_vars,
-                let_body=let_body
+                let_body=let_body,
             )
 
     def visit_YieldStmt(self, stmt: YieldStmt):

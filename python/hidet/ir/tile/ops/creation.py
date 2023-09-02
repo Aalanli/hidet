@@ -42,6 +42,7 @@ class Construct(TileOp):
     def __getitem__(self, actual_indices: List[Union[Expr, int]]) -> Expr:
         from hidet.ir.expr import convert
         from hidet.ir.tools import rewrite
+
         remap = {axis: convert(actual_index) for axis, actual_index in zip(self.axes, actual_indices)}
         return rewrite(self.value, remap)
 

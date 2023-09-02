@@ -75,6 +75,7 @@ class PrimitiveFunctionPool:
     def lookup_by_name(self, name: str) -> PrimitiveFunctionRegistry:
         if name not in self.name2func:
             from difflib import SequenceMatcher
+
             candidates: List[str] = list(self.name2func.keys())
             candidates = list(sorted(candidates, key=lambda x: SequenceMatcher(None, name, x).ratio(), reverse=True))
             candidates = candidates[:10]

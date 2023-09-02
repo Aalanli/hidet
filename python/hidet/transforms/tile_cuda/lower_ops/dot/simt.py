@@ -21,7 +21,9 @@ class SimtDotImpl(TileOpImpl):
             and isinstance(b_layout, BlockDotOperandLayout)
             and isinstance(c_layout, BlockLayout)
             and isinstance(d_layout, BlockLayout)
-            and a_layout.parent == c_layout and b_layout.parent == c_layout and c_layout == d_layout
+            and a_layout.parent == c_layout
+            and b_layout.parent == c_layout
+            and c_layout == d_layout
         )
 
         k_size = a.shape[1]
@@ -33,4 +35,3 @@ class SimtDotImpl(TileOpImpl):
                 a_indices = [d_indices[0], k]
                 b_indices = [k, d_indices[1]]
                 self.buffer_store(d.var, d_indices, d[d_indices] + a[a_indices] * b[b_indices])
-

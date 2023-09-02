@@ -1,7 +1,7 @@
 from typing import List, Union, Optional
 
 from hidet.ir.expr import Expr, logical_and
-from hidet.ir.dtypes import uint32, uint16
+from hidet.ir.dtypes import uint32, uint16, boolean
 from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.type import PointerType, DataType, void_p
@@ -77,6 +77,7 @@ class StoreImpl(TileOpImpl):
     def implement(self, op: Store, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         from hidet.ir.mapping import repeat_map
         from hidet.ir.primitives.cuda.ldst import store
+
         ptr: Buffer = args[0]
         value: Buffer = args[1]
         mask: Optional[Buffer] = args[2] if len(args) > 2 else None
@@ -87,7 +88,10 @@ class StoreImpl(TileOpImpl):
         if isinstance(layout, BlockLayout):
             axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
-            if vec_size > 1 and mask is None:
+            vec_size = min(vec_size, ptr.info.continuity[axis], ptr.info.divisibility[axis])
+            if mask:
+                vec_size = min(vec_size, mask.info.constancy[axis])
+            if vec_size > 1:
                 local_shape: List[int] = layout.calc_local_shape(ptr.shape)
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
 
@@ -110,9 +114,12 @@ class StoreImpl(TileOpImpl):
                         dtype = uint32
                         src_addrs = [src_addrs[i] for i in range(0, len(src_addrs), 2)]
 
-                    self.append(
-                        store(dtype, addr=ptr[local_indices], src_addrs=src_addrs)
-                    )
+                    if mask:
+                        cond = mask[local_indices]
+                    else:
+                        cond = boolean.true
+                    with self.if_then(cond):
+                        self.append(store(dtype, addr=ptr[local_indices], src_addrs=src_addrs))
                 return
 
         if isinstance(ptr.layout, DistributedLayout):

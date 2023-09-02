@@ -53,6 +53,8 @@ from .tile_cuda.split_dot_k import split_dot_k_pass
 from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
 from .tile_cuda.plan_shared_memory import plan_shared_memory_pass
 
+from .tile_generic.analyzers.value_analyzer import value_analyze_pass
+
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
     ctx = PassContext.current()
@@ -81,6 +83,7 @@ def lower(ir_module: IRModule) -> IRModule:
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
         remove_layout_convert_pass(),
+        # value_analyze_pass(),
         software_pipeline_pass(),
         split_dot_k_pass(),
         lower_tile_dialect_pass(),

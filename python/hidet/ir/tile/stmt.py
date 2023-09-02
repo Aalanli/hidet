@@ -12,7 +12,7 @@ class PureForStmt(Stmt):
         extent: Expr,
         body: Stmt,
         let_vars: List[Var],
-        let_body
+        let_body,
     ):
         self.args: List[Var] = args
         self.values: List[Expr] = values
@@ -26,4 +26,3 @@ class PureForStmt(Stmt):
 class YieldStmt(Stmt):
     def __init__(self, values: List[Expr]):
         self.values: List[Expr] = values
-

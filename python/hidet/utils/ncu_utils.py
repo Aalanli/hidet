@@ -31,7 +31,9 @@ _ncu_template = """
 --import-source yes
 --check-exit-code yes
 {python_executable} {python_script} {args}
-""".replace('\n', ' ').strip()
+""".replace(
+    '\n', ' '
+).strip()
 """
 /opt/nvidia/nsight-compute/2023.2.1/target/linux-desktop-glibc_2_11_3-x64/ncu --config-file off --export "/home/yaoyao/Documents/NVIDIA Nsight Compute/report%i" --force-overwrite --set detailed --rule CPIStall --rule FPInstructions --rule HighPipeUtilization --rule IssueSlotUtilization --rule LaunchConfiguration --rule Occupancy --rule PCSamplingData --rule SOLBottleneck --rule SOLFPRoofline --rule SharedMemoryConflicts --rule SlowPipeLimiter --rule ThreadDivergence --rule UncoalescedGlobalAccess --rule UncoalescedSharedAccess /home/yaoyao/miniconda3/bin/python /home/yaoyao/repos/triton/python/tutorials/03-matrix-multiplication.py 
 """
@@ -97,9 +99,9 @@ def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
             report_path=report_path,
             python_executable=sys.executable,
             python_script=__file__,
-            args='{} {} {}'.format(script_path, func_name, args_path)
+            args='{} {} {}'.format(script_path, func_name, args_path),
         ),
-        shell=True
+        shell=True,
     )
 
     return NsightComputeReport(report_path)

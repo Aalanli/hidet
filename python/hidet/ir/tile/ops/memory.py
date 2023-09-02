@@ -62,8 +62,10 @@ class Store(TileOp):
             raise RuntimeError(f"Invalid type of ptr argument of store operator: {ptr_type.type}")
         if isinstance(ptr_type.type.base_type, DataType):
             if not (isinstance(value_type.type, DataType) and ptr_type.type.base_type == value_type.type):
-                raise RuntimeError('Incompatible types of store operator: ptr_type = {}, value_type = {}'.format(
-                    ptr_type.type, value_type.type)
+                raise RuntimeError(
+                    'Incompatible types of store operator: ptr_type = {}, value_type = {}'.format(
+                        ptr_type.type, value_type.type
+                    )
                 )
         return void
 

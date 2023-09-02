@@ -170,8 +170,7 @@ class CanonicalizeToSSARewriter(IRRewriter):
             self.var2current[modified_var] = ret
         self.append(
             PureForStmt(
-                args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=returns,
-                let_body=None
+                args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=returns, let_body=None
             )
         )
 
@@ -229,21 +228,13 @@ class CanonicalizeToSSARewriter(IRRewriter):
 
 class CanonicalizeToSSAPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        return self.apply_transforms(func, [
-            LetExprExpander(),
-            CanonicalizeToSSARewriter(),
-            ConvertTileExprToLetRewriter(),
-            LetExprExpander()
-        ])
+        return self.apply_transforms(
+            func, [LetExprExpander(), CanonicalizeToSSARewriter(), ConvertTileExprToLetRewriter(), LetExprExpander()]
+        )
 
 
 def canonicalize_to_ssa(node: Union[Function, IRModule]):
-    transforms = [
-        LetExprExpander(),
-        CanonicalizeToSSARewriter(),
-        ConvertTileExprToLetRewriter(),
-        LetExprExpander()
-    ]
+    transforms = [LetExprExpander(), CanonicalizeToSSARewriter(), ConvertTileExprToLetRewriter(), LetExprExpander()]
     for transform in transforms:
         node = transform(node)
     return node

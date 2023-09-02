@@ -3,6 +3,7 @@ from hidet.ir.expr import Expr, Var, Add, Sub, Multiply, Constant, convert
 from hidet.ir.dtypes import int32
 from hidet.ir.functors import IRVisitor
 
+
 class Affine:
     def __init__(self, weights: List[Expr]):
         self.weights: List[Expr] = weights

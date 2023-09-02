@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import Any, Optional, List, Dict, Type, Callable
 import operator
-from hidet.ir.type import DataType, PointerType
+
+import hidet.ir.tools
+from hidet.ir.type import DataType, PointerType, sizeof
 from hidet.ir.expr import Var, Constant, Add, Multiply, Sub, Expr, BinaryExpr, LessThan, LogicalAnd
 from hidet.ir.stmt import LetStmt
 from hidet.ir.func import Function
@@ -11,6 +13,7 @@ from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops import Construct, BinaryTileOp
 from hidet.ir.functors import IRVisitor
 from hidet.utils import gcd, same_list
+from hidet.transforms.base import TileFunctionPass
 
 
 class Constancy:
@@ -98,8 +101,7 @@ class ScalarInfo(ValueInfo):
             return NotImplemented
         assert isinstance(other, ScalarInfo)
         return ScalarInfo(
-            divisibility=gcd(self.divisibility, other.divisibility),
-            const_value=self.const_value + other.const_value
+            divisibility=gcd(self.divisibility, other.divisibility), const_value=self.const_value + other.const_value
         )
 
     def __sub__(self, other):
@@ -107,8 +109,7 @@ class ScalarInfo(ValueInfo):
             return NotImplemented
         assert isinstance(other, ScalarInfo)
         return ScalarInfo(
-            divisibility=gcd(self.divisibility, other.divisibility),
-            const_value=self.const_value - other.const_value
+            divisibility=gcd(self.divisibility, other.divisibility), const_value=self.const_value - other.const_value
         )
 
     def __mul__(self, other):
@@ -116,24 +117,20 @@ class ScalarInfo(ValueInfo):
             return NotImplemented
         assert isinstance(other, ScalarInfo)
         return ScalarInfo(
-            divisibility=self.divisibility * other.divisibility,
-            const_value=self.const_value * other.const_value
+            divisibility=self.divisibility * other.divisibility, const_value=self.const_value * other.const_value
         )
 
     def __lt__(self, other):
         if isinstance(other, TensorInfo):
             return NotImplemented
         assert isinstance(other, ScalarInfo)
-        return ScalarInfo(
-            divisibility=1,
-            const_value=self.const_value < other.const_value
-        )
+        return ScalarInfo(divisibility=1, const_value=self.const_value < other.const_value)
 
     def merge(self, info: ValueInfo):
         if isinstance(info, ScalarInfo):
             return ScalarInfo(
                 divisibility=gcd(self.divisibility, info.divisibility),
-                const_value=self.const_value.merge(info.const_value)
+                const_value=self.const_value.merge(info.const_value),
             )
         elif isinstance(info, TensorInfo):
             return info.merge(TensorInfo.from_scalar(info.shape, self))
@@ -143,12 +140,7 @@ class ScalarInfo(ValueInfo):
 
 class TensorInfo(ValueInfo):
     def __init__(
-        self,
-        shape: List[int],
-        divisibility: List[int],
-        continuity: List[int],
-        constancy: List[int],
-        const_value=None
+        self, shape: List[int], divisibility: List[int], continuity: List[int], constancy: List[int], const_value=None
     ):
         self.shape: List[int] = shape
         self.continuity: List[int] = continuity
@@ -172,11 +164,11 @@ class TensorInfo(ValueInfo):
         if not isinstance(other, TensorInfo):
             return False
         return (
-            same_list(self.shape, other.shape) and
-            same_list(self.continuity, other.continuity) and
-            same_list(self.divisibility, other.divisibility) and
-            same_list(self.constancy, other.constancy) and
-            self.const_value == other.const_value
+            same_list(self.shape, other.shape)
+            and same_list(self.continuity, other.continuity)
+            and same_list(self.divisibility, other.divisibility)
+            and same_list(self.constancy, other.constancy)
+            and self.const_value == other.const_value
         )
 
     def __add__(self, other):
@@ -189,10 +181,10 @@ class TensorInfo(ValueInfo):
                 divisibility.append(gcd(self.divisibility[i], other.divisibility[i]))
             elif self.constancy[i] > 1:
                 continuity.append(gcd(self.constancy[i], other.continuity[i]))
-                divisibility.append(gcd(other.divisibility[i], continuity[-1]))
+                divisibility.append(gcd(other.divisibility[i], self.divisibility[i], continuity[-1]))
             elif other.constancy[i] > 1:
                 continuity.append(gcd(self.continuity[i], other.constancy[i]))
-                divisibility.append(gcd(self.divisibility[i], continuity[-1]))
+                divisibility.append(gcd(self.divisibility[i], other.divisibility[i], continuity[-1]))
             else:
                 continuity.append(1)
                 divisibility.append(1)
@@ -318,6 +310,7 @@ class ValueAnalyzer(IRVisitor):
 
     This class implements an iterative algorithm to solve the above equations.
     """
+
     def __init__(self):
         super().__init__()
         self.var2value: Dict[Var, ValueInfo] = {}
@@ -345,8 +338,13 @@ class ValueAnalyzer(IRVisitor):
 
     def visit_Function(self, func: Function):
         for arg in func.params:
-            if arg.type.is_pointer() or (arg.type.is_data_type() and arg.type.as_data_type().is_integer()):
+            if arg.type.is_pointer():
+                # we assume that the pointer has 128-bytes alignment
+                elem_type = arg.type.as_pointer_type().base_type
+                self.merge(arg, ScalarInfo(divisibility=128 // sizeof(elem_type)))
+            elif arg.type.is_data_type() and arg.type.as_data_type().is_integer():
                 self.merge(arg, ScalarInfo(divisibility=1))
+
         self.visit(func.body)
 
     def visit_LetStmt(self, stmt: LetStmt):
@@ -391,10 +389,7 @@ class ValueAnalyzer(IRVisitor):
 
     def visit_Constant(self, e: Constant):
         if e.type.is_data_type() and e.type.is_integer() or e.type.is_pointer():
-            return ScalarInfo(
-                divisibility=int(e.value),
-                const_value=OptionalInt(int(e.value))
-            )
+            return ScalarInfo(divisibility=int(e.value), const_value=OptionalInt(int(e.value)))
 
     def visit_binary(self, e: BinaryExpr):
         a = self.visit(e.a)
@@ -408,11 +403,21 @@ class ValueAnalyzer(IRVisitor):
             Sub: operator.sub,
             Multiply: operator.mul,
             LessThan: operator.lt,
-            LogicalAnd: operator.and_
+            LogicalAnd: operator.and_,
         }
         if type(e) not in op_dict:
             raise NotImplementedError()
-        return op_dict[type(e)](a, b)
+        c = op_dict[type(e)](a, b)
+
+        # for debugging
+        # from hidet.utils.py import color
+        # print('{} {} {} = {}'.format(
+        #     color(a, fg='magenta'),
+        #     color(type(e).__name__, fg='yellow'),
+        #     color(b, fg='green'),
+        #     color(c, fg='cyan')
+        # ))
+        return c
 
     def visit_Add(self, e: Add):
         return self.visit_binary(e)
@@ -446,12 +451,13 @@ class ValueAnalyzer(IRVisitor):
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         import hidet.ir.tile.ops.arthimatic as ops
+
         op_dict: Dict[Type[TileOp], Callable] = {
             ops.Add: operator.add,
             ops.Sub: operator.sub,
             ops.Multiply: operator.mul,
             ops.Mod: operator.mod,
-            ops.LogicalAnd: operator.and_   # use bitwise and as a proxy for logical and
+            ops.LogicalAnd: operator.and_,  # use bitwise and as a proxy for logical and
         }
         if type(e) in op_dict:
             op = op_dict[type(e)]
@@ -463,8 +469,31 @@ class ValueAnalyzer(IRVisitor):
                 return op(x, y)
 
 
+class ValueAnalyzePass(TileFunctionPass):
+    def process_tile_func(self, func: Function) -> Function:
+        analyzer = ValueAnalyzer()
+        analyzer.analyze(func)
+
+        # print the result
+        from tabulate import tabulate
+
+        printer = hidet.ir.tools.IRPrinter()
+        print('Function: ')
+        print(printer.astext(func))
+        lines = []
+        for arg, info in analyzer.var2value.items():
+            lines.append([str(printer(arg)), str(info)])
+        print(tabulate(lines, headers=['Variable', 'Value Information']))
+
+        # an analysis pass should not change the function
+        return func
+
+
 def analyze_value(func: Function):
     analyzer = ValueAnalyzer()
     analyzer.analyze(func)
     return analyzer.var2value
 
+
+def value_analyze_pass() -> TileFunctionPass:
+    return ValueAnalyzePass()

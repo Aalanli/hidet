@@ -8,7 +8,7 @@ from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.stmt import PureForStmt
-from hidet.ir.tile.ops import Full, Construct, Arange, BinaryTileOp, Dot, ConvertLayout
+from hidet.ir.tile.ops import Full, Construct, Arange, BinaryTileOp, Dot, ConvertLayout, CastOp
 from hidet.ir.tile.ops.arthimatic import Add, Multiply, Equal, NotEqual
 from hidet.utils import same_list
 
@@ -65,6 +65,10 @@ class PatternBuilder:
     @staticmethod
     def convert_layout(x: TilePattern):
         return TileOpPattern(ConvertLayout, x)
+
+    @staticmethod
+    def cast(x: TilePattern):
+        return TileOpPattern(CastOp, x)
 
     @staticmethod
     def add(lhs: TilePattern, rhs: TilePattern):
@@ -176,10 +180,7 @@ class Matcher:
         if len(call_op.op.args) != len(pattern.args):
             return False
 
-        is_commutative_binary_op = (
-            issubclass(op_cls, BinaryTileOp)
-            and op_cls in [Add, Multiply, Equal, NotEqual]
-        )
+        is_commutative_binary_op = issubclass(op_cls, BinaryTileOp) and op_cls in [Add, Multiply, Equal, NotEqual]
         if is_commutative_binary_op:
             saved_match_dict = self.match_dict.copy()
             pa, pb = pattern.args

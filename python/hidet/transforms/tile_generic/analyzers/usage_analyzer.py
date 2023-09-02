@@ -9,7 +9,7 @@ from hidet.ir.tile.ops import ConvertLayout
 
 
 class LetUsage:
-    """ let ... = convert_layout(x) """
+    """let ... = convert_layout(x)"""
 
     def __init__(self, let_stmt, idx):
         self.let_stmt: LetStmt = let_stmt

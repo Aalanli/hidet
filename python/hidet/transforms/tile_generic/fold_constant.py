@@ -67,7 +67,7 @@ class SimplifyTileCreationRewriter(IRRewriter):
 
             def f_compute(indices: List[Var]) -> Expr:
                 assert len(indices) == len(x.shape) + 1
-                x_indices = indices[:e.axis] + indices[e.axis + 1:]
+                x_indices = indices[: e.axis] + indices[e.axis + 1 :]
                 return x[x_indices]
 
             return Construct.from_compute(shape=y_type.shape, f_compute=f_compute)
@@ -87,10 +87,7 @@ class SimplifyTileCreationRewriter(IRRewriter):
 
 class FoldConstantPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        rewrites = [
-            SimplifyTileCreationRewriter(),
-            DeadCodeEliminationRewriter(),
-        ]
+        rewrites = [SimplifyTileCreationRewriter(), DeadCodeEliminationRewriter()]
         for rewriter in rewrites:
             func = rewriter.visit(func)
         return func

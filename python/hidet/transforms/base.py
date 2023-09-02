@@ -61,7 +61,7 @@ class Pass:
     def apply_transforms(
         node: Union[IRModule, Function],
         transforms: List[Callable[[Union[IRModule, Function]], Union[IRModule, Function]]],
-        repeat_limit=1
+        repeat_limit=1,
     ):
         while True:
             prev_node = node

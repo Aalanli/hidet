@@ -22,6 +22,10 @@ class SimtDot(Dot):
     pass
 
 
+class MmaDot(Dot):
+    pass
+
+
 def dot(a: Expr, b: Expr):
     from hidet.ir.tools import infer_type
 

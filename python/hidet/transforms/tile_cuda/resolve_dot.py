@@ -1,6 +1,7 @@
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
-from hidet.ir.tile.ops.dot import Dot, SimtDot
+from hidet.ir.dtypes import float32, float16, bfloat16
+from hidet.ir.tile.ops.dot import Dot, SimtDot, MmaDot
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
@@ -16,7 +17,16 @@ class ResolveDotRewriter(IRRewriter):
         a = self.visit(e.a)
         b = self.visit(e.b)
         c = self.visit(e.c)
-        return SimtDot(a, b, c)
+        c_type = self.type_infer(c)
+        assert isinstance(c_type, TileType)
+        dtype = c_type.type
+
+        if dtype in [float16, bfloat16]:
+            return MmaDot(a, b, c)
+        elif dtype in [float32]:
+            return SimtDot(a, b, c)
+        else:
+            raise NotImplementedError(dtype)
 
 
 class ResolveDotPass(TileFunctionPass):

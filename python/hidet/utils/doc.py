@@ -35,6 +35,9 @@ class Doc:
     def __init__(self):
         self.docs: List[Union[str, NewLineToken]] = []
 
+    def join(self, lst):
+        return doc_join(lst, self)
+
     def append(self, doc):
         if isinstance(doc, list):
             for item in doc:

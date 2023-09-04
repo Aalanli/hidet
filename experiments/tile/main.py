@@ -429,7 +429,7 @@ def main():
         [1024, 1024, 1023],
         [1111, 1111, 1111]
     ]:
-        demo_matmul(m_size, n_size, k_size, dtype='float32', bench=True)
+        demo_matmul(m_size, n_size, k_size, dtype='float16', bench=True)
         # report = ncu_run(demo_matmul, m_size, n_size, k_size, dtype='float32')
         # report.visualize()
 

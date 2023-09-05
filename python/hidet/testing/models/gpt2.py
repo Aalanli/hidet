@@ -45,29 +45,30 @@ class GPT2Attention(nn.Module):
 
     def forward(self, hidden_states: Tensor, last_key, last_value):
         # params:
-        #   hidden_states: [seq_length, hidden_size]
-        #   last_key: [num_heads, prev_seq_length, head_dim]
-        #   last_value: [num_heads, prev_seq_length, head_dim]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
+        #   last_key: [batch_size, num_heads, prev_seq_length, head_dim]
+        #   last_value: [batch_size, num_heads, prev_seq_length, head_dim]
         # return:
-        #   hidden_states: [seq_length, hidden_size]
-        #   key: [num_heads, seq_length, head_dim]
-        #   value: [num_heads, seq_length, head_dim]
-        seq_length = hidden_states.shape[0]
-        prev_seq_length = last_key.shape[1]
-        qkv = self.c_attn(hidden_states)  # [seq_length, hidden_size * 3]
-        q, k, v = ops.split(qkv, 3, axis=-1)  # [seq_length, hidden_size] * 3
-        q = ops.reshape(q, [seq_length, self.num_heads, self.head_dim]).rearrange(
-            [[1], [0], [2]]
-        )  # [num_heads, seq_length, head_dim]
-        k = ops.reshape(k, [seq_length, self.num_heads, self.head_dim]).rearrange(
-            [[1], [0], [2]]
-        )  # [num_heads, seq_length, head_dim]
-        v = ops.reshape(v, [seq_length, self.num_heads, self.head_dim]).rearrange(
-            [[1], [0], [2]]
-        )  # [num_heads, seq_length, head_dim]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
+        #   key: [batch_size, num_heads, seq_length, head_dim]
+        #   value: [batch_size, num_heads, seq_length, head_dim]
+        batch_size = hidden_states.shape[0]
+        seq_length = hidden_states.shape[1]
+        prev_seq_length = last_key.shape[2]
+        qkv = self.c_attn(hidden_states)  # [batch_size, seq_length, hidden_size * 3]
+        q, k, v = ops.split(qkv, 3, axis=-1)  # [batch_size, seq_length, hidden_size] * 3
+        q = ops.reshape(q, [batch_size, seq_length, self.num_heads, self.head_dim]).rearrange(
+            [[0], [2], [1], [3]]
+        )  # [batch_size, num_heads, seq_length, head_dim]
+        k = ops.reshape(k, [batch_size, seq_length, self.num_heads, self.head_dim]).rearrange(
+            [[0], [2], [1], [3]]
+        )  # [batch_size, num_heads, seq_length, head_dim]
+        v = ops.reshape(v, [batch_size, seq_length, self.num_heads, self.head_dim]).rearrange(
+            [[0], [2], [1], [3]]
+        )  # [batch_size, num_heads, seq_length, head_dim]
 
-        kk = ops.concat([last_key, k], axis=1)  # [num_heads, prev_seq_length + seq_length, head_dim]
-        vv = ops.concat([last_value, v], axis=1)  # [num_heads, prev_seq_length + seq_length, head_dim]
+        kk = ops.concat([last_key, k], axis=2)    # [batch_size, num_heads, prev_seq_length + seq_length, head_dim]
+        vv = ops.concat([last_value, v], axis=2)  # [batch_size, num_heads, prev_seq_length + seq_length, head_dim]
 
         # [num_heads, seq_length, prev_seq_length + seq_length]
         # like (seq_length = 3, prev_seq_length = 2)
@@ -85,16 +86,16 @@ class GPT2Attention(nn.Module):
             )
         ) * hidden_states.dtype.min_value
 
-        # [num_heads, seq_length, prev_seq_length + seq_length]
+        # [batch_size, num_heads, seq_length, prev_seq_length + seq_length]
         attn_weights = ops.matmul(q, ops.transpose(kk, [-1, -2])) / math.sqrt(self.head_dim)
 
-        qk = ops.softmax(attn_weights + casual_mask, axis=-1)  # [num_heads, seq_length, seq_length + prev_seq_length]
+        qk = ops.softmax(attn_weights + casual_mask, axis=-1)  # [batch_size, num_heads, seq_length, seq_length + prev_seq_length]
 
-        hidden_states = ops.matmul(qk, vv)  # [num_heads, seq_length, head_dim]
-        hidden_states = hidden_states.rearrange([[1], [0], [2]]).reshape(
-            [seq_length, self.hidden_size]
-        )  # [seq_length, hidden_size]
-        hidden_states = self.c_proj(hidden_states)  # [seq_length, hidden_size]
+        hidden_states = ops.matmul(qk, vv)  # [batch_size, num_heads, seq_length, head_dim]
+        hidden_states = hidden_states.rearrange([[0], [2], [1], [3]]).reshape(
+            [batch_size, seq_length, self.hidden_size]
+        )
+        hidden_states = self.c_proj(hidden_states)  # [batch_size, seq_length, hidden_size]
         return hidden_states, k, v
 
 
@@ -106,9 +107,9 @@ class GPT2MLP(nn.Module):
 
     def forward(self, hidden_states):
         # params:
-        #   hidden_states: [seq_length, hidden_size]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
         # return:
-        #   hidden_states: [seq_length, hidden_size]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
         hidden_states = self.c_fc(hidden_states)
         hidden_states = ops.gelu(hidden_states, approximate=True)
         hidden_states = self.c_proj(hidden_states)
@@ -125,13 +126,13 @@ class GPT2Block(nn.Module):
 
     def forward(self, hidden_states, last_key, last_value):
         # params:
-        #   hidden_states: [seq_length, hidden_size]
-        #   last_key: [num_heads, prev_seq_length, head_dim]
-        #   last_value: [num_heads, prev_seq_length, head_dim]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
+        #   last_key: [batch_size, num_heads, prev_seq_length, head_dim]
+        #   last_value: [batch_size, num_heads, prev_seq_length, head_dim]
         # return:
-        #   hidden_states: [seq_length, hidden_size]
-        #   last_key: [num_heads, seq_length, head_dim]
-        #   last_value: [num_heads, seq_length, head_dim]
+        #   hidden_states: [batch_size, seq_length, hidden_size]
+        #   last_key: [batch_size, num_heads, seq_length, head_dim]
+        #   last_value: [batch_size, num_heads, seq_length, head_dim]
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
         hidden_states, key, value = self.attn(hidden_states, last_key, last_value)
@@ -156,36 +157,36 @@ class GPT2Model(nn.Module):
 
     def forward(self, input_ids, position_ids, past_keys, past_values):
         # params:
-        #   input_ids: [seq_length]
-        #   position_ids: int32[seq_length]
-        #   past_keys: [layers, num_heads, prev_seq_length, head_dim]
-        #   past_values: [layers, num_heads, prev_seq_length, head_dim]
+        #   input_ids: [batch_size, seq_length]
+        #   position_ids: int32[batch_size, seq_length]
+        #   past_keys: [batch_size, layers, num_heads, prev_seq_length, head_dim]
+        #   past_values: [batch_size, layers, num_heads, prev_seq_length, head_dim]
         # return:
-        #   hidden_states: [1, hidden_size]
-        #   position_ids: int32[1]
-        #   updated_keys: [layers, num_heads, prev_seq_length + seq_length, head_dim]
-        #   updated_values: [layers, num_heads, prev_seq_length + seq_length, head_dim]
-        inputs_embeds = self.wte(input_ids)  # [seq_length, hidden_size]
-        position_embeds = self.wpe(position_ids)  # [seq_length, hidden_size]
-        hidden_states = inputs_embeds + position_embeds  # [seq_length, hidden_size]
-        cur_keys = []  # layers of [1, num_heads, seq_length, head_dim]
-        cur_values = []  # layers of [1, num_heads, seq_length, head_dim]
+        #   hidden_states: [batch_size, 1, hidden_size]
+        #   position_ids: int32[batch_size, 1]
+        #   updated_keys: [batch_size, layers, num_heads, prev_seq_length + seq_length, head_dim]
+        #   updated_values: [batch_size, layers, num_heads, prev_seq_length + seq_length, head_dim]
+        inputs_embeds = self.wte(input_ids)  # [batch_size, seq_length, hidden_size]
+        position_embeds = self.wpe(position_ids)  # [batch_size, seq_length, hidden_size]
+        hidden_states = inputs_embeds + position_embeds  # [batch_size, seq_length, hidden_size]
+        cur_keys = []  # layers of [batch_size, 1, num_heads, seq_length, head_dim]
+        cur_values = []  # layers of [batch_size, 1, num_heads, seq_length, head_dim]
         for i, block in enumerate(self.h):
             hidden_states, cur_key, cur_value = block(hidden_states, past_keys[i], past_values[i])
-            cur_keys.append(cur_key.unsqueeze(0))
-            cur_values.append(cur_value.unsqueeze(0))
+            cur_keys.append(cur_key.unsqueeze(1))
+            cur_values.append(cur_value.unsqueeze(1))
 
-        hidden_states = self.ln_f(hidden_states)  # [seq_length, hidden_size]
+        hidden_states = self.ln_f(hidden_states)  # [batch_size, seq_length, hidden_size]
 
-        # [layers, num_heads, prev_seq_length + seq_length, head_dim]]
-        updated_cur_keys = ops.concat([past_keys, ops.concat(cur_keys, axis=0)], axis=2)
+        # [batch_size, layers, num_heads, prev_seq_length + seq_length, head_dim]]
+        updated_cur_keys = ops.concat([past_keys, ops.concat(cur_keys, axis=1)], axis=3)
 
-        # [layers, num_heads, prev_seq_length + seq_length, head_dim]]
-        updated_past_values = ops.concat([past_values, ops.concat(cur_values, axis=0)], axis=2)
+        # [batch_size, layers, num_heads, prev_seq_length + seq_length, head_dim]]
+        updated_past_values = ops.concat([past_values, ops.concat(cur_values, axis=1)], axis=3)
         # updated_cur_keys = None
         # updated_past_values = None
 
-        position_ids = position_ids[-1:] + 1  # [1]
+        position_ids = position_ids[:, -1:] + 1  # [batch_size, 1]
 
         return hidden_states, position_ids, updated_cur_keys, updated_past_values
         # return hidden_states[-1:], position_ids, None, None
@@ -243,19 +244,19 @@ class GPT2LMHead(nn.Module):
 
     def forward(self, input_ids, position_ids, past_keys, past_values):
         # params:
-        #   input_ids: int32[seq_length]
-        #   position_ids: int32[seq_length]
-        #   past_keys: [layers, prev_seq_length, hidden_size]
-        #   past_values: [layers, prev_seq_length, hidden_size]
+        #   input_ids: int32[batch_size, seq_length]
+        #   position_ids: int32[batch_size, seq_length]
+        #   past_keys: [batch_size, layers, prev_seq_length, hidden_size]
+        #   past_values: [batch_size, layers, prev_seq_length, hidden_size]
         # return:
-        #   input_ids: int32[1]
-        #   position_ids: int32[1]
-        #   updated_keys: [layers, prev_seq_length + seq_length, hidden_size]
-        #   updated_values: [layers, prev_seq_length + seq_length, hidden_size]
+        #   input_ids: int32[batch_size, 1]
+        #   position_ids: int32[batch_size, 1]
+        #   updated_keys: [batch_size, layers, prev_seq_length + seq_length, hidden_size]
+        #   updated_values: [batch_size, layers, prev_seq_length + seq_length, hidden_size]
         hidden_states, position_ids, past_keys, past_values = self.transformer(
             input_ids, position_ids, past_keys, past_values
         )
-        logits = self.lm_head(hidden_states[-1:])  # [1, vocab_size]
+        logits = self.lm_head(hidden_states[:, -1:])  # [batch_size, 1, vocab_size]
         updated_input_ids = ops.argmax(logits, dim=-1, keep_dim=False)  # [1]
         # we want to keep types consistent, since in the autoregressive case,
         #   the output is fed back into the input of the compiled model

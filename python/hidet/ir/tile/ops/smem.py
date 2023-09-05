@@ -1,10 +1,10 @@
 from typing import Union, Optional, List, Dict, Any
-from enum import Enum
+
 from hidet.ir.expr import Expr
-from hidet.ir.type import BaseType, PointerType, DataType, void
-from hidet.ir.tile.layout import TileLayout, SharedLayout
-from hidet.ir.tile.type import TileType, PointerType, tile_type
-from hidet.ir.tile.expr import TileOp, call_tile_op
+from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.layout import TileLayout, repeat
+from hidet.ir.tile.type import TileType, PointerType, TileScope, tile_type
+from hidet.ir.type import BaseType, DataType, void
 
 
 class ProcedureOp(TileOp):
@@ -16,14 +16,15 @@ class ProcedureOp(TileOp):
 
 
 class AllocTensor(TileOp):
-    def __init__(self, dtype: Union[DataType, PointerType], shape: List[int]):
+    def __init__(self, dtype: Union[DataType, PointerType], shape: List[int], layout: Optional[TileLayout] = None):
         super().__init__(args=[], attrs={"dtype": dtype, "shape": shape})
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
+        self.layout: TileLayout = layout if layout else repeat(*shape)
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         assert len(arg_types) == 0
-        return TileType(type_=self.dtype, shape=self.shape, layout=SharedLayout(shape=self.shape))
+        return TileType(elem_type=self.dtype, shape=self.shape, layout=self.layout, scope=TileScope.Shared)
 
 
 class InsertSliceAsync(TileOp):
@@ -51,6 +52,7 @@ class InsertSliceAsync(TileOp):
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         dst_type = arg_types[1]
+        assert dst_type.as_tile_type().scope == TileScope.Shared
         return dst_type
 
 
@@ -84,7 +86,7 @@ class ExtractSlice(TileOp):
             shape = src_shape[: self.axis] + src_shape[self.axis + 1 :]
         else:
             shape = src_shape[: self.axis] + [self.extent] + src_shape[self.axis + 1 :]
-        return TileType(type_=src_type.type, shape=shape, layout=self.layout)
+        return tile_type(elem_type=src_type.type, shape=shape, layout=self.layout)
 
 
 def extract_slice(src: Expr, start_index: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):

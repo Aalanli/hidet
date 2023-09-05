@@ -31,6 +31,14 @@ class DeclareScope(enum.Enum):
     Register = 3
 
     @staticmethod
+    def make(name):
+        if isinstance(name, DeclareScope):
+            return name
+        else:
+            assert isinstance(name, str)
+            return DeclareScope.from_str(name)
+
+    @staticmethod
     def from_str(name):
         if name == 'global':
             return DeclareScope.Global
@@ -39,6 +47,7 @@ class DeclareScope(enum.Enum):
         elif name == 'register':
             return DeclareScope.Register
         else:
+            assert name == 'default'
             return DeclareScope.Default
 
 

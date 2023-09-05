@@ -1,8 +1,8 @@
 from typing import Optional, List, Union
 from hidet.ir.type import BaseType, DataType, PointerType, data_type
 from hidet.ir.expr import Expr
-from hidet.ir.tile.type import TileType, TileLayout, tile_type
-from hidet.ir.tile.layout import BlockLayout
+from hidet.ir.tile.type import TileType, tile_type
+from hidet.ir.tile.layout import TileLayout
 from hidet.ir.tile.expr import TileOp
 
 
@@ -16,28 +16,28 @@ class Broadcast(TileOp):
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]
         assert isinstance(x_type, TileType)
-        return tile_type(type_=x_type.type, shape=self.shape, layout=self.layout)
+        return tile_type(elem_type=x_type.type, shape=self.shape, layout=self.layout)
 
 
 class Reshape(TileOp):
-    def __init__(self, x: Expr, shape: List[int], layout: Optional[BlockLayout] = None):
+    def __init__(self, x: Expr, shape: List[int], layout: Optional[TileLayout] = None):
         super().__init__(args=[x], attrs={"shape": shape, "layout": layout})
         self.x: Expr = x
         self.shape: List[int] = shape
-        self.layout: Optional[BlockLayout] = layout
+        self.layout: Optional[TileLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]
         assert isinstance(x_type, TileType)
-        return tile_type(type_=x_type.type, shape=self.shape, layout=self.layout)
+        return tile_type(elem_type=x_type.type, shape=self.shape, layout=self.layout)
 
 
 class ExpandDims(TileOp):
-    def __init__(self, x: Expr, axis: int, layout: Optional[BlockLayout] = None):
+    def __init__(self, x: Expr, axis: int, layout: Optional[TileLayout] = None):
         super().__init__(args=[x], attrs={"axis": axis, "layout": layout})
         self.x: Expr = x
         self.axis: int = axis
-        self.layout: Optional[BlockLayout] = layout
+        self.layout: Optional[TileLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]
@@ -45,7 +45,7 @@ class ExpandDims(TileOp):
         x_shape = x_type.shape
         axis = self.axis if self.axis >= 0 else len(x_shape) + self.axis + 1
         y_shape = x_shape[:axis] + [1] + x_shape[axis:]
-        return tile_type(type_=x_type.type, shape=y_shape, layout=self.layout)
+        return tile_type(elem_type=x_type.type, shape=y_shape, layout=self.layout)
 
 
 class CastOp(TileOp):
@@ -66,7 +66,7 @@ class CastOp(TileOp):
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]
         assert isinstance(x_type, TileType)
-        return tile_type(type_=self.dtype, shape=x_type.shape, layout=x_type.layout)
+        return tile_type(elem_type=self.dtype, shape=x_type.shape, layout=x_type.layout)
 
 
 def broadcast(x: Expr, shape: List[int]):

@@ -2,13 +2,14 @@ from typing import List, Dict, Union
 from hidet.ir.node import Node
 from hidet.ir.type import BaseType
 from hidet.ir.expr import Expr, Var
+from hidet.ir.tile.type import TileLayout
 
 
 class Attribute:
     pass
 
 
-_ScalarConst = Union[str, int, float, bool, Attribute, BaseType]
+_ScalarConst = Union[str, int, float, bool, Attribute, BaseType, TileLayout]
 CConst = Union[_ScalarConst, List[_ScalarConst]]  # compile-time constant
 
 

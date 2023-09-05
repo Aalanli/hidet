@@ -1,8 +1,9 @@
 from typing import Union, Optional, List
+
 from hidet.ir.expr import Expr
-from hidet.ir.type import BaseType, PointerType, DataType, void
+from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.type import TileType, PointerType, tile_type
-from hidet.ir.tile.expr import TileOp, call_tile_op
+from hidet.ir.type import BaseType, DataType, void
 
 
 class Load(TileOp):
@@ -35,7 +36,7 @@ class Load(TileOp):
         elif isinstance(ptr_type, TileType):
             assert isinstance(ptr_type.type, PointerType)
             elem_type = self._get_loaded_type(ptr_type.type)
-            return tile_type(elem_type, ptr_type.shape, ptr_type.layout)
+            return tile_type(elem_type=elem_type, shape=ptr_type.shape, layout=ptr_type.layout)
         else:
             assert False
 

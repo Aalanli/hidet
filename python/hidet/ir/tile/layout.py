@@ -7,13 +7,19 @@ import itertools
 from hidet.ir.dtypes import boolean, int32
 from hidet.ir.expr import Expr, logical_and, equal
 from hidet.ir.layout import DataLayout, row_major
-from hidet.ir.tile.expr import Attribute
-from hidet.utils import same_list, prod, is_power_of_two, argmin
+from hidet.utils import same_list, prod, is_power_of_two, argmin, argmax
 
 
-class TileLayout(Attribute):
+class TileLayout:
     def __str__(self):
         raise NotImplementedError()
+
+    def __eq__(self, other):
+        raise NotImplementedError()
+
+    def __mul__(self, other):
+        assert isinstance(other, TileLayout)
+        return ComposedLayout(outer=self, inner=other)
 
     def num_workers(self) -> int:
         raise NotImplementedError()
@@ -39,11 +45,8 @@ class TileLayout(Attribute):
     def spatial(self, *shape: int, ranks: Optional[List[int]] = None):
         return ComposedLayout(outer=self, inner=spatial(*shape, ranks=ranks))
 
-    def repeat(self, *shape: int, ranks: Optional[List[int]] = None):
-        return ComposedLayout(outer=self, inner=repeat(*shape, ranks=ranks))
-
-    def full(self, *shape: int, worker_ranks: Optional[List[int]] = None, local_ranks: Optional[List[int]] = None):
-        return ComposedLayout(outer=self, inner=full(*shape, worker_ranks=worker_ranks, local_ranks=local_ranks))
+    def repeat(self, *shape: int, ranks: Optional[List[int]] = None, workers=1):
+        return ComposedLayout(outer=self, inner=repeat(*shape, ranks=ranks, workers=workers))
 
     def visualize(self, verbose=False) -> str:
         shape = self.logical_shape()
@@ -67,43 +70,86 @@ class TileLayout(Attribute):
                     else:
                         r = '{' + ', '.join([str(a) for a, b in workers]) + '}'
             grid[logical_indices] = r
-        width = max(max(len(str(a)) for a in grid.values()), max(len(str(d)) for d in self.logical_shape())) + 1
+        width = max(len(str(a)) for a in grid.values()) + 1
         fmt = '{:>' + str(width) + '}'
         f = io.StringIO()
 
+        idx_width = max(len(str(d)) for d in self.logical_shape()) + 1
+        idx_fmt = '{:>' + str(idx_width) + '}'
+
+        # print the logical shape, num of workers, and local extent
+        print('  logical shape: {}'.format(self.logical_shape()), file=f)
+        print(' num of workers: {}'.format(self.num_workers()), file=f)
+        print('   local extent: {}'.format(self.local_extent()), file=f)
+        # print the first row of indices
         for j in range(shape[-1]):
             if j == 0:
-                print(' ' * width + ' |', file=f, end='')
+                print(' ' * idx_width + ' |', file=f, end='')
             print(fmt.format(j), file=f, end='')
         print(file=f)
+        # print the second row of separator
         for j in range(shape[-1]):
-            sep = ' ' + '-' * (width - 1)
             if j == 0:
-                print(sep + ' +', file=f, end='')
+                sep = ' ' + '-' * (idx_width - 1) + ' +'
+                print(sep, file=f, end='')
+            sep = ' ' + '-' * (width - 1)
             print(sep, file=f, end='')
         print(file=f)
+        # print each row of the layout
         for logical_indices in itertools.product(*map(range, shape)):
             if logical_indices[-1] == 0:
-                print(fmt.format(logical_indices[0]) + ' |', file=f, end='')
+                print(idx_fmt.format(logical_indices[0]) + ' |', file=f, end='')
             print(fmt.format(grid[logical_indices]), file=f, end='')
             if logical_indices[-1] == shape[-1] - 1:
                 print(file=f)
         return f.getvalue()
 
 
-class RepeatLayout(TileLayout):
-    def __init__(self, shape: List[int], ranks: Optional[List[int]] = None):
+class AtomLayout(TileLayout):
+    def __init__(self, shape: List[int], worker_shape: List[int], ranks: List[int], worker_ranks: List[int]):
         self.shape: List[int] = shape
-        self.ranks: List[int] = ranks if ranks is not None else list(range(len(shape)))
+        self.worker_shape: List[int] = worker_shape
+        self.ranks: List[int] = ranks
+        self.worker_ranks: List[int] = worker_ranks
+
+        assert all(a % b == 0 or b % a == 0 for a, b in zip(self.shape, self.worker_shape))
 
     def __str__(self):
-        if same_list(self.ranks, list(range(len(self.shape)))):
-            return "repeat({})".format(", ".join(map(str, self.shape)))
-        else:
-            return "repeat({}, ranks={})".format(", ".join(map(str, self.shape)), self.ranks)
+        pass
 
     def num_workers(self) -> int:
-        return 1
+        return prod(self.worker_shape)
+
+    def local_extent(self) -> int:
+        return prod(max(a // b, 1) for a, b in zip(self.shape, self.worker_shape))
+
+    def logical_shape(self) -> List[int]:
+        return self.shape
+
+    def local2logical(self, local_index: Expr, worker_index: Expr) -> Tuple[List[Expr], Expr]:
+        pass
+
+    def logical2local(self, logical_indices: List[Expr], worker_index: Expr) -> Tuple[Expr, Expr]:
+        pass
+
+
+class RepeatLayout(TileLayout):
+    def __init__(self, shape: List[int], ranks: Optional[List[int]] = None, workers: int = 1):
+        self.shape: List[int] = shape
+        self.ranks: List[int] = ranks if ranks is not None else list(range(len(shape)))
+        self.workers: int = workers
+
+    def __str__(self):
+        items = []
+        items.append(', '.join(map(str, self.shape)))
+        if not same_list(self.ranks, list(range(len(self.shape)))):
+            items.append('ranks={}'.format(', '.join(map(str, self.ranks))))
+        if self.workers != 1:
+            items.append('workers={}'.format(self.workers))
+        return 'repeat(' + ', '.join(items) + ')'
+
+    def num_workers(self) -> int:
+        return self.workers
 
     def local_extent(self) -> int:
         return prod(self.shape)
@@ -114,7 +160,7 @@ class RepeatLayout(TileLayout):
     def local2logical(self, local_index: Expr, worker_index: Expr) -> Tuple[List[Expr], Expr]:
         from hidet.ir.utils.index_transform import index_deserialize
         logical_indices = index_deserialize(local_index, shape=self.shape, ranks=self.ranks)
-        return logical_indices, boolean.true
+        return logical_indices, equal(worker_index, int32.zero)
 
     def logical2local(self, logical_indices: List[Expr], worker_index: Expr) -> Tuple[Expr, Expr]:
         from hidet.ir.utils.index_transform import index_serialize
@@ -151,46 +197,6 @@ class SpatialLayout(TileLayout):
         from hidet.ir.utils.index_transform import index_serialize
         expected_worker_index = index_serialize(logical_indices, shape=self.shape, ranks=self.ranks)
         return int32.zero, equal(worker_index, expected_worker_index)
-
-
-class FullLayout(TileLayout):
-    def __init__(
-        self,
-        shape: List[int],
-        worker_ranks: Optional[List[int]] = None,
-        local_ranks: Optional[List[int]] = None
-    ):
-        self.shape: List[int] = shape
-        self.worker_ranks: List[int] = worker_ranks if worker_ranks is not None else list(range(len(shape)))
-        self.local_ranks: List[int] = local_ranks if local_ranks is not None else list(range(len(shape)))
-
-    def __str__(self):
-        items = []
-        items.append(', '.join(map(str, self.shape)))
-        if not same_list(self.worker_ranks, list(range(len(self.shape)))):
-            items.append("worker_ranks={}".format(", ".join(map(str, self.worker_ranks))))
-        if not same_list(self.local_ranks, list(range(len(self.shape)))):
-            items.append("local_ranks={}".format(", ".join(map(str, self.local_ranks))))
-        return "full({})".format(", ".join(items))
-
-    def num_workers(self) -> int:
-        return prod(self.shape)
-
-    def local_extent(self) -> int:
-        return prod(self.shape)
-
-    def logical_shape(self) -> List[int]:
-        return self.shape
-
-    def local2logical(self, local_index: Expr, worker_index: Expr) -> Tuple[List[Expr], Expr]:
-        from hidet.ir.utils.index_transform import index_deserialize
-        logical_indices = index_deserialize(local_index, shape=self.shape, ranks=self.worker_ranks)
-        return logical_indices, boolean.true
-
-    def logical2local(self, logical_indices: List[Expr], worker_index: Expr) -> Tuple[Expr, Expr]:
-        from hidet.ir.utils.index_transform import index_serialize
-        local_index = index_serialize(logical_indices, shape=self.shape, ranks=self.local_ranks)
-        return local_index, boolean.true
 
 
 class ComposedLayout(TileLayout):
@@ -235,16 +241,12 @@ class ComposedLayout(TileLayout):
         return local_indices, is_valid
 
 
-def repeat(*shape: int, ranks: Optional[List[int]] = None) -> TileLayout:
-    return RepeatLayout(list(shape), ranks=ranks)
+def repeat(*shape: int, ranks: Optional[List[int]] = None, workers=1) -> TileLayout:
+    return RepeatLayout(list(shape), ranks=ranks, workers=workers)
 
 
 def spatial(*shape: int, ranks: Optional[List[int]] = None) -> TileLayout:
     return SpatialLayout(list(shape), ranks=ranks)
-
-
-def full(*shape: int, worker_ranks: Optional[List[int]] = None, local_ranks: Optional[List[int]] = None) -> TileLayout:
-    return FullLayout(list(shape), worker_ranks=worker_ranks, local_ranks=local_ranks)
 
 
 class SharedLayout(TileLayout):
@@ -643,3 +645,13 @@ class BlockDotOperandLayout(DotOperandLayout):
             return [local_index, global_indices[1]], is_valid
         else:
             return [global_indices[0], local_index], is_valid
+
+
+if __name__ == '__main__':
+    a = spatial(8, 4).repeat(4, 4)
+    print(a.visualize())
+    b = spatial(8, 1).repeat(1, 8, workers=4).repeat(4, 1)
+    print(b)
+    print(b.visualize())
+    c = repeat(1, 1, workers=128)
+    print(c.visualize())

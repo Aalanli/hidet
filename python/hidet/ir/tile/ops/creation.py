@@ -1,7 +1,7 @@
 from typing import Optional, List, Union, Sequence, Callable
 from hidet.ir.type import BaseType, DataType, data_type
 from hidet.ir.expr import Var, convert, index_vars
-from hidet.ir.tile.type import tile_type, TileLayout
+from hidet.ir.tile.type import tile_type, TileLayout, TileScope
 from hidet.ir.tile.expr import TileOp, Expr
 
 
@@ -17,7 +17,7 @@ class Arange(TileOp):
 
         extent = self.attrs["end"] - self.attrs["begin"]
         layout = self.attrs["layout"]
-        return tile_type(type_=int32, shape=[extent], layout=layout)
+        return tile_type(elem_type=int32, shape=[extent], layout=layout)
 
 
 class Full(TileOp):
@@ -28,7 +28,7 @@ class Full(TileOp):
         self.layout: Optional[TileLayout] = layout
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-        return tile_type(type_=arg_types[0], shape=self.shape, layout=self.layout)
+        return tile_type(elem_type=arg_types[0], shape=self.shape, layout=self.layout)
 
 
 class Construct(TileOp):
@@ -54,7 +54,7 @@ class Construct(TileOp):
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         x_type = arg_types[0]
-        return tile_type(type_=x_type, shape=self.shape, layout=self.layout)
+        return tile_type(elem_type=x_type, shape=self.shape, layout=self.layout)
 
 
 def arange(begin: int, end: int):

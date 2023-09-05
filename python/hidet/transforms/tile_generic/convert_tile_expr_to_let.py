@@ -1,14 +1,11 @@
 from typing import Type, Dict, Union, List
 
-from hidet.ir.expr import Expr, Call, BinaryExpr, UnaryExpr, Let, var
+from hidet.ir.expr import Let, var
 from hidet.ir.stmt import LetStmt
 from hidet.ir.module import IRModule
 from hidet.ir.functors import IRRewriter
 from hidet.ir.func import Function
-from hidet.ir import expr
-from hidet.ir.type import PointerType, DataType
 from hidet.ir.tools import TypeInfer, collect
-from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.utils import same_list

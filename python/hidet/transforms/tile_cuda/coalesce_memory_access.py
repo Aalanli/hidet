@@ -1,9 +1,9 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from hidet.ir.expr import Var, Expr
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
-from hidet.ir.tile.layout import BlockLayout, TileLayout, DistributedLayout
+from hidet.ir.tile.layout import TileLayout, spatial, repeat
 from hidet.ir.tile.ops import ConvertLayout, convert_layout
 from hidet.ir.tile.ops import Store, Load
 from hidet.ir.tile.type import TileType
@@ -45,12 +45,15 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
 
         ttype: TileType = ptr.type.as_tile_type()
         orig_layout = ttype.layout
-        assert isinstance(orig_layout, DistributedLayout)
-        return BlockLayout.from_shape(
-            shape=ttype.shape,
-            num_warps=orig_layout.num_warps,
-            size_per_thread=[vector_elements if i == len(ttype.shape) - 1 else 1 for i in range(len(ttype.shape))],
-        )
+
+        repeat_shape: List[int] = [vector_elements if i == len(ttype.shape) - 1 else 1 for i in range(len(ttype.shape))]
+
+        new_layout = repeat()
+        # return BlockLayout.from_shape(
+        #     shape=ttype.shape,
+        #     num_warps=orig_layout.num_warps,
+        #     size_per_thread=,
+        # )
 
     def visit_Function(self, func: Function):
         self.var2info = analyze_value(func)

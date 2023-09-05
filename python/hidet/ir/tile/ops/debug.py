@@ -1,8 +1,8 @@
-from typing import Union, Optional, List
+from typing import List
+
 from hidet.ir.expr import Expr
-from hidet.ir.type import BaseType, PointerType, DataType, void
-from hidet.ir.tile.type import TileType, PointerType, tile_type
-from hidet.ir.tile.expr import TileOp, call_tile_op
+from hidet.ir.tile.expr import TileOp
+from hidet.ir.type import BaseType, void
 
 
 class DebugPrint(TileOp):

@@ -1,10 +1,11 @@
-from typing import Union, Optional, List
 from enum import Enum
+from typing import Optional, List
+
 from hidet.ir.expr import Expr
-from hidet.ir.type import BaseType, PointerType, DataType, void
+from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import TileLayout
-from hidet.ir.tile.type import TileType, PointerType, tile_type
-from hidet.ir.tile.expr import TileOp, call_tile_op
+from hidet.ir.tile.type import TileType, tile_type
+from hidet.ir.type import BaseType, DataType
 
 
 class ReduceKind(Enum):
@@ -53,7 +54,7 @@ class ReduceOp(TileOp):
             y_shape = x_shape[:axis] + [1] + x_shape[axis + 1 :]
         else:
             y_shape = x_shape[:axis] + x_shape[axis + 1 :]
-        return tile_type(type_=x_type.type, shape=y_shape, layout=self.layout)
+        return tile_type(elem_type=x_type.type, shape=y_shape, layout=self.layout)
 
 
 def sum(x: Expr, axis: int, keepdims: bool = False):

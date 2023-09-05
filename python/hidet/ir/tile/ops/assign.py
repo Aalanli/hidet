@@ -1,7 +1,7 @@
-from typing import Union, Optional, List
+from typing import List
 from hidet.ir.type import BaseType, void
 from hidet.ir.expr import Var, Expr
-from hidet.ir.tile.type import tile_type, TileLayout, TileType
+from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp
 from hidet.utils import same_list
 
@@ -11,6 +11,7 @@ class Assign(TileOp):
         super().__init__(args=[dst, src])
         self.dst: Var = dst
         self.src: Expr = src
+        assert False, "deprecated"
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         dst_type = arg_types[0]

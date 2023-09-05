@@ -43,12 +43,12 @@ class BinaryTileOp(TileOp):
         a_type = arg_types[0]
         b_type = arg_types[1]
         assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
-        assert a_type.layout == b_type.layout
+        assert a_type.layout == b_type.layout and a_type.scope == b_type.scope
 
         if isinstance(self, (Add, Sub, Multiply, Div, Mod)):
             return arg_types[0]
         elif isinstance(self, (LessThan, LessEqual, Equal, NotEqual, LogicalAnd, LogicalOr)):
-            return tile_type(type_=boolean, shape=a_type.shape, layout=a_type.layout)
+            return tile_type(elem_type=boolean, shape=a_type.shape, scope=a_type.scope, layout=a_type.layout)
         else:
             raise NotImplementedError()
 

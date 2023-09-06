@@ -5,9 +5,9 @@ from hidet.ir.expr import Expr, Var, tensor_var
 from hidet.ir.stmt import AssignStmt, DeclareStmt, DeclareScope
 from hidet.ir.mapping import spatial_map, repeat_map
 from hidet.ir.tile.layout import TileLayout, BlockLayout, DistributedLayout, FlattenBlockLayout, SharedLayout
-from hidet.ir.tile.type import TileType
+from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tile.expr import TileOp
-from hidet.ir.primitives.cuda import syncthreads
+from hidet.ir.primitives.cuda import syncthreads, threadIdx
 from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
 from hidet.ir.builders import StmtBuilder
@@ -21,6 +21,7 @@ class Buffer:
         buf_var: Var,
         dtype: Union[PointerType, DataType],
         shape: List[int],
+        scope: TileScope,
         local_shape: List[int],
         layout: TileLayout,
         info=None,
@@ -28,12 +29,19 @@ class Buffer:
         self.var: Var = buf_var
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
+        self.scope: TileScope = scope
         self.local_shape: List[int] = local_shape
         self.layout: TileLayout = layout
         self.info: TensorInfo = info
 
     def __getitem__(self, item):
-        return self.var[item]
+        if self.scope == self.scope.Shared:
+            local_index, _ = self.layout.logical2local(item)
+            return self.var[item]
+        elif self.scope == self.scope.Register:
+            return self.var[item]
+        else:
+            raise NotImplementedError()
 
     @property
     def block_layout(self) -> BlockLayout:
@@ -50,11 +58,6 @@ class Buffer:
         assert isinstance(self.layout, FlattenBlockLayout)
         return self.layout
 
-    @property
-    def distributed_layout(self) -> DistributedLayout:
-        assert isinstance(self.layout, DistributedLayout)
-        return self.layout
-
     def is_shared(self):
         return isinstance(self.layout, SharedLayout)
 
@@ -63,9 +66,6 @@ class Buffer:
 
     def is_flatten_block(self):
         return isinstance(self.layout, FlattenBlockLayout)
-
-    def is_distributed(self):
-        return isinstance(self.layout, DistributedLayout)
 
 
 class TileOpImpl(StmtBuilder):
@@ -76,25 +76,32 @@ class TileOpImpl(StmtBuilder):
 
         buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape, layout=data_layout))
         self.declare(buf_var, init=alloc_shared(nbytes=sizeof(dtype) * prod(shape)))
-        # buf_var = self.declare(tensor_var(hint, shape, dtype, layout=data_layout), scope=DeclareScope.Shared)
-        return Buffer(buf_var=buf_var, dtype=dtype, shape=shape, local_shape=shape, layout=SharedLayout(shape))
+        return Buffer(
+            buf_var=buf_var,
+            dtype=dtype,
+            shape=shape,
+            scope=TileScope.Shared,
+            local_shape=shape,
+            layout=SharedLayout(shape)
+        )
 
     def sync_threads(self):
         self.append(syncthreads())
 
-    def iterate_dist_buffer_and_apply(self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr], None]):
-        assert isinstance(buf.layout, DistributedLayout)
-        layout: DistributedLayout = buf.layout
-        local_shape: List[int] = layout.calc_local_shape(buf.shape)
+    def iterate_dist_buffer_and_apply(self, buf: Buffer, f_apply: Callable[[Expr, List[Expr], Expr], None]):
+        assert buf.scope == TileScope.Register
 
-        with self.for_mapping(repeat_map(local_shape)) as local_indices:
-            global_indices, not_duplicated = layout.local_to_global(local_indices, global_shape=buf.shape)
-            f_apply(local_indices, global_indices, not_duplicated)
+        layout: TileLayout = buf.layout
+        local_extent: int = layout.local_extent()
 
-    def iterate_dist_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]):
-        def f_apply(local_indices, global_indices, not_duplicated):
-            value = f_compute(local_indices, global_indices, not_duplicated)
-            self.buffer_store(buf.var, indices=local_indices, value=value)
+        with self.for_range(local_extent) as local_index:
+            global_indices, not_duplicated = layout.local2logical(local_index, worker_index=threadIdx.x)
+            f_apply(local_index, global_indices, not_duplicated)
+
+    def iterate_dist_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[Expr, List[Expr], Expr], Expr]):
+        def f_apply(local_index, global_indices, not_duplicated):
+            value = f_compute(local_index, global_indices, not_duplicated)
+            self.buffer_store(buf.var, indices=[local_index], value=value)
 
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 

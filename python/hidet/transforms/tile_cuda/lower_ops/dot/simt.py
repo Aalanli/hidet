@@ -32,6 +32,8 @@ class SimtDotImpl(TileOpImpl):
 
         with self.for_range(k_size) as k:
             with self.for_grid(d.local_shape) as d_indices:
+                d_index = d_indices[0]  # assert(len(d_indices) == 1)
+                i, j = d_index
                 a_indices = [d_indices[0], k]
                 b_indices = [k, d_indices[1]]
                 self.buffer_store(d.var, d_indices, d[d_indices] + a[a_indices] * b[b_indices])

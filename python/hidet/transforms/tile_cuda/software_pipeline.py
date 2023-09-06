@@ -16,7 +16,7 @@ from hidet.ir.tile.ops.arthimatic import LogicalAnd
 from hidet.ir.tile.ops import ConvertLayout, Construct
 from hidet.ir.tile.ops import construct
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.type import TileType
+from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tools import TypeInfer, rewrite
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile_cuda.remove_layout_convert import FoldConvertLayoutTransform, DeadCodeEliminationRewriter
@@ -312,7 +312,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         buffer_vars: List[Var] = []
         for load_type in load_types:
             shape = [self.num_stages] + load_type.shape
-            buffer_type = TileType(load_type.type, shape, layout=SharedLayout(shape))
+            buffer_type = TileType(load_type.type, shape, layout=SharedLayout(shape), scope=TileScope.Shared)
             buffer_var = Var('smem', type=buffer_type)
             buffer_vars.append(buffer_var)
             stmts.append(LetStmt(buffer_var, AllocTensor(dtype=load_type.type, shape=shape).make_call()))

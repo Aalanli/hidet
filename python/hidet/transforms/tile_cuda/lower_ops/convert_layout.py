@@ -5,6 +5,7 @@ from hidet.ir.mapping import auto_map
 from hidet.ir.mapping import spatial_map
 from hidet.ir.primitives.cuda import shfl_down_sync, shfl_up_sync, threadIdx
 from hidet.ir.tile.layout import BlockLayout
+from hidet.ir.tile.type import TileScope
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.utils import prod, is_power_of_two, log_two
@@ -17,7 +18,7 @@ class ConvertLayoutImpl(TileOpImpl):
         src: Buffer = args[0]
         dst: Buffer = output
 
-        if src.is_distributed() and dst.is_distributed():
+        if src.scope.is_register() and dst.scope.is_register():
             # handle the cases where the conversion can be done efficiently
             if src.is_block() and dst.is_block() and src.layout == dst.layout:
                 return src
@@ -50,7 +51,7 @@ class ConvertLayoutImpl(TileOpImpl):
 
                 self.sync_threads()
 
-        elif src.is_distributed() and dst.is_shared():
+        elif src.scope.is_register() and dst.scope.is_shared():
 
             def f_apply(local_indices, global_indices, not_duplicated):
                 with self.if_then(not_duplicated):
@@ -58,7 +59,7 @@ class ConvertLayoutImpl(TileOpImpl):
 
             self.iterate_dist_buffer_and_apply(src, f_apply)
             self.sync_threads()
-        elif src.is_shared() and dst.is_distributed():
+        elif src.is_shared() and dst.scope.is_register():
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 return src[global_indices]

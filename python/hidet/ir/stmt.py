@@ -50,6 +50,12 @@ class DeclareScope(enum.Enum):
             assert name == 'default'
             return DeclareScope.Default
 
+    def is_shared(self):
+        return self == DeclareScope.Shared
+
+    def is_register(self):
+        return self == DeclareScope.Register
+
 
 class ForStmtAttr:
     def __init__(self, unroll=False, unroll_factor=None, unroll_explicit=False, parallel=False, parallel_threads=None):

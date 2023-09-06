@@ -40,7 +40,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
         if isinstance(layout, BlockLayout):
-            axis: int = len(layout.layout_shape) - 1  # the last axis is the innermost axis
+            axis: int = len(layout.shape) - 1  # the last axis is the innermost axis
 
             # the number of elements loaded by each thread
             vec_size: int = layout.size_per_thread[axis]
@@ -64,20 +64,19 @@ class InsertSliceAsyncImpl(TileOpImpl):
             # 1. cp_size in [4, 8, 16] bytes
             # 2. the other value can only be zero, thus do not support explicit other
             if cp_size >= 4 and other is None:
-                local_shape: List[int] = layout.calc_local_shape(ptr.shape)
-                mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
+                local_extent: int = layout.local_extent()
 
-                with self.for_mapping(repeat_map(mapping_shape)) as indices:
-                    local_indices = [idx if dim != axis else idx * vec_size for dim, idx in enumerate(indices)]
-                    global_indices, not_duplicated = layout.local_to_global(local_indices, global_shape=ptr.shape)
-                    global_indices = global_indices[:insert_axis] + [index] + global_indices[insert_axis:]
+                with self.for_range(local_extent) as idx:
+                    local_index = idx * vec_size
+                    logical_indices, not_duplicated = layout.local2logical(local_index)
+                    logical_indices = logical_indices[:insert_axis] + [index] + logical_indices[insert_axis:]
                     with self.if_then(not_duplicated):
                         self.append(
                             cp_async(
-                                dst=~dst[global_indices],
-                                src=ptr[local_indices],
+                                dst=~dst[logical_indices],
+                                src=ptr[local_index],
                                 cp_size=cp_size,
-                                src_size=if_then_else(mask[local_indices], cp_size, 0) if mask else None,
+                                src_size=if_then_else(mask[local_index], cp_size, 0) if mask else None,
                             )
                         )
                 self.assign(output.var, dst.var)
@@ -89,14 +88,14 @@ class InsertSliceAsyncImpl(TileOpImpl):
             if other:
                 assert other.layout == ptr.layout
 
-            def f_apply(local_indices, global_indices, not_duplicated):
+            def f_apply(local_index, global_indices, not_duplicated):
                 if mask is None:
                     with self.if_then(not_duplicated):
                         if dtype.nbytes < 4:
-                            self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~dst[global_indices]]))
+                            self.append(load(dtype, addr=ptr[local_index], dst_addrs=[~dst[global_indices]]))
                         else:
                             self.append(
-                                cp_async(dst=~dst[global_indices], src=ptr[local_indices], cp_size=dtype.nbytes)
+                                cp_async(dst=~dst[global_indices], src=ptr[local_index], cp_size=dtype.nbytes)
                             )
                 else:
                     raise NotImplementedError()

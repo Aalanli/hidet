@@ -640,7 +640,7 @@ class IRPrinter(IRFunctor):
             doc = 'flatten_block(' + self.visit_TileLayout(layout.parent) + ', axis=' + self(layout.axis) + ')'
             return doc
         elif isinstance(layout, SharedLayout):
-            doc = 'shared(' + self.visit(layout.data_layout) + ')'
+            doc = 'shared(' + self.visit(layout.shape) + ')'
             return doc
         elif isinstance(layout, BlockDotOperandLayout):
             doc = 'dot_operand(parent=' + self.visit_TileLayout(layout.parent) + ', id=' + self(layout.op_idx) + ')'

@@ -424,12 +424,12 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
 def main():
     for m_size, n_size, k_size in [
         [1024, 1024, 1024],
-        [32, 4096, 4096],
-        [1023, 1023, 1024],
-        [1024, 1024, 1023],
-        [1111, 1111, 1111]
+        # [32, 4096, 4096],
+        # [1023, 1023, 1024],
+        # [1024, 1024, 1023],
+        # [1111, 1111, 1111]
     ]:
-        demo_matmul(m_size, n_size, k_size, dtype='float16', bench=True)
+        demo_matmul(m_size, n_size, k_size, dtype='float32', bench=True)
         # report = ncu_run(demo_matmul, m_size, n_size, k_size, dtype='float32')
         # report.visualize()
 

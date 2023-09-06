@@ -9,7 +9,7 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, ForStmt, AssignStmt
 from hidet.ir.stmt import Stmt, SeqStmt, EvaluateStmt, DeclareScope
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DistributedLayout
-from hidet.ir.tile.type import TileType
+from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import BaseType
@@ -41,17 +41,13 @@ class LowerTileDialectRewriter(IRRewriter):
         layout: TileLayout = ttype.layout
         shape: List[int] = ttype.shape
         dtype: Union[DataType, PointerType] = ttype.type
-        if isinstance(layout, DistributedLayout):
-            local_shape = layout.calc_local_shape(shape)
-            buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
-            self.append_stmt(DeclareStmt(buf_var))
-        elif isinstance(layout, SharedLayout):
-            local_shape = layout.calc_local_shape(shape)
-            buf_var: Var = tensor_pointer_var(hint=hint, shape=shape, dtype=dtype, layout=layout.data_layout)
-            self.append_stmt(DeclareStmt(buf_var))
-        else:
-            raise NotImplementedError()
-        buf = Buffer(buf_var, dtype, shape, local_shape, layout)
+        scope: TileScope = ttype.scope
+
+        local_extent = layout.local_extent()
+        buf_var: Var = tensor_pointer_var(hint=hint, shape=[local_extent], dtype=dtype)
+        self.append_stmt(DeclareStmt(buf_var))
+
+        buf = Buffer(buf_var, dtype, shape, scope, [local_extent], layout)
         return buf
 
     def append_stmt(self, stmt: Union[Stmt, Expr]):
@@ -65,11 +61,11 @@ class LowerTileDialectRewriter(IRRewriter):
         return stmts
 
     def assign_buffer(self, dst: Buffer, src: Buffer):
-        if src.is_distributed() and dst.is_distributed():
+        if dst.scope == src.scope == TileScope.Register:
             assign_impl = AssignImpl()
             assign_impl.implement(None, args=[dst, src], output=None)
             self.stmts.append(assign_impl.finish())
-        elif src.is_shared() and dst.is_shared():
+        elif src.scope == dst.scope == TileScope.Shared:
             self.append_stmt(AssignStmt(dst.var, src.var))
         else:
             raise NotImplementedError()

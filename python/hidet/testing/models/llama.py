@@ -10,7 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 from collections import OrderedDict
 
 from tqdm import tqdm
@@ -389,7 +389,7 @@ def convert_model(hf_model: torch.nn.Module, dtype=hidet.float16, device='cuda')
     return hidet_model
 
 
-def build_flow_graph(model, batch_size=1, device='cuda', dtype='float16'):
+def build_flow_graph(model, batch_size: Union[str, int] = 1, device='cuda', dtype='float16'):
     config = model.config
     input_ids = hidet.symbol([batch_size, "seq_length"], dtype=hidet.int32, device=device)
     position_ids = hidet.symbol([batch_size, config.max_position_embeddings], dtype=hidet.int32, device=device)
@@ -469,7 +469,7 @@ def generate_torch(input_ids: str, tokenizer, torch_model, num_tokens, device='c
     return tokenizer.decode(outputs)
 
 
-def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=False):
+def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=False, batch_size: Union[str, int] = 1):
     tok = LlamaTokenizer.from_pretrained(name)
 
     with torch.device("cuda"):  # reduce the time to load the model
@@ -482,7 +482,7 @@ def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=
 
     model: nn.Module = convert_model(model, device=device)
 
-    flow_graph = build_flow_graph(model, device=device)
+    flow_graph = build_flow_graph(model, device=device, batch_size=batch_size)
 
     if opt:
         with hidet.graph.PassContext() as ctx:

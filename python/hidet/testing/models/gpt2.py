@@ -172,7 +172,7 @@ class GPT2Model(nn.Module):
         cur_keys = []  # layers of [batch_size, 1, num_heads, seq_length, head_dim]
         cur_values = []  # layers of [batch_size, 1, num_heads, seq_length, head_dim]
         for i, block in enumerate(self.h):
-            hidden_states, cur_key, cur_value = block(hidden_states, past_keys[i], past_values[i])
+            hidden_states, cur_key, cur_value = block(hidden_states, past_keys[:, i], past_values[:, i])
             cur_keys.append(cur_key.unsqueeze(1))
             cur_values.append(cur_value.unsqueeze(1))
 

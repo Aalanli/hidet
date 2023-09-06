@@ -21,15 +21,15 @@ def generate(model, text, num_hidden_layers, num_heads, head_dim, device, tokens
     tokenizer = hidet.testing.models.gpt2.tokenizer()
     input_ids_list: List[int] = tokenizer(text)['input_ids']
 
-    input_ids = hidet.asarray(input_ids_list, dtype=hidet.int32, device=device)
-    position_ids = hidet.arange(input_ids.shape[0], dtype=hidet.int32, device=device)
-    past_keys = hidet.zeros([num_hidden_layers, num_heads, 0, head_dim], dtype=hidet.float32, device=device)
-    past_values = hidet.zeros([num_hidden_layers, num_heads, 0, head_dim], dtype=hidet.float32, device=device)
+    input_ids = hidet.asarray([input_ids_list], dtype=hidet.int32, device=device)
+    position_ids = hidet.arange(input_ids.shape[1], dtype=hidet.int32, device=device).unsqueeze(0)
+    past_keys = hidet.zeros([1, num_hidden_layers, num_heads, 0, head_dim], dtype=hidet.float32, device=device)
+    past_values = hidet.zeros([1, num_hidden_layers, num_heads, 0, head_dim], dtype=hidet.float32, device=device)
 
     output_ids = []
     for _ in range(tokens_to_generate):
         input_ids, position_ids, past_keys, past_values = model(input_ids, position_ids, past_keys, past_values)
-        output_ids.append(input_ids[0].item())
+        output_ids.append(input_ids[0, 0].item())
 
     return tokenizer.decode(output_ids)
 
@@ -41,9 +41,9 @@ def test_gpt2(device: str, opt: bool):
     if device == 'cuda':
         gpt2_module.cuda()
 
-    input_ids = hidet.symbol(['seq_length'], dtype=hidet.int32, device=device)
-    position_ids = hidet.symbol(['seq_length'], dtype=hidet.int32, device=device)
-    cache_shape = [gpt2_module.num_hidden_layers, gpt2_module.num_heads, 'prev_seq_length', gpt2_module.head_dim]
+    input_ids = hidet.symbol([1, 'seq_length'], dtype=hidet.int32, device=device)
+    position_ids = hidet.symbol([1, 'seq_length'], dtype=hidet.int32, device=device)
+    cache_shape = [1, gpt2_module.num_hidden_layers, gpt2_module.num_heads, 'prev_seq_length', gpt2_module.head_dim]
     past_keys = hidet.symbol(cache_shape, dtype=hidet.float32, device=device)
     past_values = hidet.symbol(cache_shape, dtype=hidet.float32, device=device)
 

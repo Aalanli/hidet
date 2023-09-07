@@ -89,7 +89,7 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
     num_warps = 8
     block_m = 128
     block_n = 64
-    block_k = 16
+    block_k = 32
     dtype = data_type(dtype)
 
     with hidet.script_module() as script_module:

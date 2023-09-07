@@ -469,7 +469,7 @@ def generate_torch(input_ids: str, tokenizer, torch_model, num_tokens, device='c
     return tokenizer.decode(outputs)
 
 
-def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=False, batch_size: Union[str, int] = 1):
+def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=False, batch_size: Union[str, int] = 1, build_space: int = 0):
     tok = LlamaTokenizer.from_pretrained(name)
 
     with torch.device("cuda"):  # reduce the time to load the model
@@ -489,7 +489,7 @@ def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=
             ctx.reduce_cuda_compile_mem()
             flow_graph = hidet.graph.optimize(flow_graph)
 
-    compiled = flow_graph.build()
+    compiled = flow_graph.build(space=build_space)
     return compiled, config, tok
 
 

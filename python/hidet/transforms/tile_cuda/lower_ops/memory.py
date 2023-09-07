@@ -23,10 +23,10 @@ class LoadImpl(TileOpImpl):
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
         if isinstance(layout, BlockLayout):
-            axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
+            axis = len(layout.shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
             if vec_size > 1 and mask is None:
-                local_shape: List[int] = layout.calc_local_shape(output.shape)
+                local_shape: List[int] = layout.local_shape()
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
 
                 with self.for_mapping(repeat_map(mapping_shape)) as indices:
@@ -41,35 +41,33 @@ class LoadImpl(TileOpImpl):
                     )
                 return
 
-        if isinstance(ptr.layout, DistributedLayout):
-            if mask:
-                assert mask.layout == ptr.layout
-            if other:
-                assert other.layout == ptr.layout
+        assert ptr.scope.is_register()
+        if mask:
+            assert mask.layout == ptr.layout
+        if other:
+            assert other.layout == ptr.layout
 
-            def f_apply(local_indices, global_indices, not_duplicated):
-                if mask is None:
-                    self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~output.var[local_indices]]))
-                else:
-                    if other is None:
-                        assert isinstance(ptr.dtype, PointerType)
-                        value_type = ptr.dtype.base_type
-                        if isinstance(value_type, PointerType):
-                            other_value = void_p(0)
-                        elif isinstance(value_type, DataType):
-                            other_value = value_type.zero
-                        else:
-                            raise NotImplementedError()
+        def f_apply(local_indices, global_indices, not_duplicated):
+            if mask is None:
+                self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~output.var[local_indices]]))
+            else:
+                if other is None:
+                    assert isinstance(ptr.dtype, PointerType)
+                    value_type = ptr.dtype.base_type
+                    if isinstance(value_type, PointerType):
+                        other_value = void_p(0)
+                    elif isinstance(value_type, DataType):
+                        other_value = value_type.zero
                     else:
-                        other_value = other[local_indices]
-                    with self.if_then(mask[local_indices]):
-                        self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~output.var[local_indices]]))
-                    with self.otherwise():
-                        self.buffer_store(output.var, local_indices, other_value)
+                        raise NotImplementedError()
+                else:
+                    other_value = other[local_indices]
+                with self.if_then(mask[local_indices]):
+                    self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~output.var[local_indices]]))
+                with self.otherwise():
+                    self.buffer_store(output.var, local_indices, other_value)
 
-            self.iterate_dist_buffer_and_apply(output, f_apply)
-        else:
-            raise NotImplementedError()
+        self.iterate_dist_buffer_and_apply(output, f_apply)
 
 
 @register_impl(Store)
@@ -86,13 +84,13 @@ class StoreImpl(TileOpImpl):
         layout = ptr.layout
 
         if isinstance(layout, BlockLayout):
-            axis = len(layout.layout_shape) - 1  # the last axis is the innermost axis
+            axis = len(layout.shape) - 1  # the last axis is the innermost axis
             vec_size = min(layout.size_per_thread[axis] * dtype.nbytes, 16) // dtype.nbytes
             vec_size = min(vec_size, ptr.info.continuity[axis], ptr.info.divisibility[axis])
             if mask:
                 vec_size = min(vec_size, mask.info.constancy[axis])
             if vec_size > 1:
-                local_shape: List[int] = layout.calc_local_shape(ptr.shape)
+                local_shape: List[int] = layout.local_shape()
                 mapping_shape: List[int] = [d if i != axis else d // vec_size for i, d in enumerate(local_shape)]
 
                 with self.for_mapping(repeat_map(mapping_shape)) as indices:
@@ -122,22 +120,22 @@ class StoreImpl(TileOpImpl):
                         self.append(store(dtype, addr=ptr[local_indices], src_addrs=src_addrs))
                 return
 
-        if isinstance(ptr.layout, DistributedLayout):
-            assert value.layout == ptr.layout
+        assert ptr.scope.is_register()
+        assert value.layout == ptr.layout
+        if mask:
+            assert mask.layout == ptr.layout
+
+        def f_apply(local_indices, global_indices, not_duplicated):
+
             if mask:
-                assert mask.layout == ptr.layout
+                assert isinstance(mask, Buffer) and ptr.layout == mask.layout
+                mask_value = mask[local_indices]
+            else:
+                mask_value = True
 
-            def f_apply(local_indices, global_indices, not_duplicated):
+            with self.if_then(logical_and(not_duplicated, mask_value)):
+                # the same element in the tile might be stored in multiple threads, this if statement
+                # ensures that only one thread stores the value
+                self.append(store(dtype, addr=ptr.var[local_indices], src_addrs=[~value.var[local_indices]]))
 
-                if mask:
-                    assert isinstance(mask, Buffer) and ptr.layout == mask.layout
-                    mask_value = mask[local_indices]
-                else:
-                    mask_value = True
-
-                with self.if_then(logical_and(not_duplicated, mask_value)):
-                    # the same element in the tile might be stored in multiple threads, this if statement
-                    # ensures that only one thread stores the value
-                    self.append(store(dtype, addr=ptr.var[local_indices], src_addrs=[~value.var[local_indices]]))
-
-            self.iterate_dist_buffer_and_apply(ptr, f_apply)
+        self.iterate_dist_buffer_and_apply(ptr, f_apply)

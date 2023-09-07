@@ -90,7 +90,7 @@ class InjectExplicitTransformOpsRewriter(IRRewriter):
         if ptr is e.ptr and mask is e.mask and value is e.value:
             return e
         else:
-            return e.reforward([ptr, mask, value])
+            return e.reforward([ptr, value, mask])
 
 
 class InjectExplicitTransformOpsPass(TileFunctionPass):

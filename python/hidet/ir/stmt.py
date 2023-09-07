@@ -205,7 +205,7 @@ class DeclareStmt(Stmt):
 class BufferStoreStmt(Stmt):
     def __init__(self, buf, indices, value, protected=False):
         super().__init__()
-        assert isinstance(indices, (list, tuple)), type(indices)
+        assert isinstance(indices, (list, tuple)) and all(isinstance(v, Expr) for v in indices), indices
         self.buf: Union[Var, TensorNode] = buf
         self.indices = convert(indices)
         self.value = convert(value)

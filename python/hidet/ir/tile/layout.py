@@ -28,19 +28,19 @@ class TileLayout:
     def num_workers(self) -> int:
         raise NotImplementedError()
 
-    def local_extent(self) -> int:
+    def local_shape(self) -> List[int]:
         raise NotImplementedError()
 
     def logical_shape(self) -> List[int]:
         raise NotImplementedError()
 
-    def local2logical(self, local_index: Expr, worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+    def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         """
         ret: logical_indices, not_duplicated
         """
         raise NotImplementedError()
 
-    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[Expr, Expr]:
+    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         """
         ret: local_index, is_valid
         """
@@ -67,11 +67,11 @@ class TileLayout:
             raise ValueError('Cannot visualize layout with rank {} (shape={})'.format(len(shape), shape))
         grid: Dict[Tuple[int, ...], str] = {}
         for logical_indices in itertools.product(*map(range, shape)):
-            workers: List[Tuple[int, int]] = []
+            workers: List[Tuple[int, List[int]]] = []
             for worker_index in range(self.num_workers()):
-                local_index, is_valid = self.logical2local(logical_indices, int32(worker_index))
+                local_indices, is_valid = self.logical2local(logical_indices, int32(worker_index))
                 if is_valid:
-                    workers.append((worker_index, int(local_index)))
+                    workers.append((worker_index, [int(v) for v in local_indices]))
             if len(workers) == 0:
                 r = '.'
             else:
@@ -92,8 +92,8 @@ class TileLayout:
 
         # print the logical shape, num of workers, and local extent
         print('  logical shape: {}'.format(self.logical_shape()), file=f)
+        print('    local shape: {}'.format(self.local_shape()), file=f)
         print(' num of workers: {}'.format(self.num_workers()), file=f)
-        print('   local extent: {}'.format(self.local_extent()), file=f)
         # print the first row of indices
         for j in range(shape[-1]):
             if j == 0:
@@ -130,7 +130,7 @@ class AtomLayout(TileLayout):
         self.worker_shape: List[int] = worker_shape
         self.ranks: List[int] = ranks if ranks is not None else list(range(len(shape)))
         self.worker_ranks: List[int] = worker_ranks if worker_ranks is not None else list(range(len(worker_shape)))
-        self.local_shape: List[int] = [max(a // b, 1) for a, b in zip(shape, worker_shape)]
+        self._local_shape: List[int] = [max(a // b, 1) for a, b in zip(shape, worker_shape)]
 
         assert all(a % b == 0 or b % a == 0 for a, b in zip(self.shape, self.worker_shape))
 
@@ -153,20 +153,19 @@ class AtomLayout(TileLayout):
     def num_workers(self) -> int:
         return prod(self.worker_shape)
 
-    def local_extent(self) -> int:
-        return prod(self.local_shape)
+    def local_shape(self) -> List[int]:
+        return self._local_shape
 
     def logical_shape(self) -> List[int]:
         return self.shape
 
-    def local2logical(self, local_index: Expr, worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+    def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         from hidet.ir.utils.index_transform import index_deserialize
 
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
             worker_index = threadIdx.x
 
-        local_indices = index_deserialize(local_index, self.local_shape, ranks=self.ranks)
         worker_indices = index_deserialize(worker_index, self.worker_shape, ranks=self.worker_ranks)
         logical_indices = []
         not_duplicated = boolean.true
@@ -181,8 +180,10 @@ class AtomLayout(TileLayout):
             logical_indices.append(c)
         return logical_indices, not_duplicated
 
-    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[Expr, Expr]:
-        from hidet.ir.utils.index_transform import index_deserialize, index_serialize
+    def logical2local(
+        self, logical_indices: List[Expr], worker_index: Optional[Expr] = None
+    ) -> Tuple[List[Expr], Expr]:
+        from hidet.ir.utils.index_transform import index_deserialize
 
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
@@ -207,7 +208,7 @@ class AtomLayout(TileLayout):
                 #  worker extent: --------
                 local_indices.append(int32.zero)
                 is_valid = logical_and(is_valid, equal(logical_indices[i], worker_indices[i]))
-        return index_serialize(local_indices, self.local_shape, self.ranks), is_valid
+        return local_indices, is_valid
 
 
 class RepeatLayout(AtomLayout):
@@ -238,22 +239,22 @@ class ComposedLayout(TileLayout):
     def num_workers(self) -> int:
         return self.outer.num_workers() * self.inner.num_workers()
 
-    def local_extent(self) -> int:
-        return self.outer.local_extent() * self.inner.local_extent()
+    def local_shape(self) -> List[int]:
+        return [a * b for a, b in zip(self.outer.local_shape(), self.inner.local_shape())]
 
     def logical_shape(self) -> List[int]:
         return [a * b for a, b in zip(self.outer.logical_shape(), self.inner.logical_shape())]
 
-    def local2logical(self, local_index: Expr, worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+    def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
             worker_index = threadIdx.x
         outer_worker = worker_index // self.inner.num_workers()
         inner_worker = worker_index % self.inner.num_workers()
-        outer_local_index = local_index // self.inner.local_extent()
-        inner_local_index = local_index % self.inner.local_extent()
-        outer_logical, outer_not_duplicated = self.outer.local2logical(outer_local_index, outer_worker)
-        inner_logical, inner_not_duplicated = self.inner.local2logical(inner_local_index, inner_worker)
+        outer_local_indices = [a // b for a, b in zip(local_indices, self.inner.local_shape())]
+        inner_local_indices = [a % b for a, b in zip(local_indices, self.inner.local_shape())]
+        outer_logical, outer_not_duplicated = self.outer.local2logical(outer_local_indices, outer_worker)
+        inner_logical, inner_not_duplicated = self.inner.local2logical(inner_local_indices, inner_worker)
         logical_indices = [a * s + b for a, s, b in zip(outer_logical, self.inner.logical_shape(), inner_logical)]
         not_duplicated = logical_and(outer_not_duplicated, inner_not_duplicated)
         return logical_indices, not_duplicated
@@ -270,7 +271,7 @@ class ComposedLayout(TileLayout):
         inner_worker = worker_index % self.inner.num_workers()
         outer_local, outer_is_valid = self.outer.logical2local(outer_logical, outer_worker)
         inner_local, inner_is_valid = self.inner.logical2local(inner_logical, inner_worker)
-        local_indices = outer_local * self.inner.local_extent() + inner_local
+        local_indices = [a * b + c for a, b, c in zip(outer_local, self.inner.local_shape(), inner_local)]
         is_valid = logical_and(outer_is_valid, inner_is_valid)
         return local_indices, is_valid
 
@@ -288,16 +289,18 @@ class ParameterizedTileLayout(TileLayout):
     def num_workers(self) -> int:
         return self.layout.num_workers()
 
-    def local_extent(self) -> int:
-        return self.layout.local_extent()
+    def local_shape(self) -> List[int]:
+        return self.layout.local_shape()
 
     def logical_shape(self) -> List[int]:
         return self.layout.logical_shape()
 
-    def local2logical(self, local_index: Expr, worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
-        return self.layout.local2logical(local_index, worker_index)
+    def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+        return self.layout.local2logical(local_indices, worker_index)
 
-    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[Expr, Expr]:
+    def logical2local(
+        self, logical_indices: List[Expr], worker_index: Optional[Expr] = None
+    ) -> Tuple[List[Expr], Expr]:
         return self.layout.logical2local(logical_indices, worker_index)
 
 
@@ -501,18 +504,22 @@ class FlattenBlockLayout(TileLayout):
     def num_workers(self) -> int:
         return self.flat_layout.num_workers()
 
-    def local_extent(self) -> int:
-        return self.flat_layout.local_extent()
+    def local_shape(self) -> List[int]:
+        return self.flat_layout.local_shape()
 
     def logical_shape(self) -> List[int]:
-        return self.flat_layout.logical_shape()
+        shape = self.flat_layout.logical_shape()
+        assert shape[self.axis] == 1
+        return shape[: self.axis] + shape[self.axis + 1:]
 
-    def local2logical(self, local_index: Expr, worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
-        logical_indices, not_duplicated = self.flat_layout.local2logical(local_index, worker_index)
+    def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+        logical_indices, not_duplicated = self.flat_layout.local2logical(local_indices, worker_index)
         logical_indices = logical_indices[: self.axis] + logical_indices[self.axis + 1:]
         return logical_indices, not_duplicated
 
-    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[Expr, Expr]:
+    def logical2local(
+        self, logical_indices: List[Expr], worker_index: Optional[Expr] = None
+    ) -> Tuple[List[Expr], Expr]:
         logical_indices = logical_indices[: self.axis] + [int32.zero] + logical_indices[self.axis:]
         return self.flat_layout.logical2local(logical_indices, worker_index)
 
@@ -553,15 +560,24 @@ class BlockDotOperandLayout(DotOperandLayout):
 
 
 if __name__ == '__main__':
-    layout = BlockLayout(shape=[64, 32], warps_per_block=[2, 2], thread_per_warp=[8, 4], size_per_thread=[4, 4])
-    dd = {}
-    hash(layout)
-    dd[layout] = 1
-    print(layout.layout)
-    print(layout.visualize())
-    a_layout = BlockDotOperandLayout(layout, 4, 0)
-    print(a_layout.layout)
-    print(a_layout.visualize())
-    b_layout = BlockDotOperandLayout(layout, 4, 1)
-    print(b_layout.layout)
-    print(b_layout.visualize())
+    # layout = BlockLayout(shape=[64, 32], warps_per_block=[2, 2], thread_per_warp=[8, 4], size_per_thread=[4, 4])
+    # dd = {}
+    # hash(layout)
+    # dd[layout] = 1
+    # print(layout.layout)
+    # print(layout.visualize())
+    # a_layout = BlockDotOperandLayout(layout, 4, 0)
+    # print(a_layout.layout)
+    # print(a_layout.visualize())
+    # b_layout = BlockDotOperandLayout(layout, 4, 1)
+    # print(b_layout.layout)
+    # print(b_layout.visualize())
+
+    a = BlockLayout(shape=[16], warps_per_block=[1], thread_per_warp=[32], size_per_thread=[1])
+    print(a.visualize())
+    for w in range(32):
+        print(w)
+        for i in range(16):
+            local_indices, is_valid = a.logical2local([int32(i)], worker_index=int32(w))
+            print('({}, {}, {}) '.format(w, local_indices[0], is_valid), end='')
+        print()

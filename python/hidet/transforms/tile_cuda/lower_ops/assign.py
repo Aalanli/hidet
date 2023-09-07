@@ -17,7 +17,7 @@ class AssignImpl(TileOpImpl):
         dst: Buffer = args[0]
         src: Buffer = args[1]
 
-        assert dst.layout == src.layout and src.is_distributed()
+        assert dst.layout == src.layout and src.scope.is_register()
 
         def f_compute(local_indices, global_indices, not_duplicated):
             return src[local_indices]

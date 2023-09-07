@@ -31,7 +31,7 @@ class BroadcastImpl(TileOpImpl):
 
         broadcast_dims = [i for i in range(len(dst.shape)) if dst.shape[i] != src.shape[i]]
 
-        if src.is_distributed() and dst.is_distributed() and src.layout == dst.layout:
+        if src.scope.is_register() and dst.scope.is_register() and src.layout == dst.layout:
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 local_indices = [idx if i not in broadcast_dims else 0 for i, idx in enumerate(local_indices)]
@@ -47,7 +47,7 @@ class CastOpImpl(TileOpImpl):
     def implement(self, op: CastOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         src: Buffer = args[0]
         dst: Buffer = output
-        if src.is_distributed() and dst.is_distributed() and src.layout == dst.layout:
+        if src.scope.is_register() and dst.scope.is_register() and src.layout == dst.layout:
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 return src[local_indices]

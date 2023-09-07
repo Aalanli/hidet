@@ -398,6 +398,7 @@ class PythonToHidetTranslator(PythonAstFunctor):
             indices = self.visit(lhs.slice)
             if not isinstance(indices, list):
                 indices = [indices]
+            indices = [ir.expr.convert(idx) for idx in indices]
             self.current_scope.append(ir.BufferStoreStmt(buf=base, indices=indices, value=rhs))
         elif isinstance(lhs, Attribute):
             # example: attr.cuda.block_dim = 16, 16

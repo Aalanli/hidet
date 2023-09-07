@@ -42,12 +42,18 @@ class LowerTileDialectRewriter(IRRewriter):
         shape: List[int] = ttype.shape
         dtype: Union[DataType, PointerType] = ttype.type
         scope: TileScope = ttype.scope
+        local_shape = layout.local_shape()
 
-        local_extent = layout.local_extent()
-        buf_var: Var = tensor_pointer_var(hint=hint, shape=[local_extent], dtype=dtype)
+        if scope.is_register():
+            buf_var: Var = tensor_var(hint=hint, shape=local_shape, dtype=dtype)
+        elif scope.is_shared():
+            buf_var: Var = tensor_pointer_var(hint=hint, shape=local_shape, dtype=dtype)
+        else:
+            raise NotImplementedError()
+
         self.append_stmt(DeclareStmt(buf_var))
 
-        buf = Buffer(buf_var, dtype, shape, scope, [local_extent], layout)
+        buf = Buffer(buf_var=buf_var, dtype=dtype, shape=shape, scope=scope, local_shape=local_shape, layout=layout)
         return buf
 
     def append_stmt(self, stmt: Union[Stmt, Expr]):

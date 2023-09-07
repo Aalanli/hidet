@@ -64,19 +64,21 @@ class InsertSliceAsyncImpl(TileOpImpl):
             # 1. cp_size in [4, 8, 16] bytes
             # 2. the other value can only be zero, thus do not support explicit other
             if cp_size >= 4 and other is None:
-                local_extent: int = layout.local_extent()
+                local_shape: List[int] = layout.local_shape()
+                assert local_shape[axis] % vec_size == 0
+                local_shape = [e if i != axis else e // vec_size for i, e in enumerate(local_shape)]
 
-                with self.for_range(local_extent) as idx:
-                    local_index = idx * vec_size
-                    logical_indices, not_duplicated = layout.local2logical(local_index)
+                with self.for_grid(local_shape) as local_indices:
+                    local_indices[axis] = local_indices[axis] * vec_size
+                    logical_indices, not_duplicated = layout.local2logical(local_indices)
                     logical_indices = logical_indices[:insert_axis] + [index] + logical_indices[insert_axis:]
                     with self.if_then(not_duplicated):
                         self.append(
                             cp_async(
                                 dst=~dst[logical_indices],
-                                src=ptr[local_index],
+                                src=ptr[local_indices],
                                 cp_size=cp_size,
-                                src_size=if_then_else(mask[local_index], cp_size, 0) if mask else None,
+                                src_size=if_then_else(mask[local_indices], cp_size, 0) if mask else None,
                             )
                         )
                 self.assign(output.var, dst.var)

@@ -36,8 +36,8 @@ class Buffer:
 
     def __getitem__(self, item):
         if self.scope == self.scope.Shared:
-            local_index, _ = self.layout.logical2local(item)
-            return self.var[item]
+            local_indices, _ = self.layout.logical2local(item)
+            return self.var[local_indices]
         elif self.scope == self.scope.Register:
             return self.var[item]
         else:
@@ -88,20 +88,20 @@ class TileOpImpl(StmtBuilder):
     def sync_threads(self):
         self.append(syncthreads())
 
-    def iterate_dist_buffer_and_apply(self, buf: Buffer, f_apply: Callable[[Expr, List[Expr], Expr], None]):
+    def iterate_dist_buffer_and_apply(self, buf: Buffer, f_apply: Callable[[List[Expr], List[Expr], Expr], None]):
         assert buf.scope == TileScope.Register
 
         layout: TileLayout = buf.layout
-        local_extent: int = layout.local_extent()
+        local_shape: List[int] = layout.local_shape()
 
-        with self.for_range(local_extent) as local_index:
-            global_indices, not_duplicated = layout.local2logical(local_index, worker_index=threadIdx.x)
-            f_apply(local_index, global_indices, not_duplicated)
+        with self.for_grid(local_shape) as local_indices:
+            global_indices, not_duplicated = layout.local2logical(local_indices, worker_index=threadIdx.x)
+            f_apply(local_indices, global_indices, not_duplicated)
 
-    def iterate_dist_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[Expr, List[Expr], Expr], Expr]):
-        def f_apply(local_index, global_indices, not_duplicated):
-            value = f_compute(local_index, global_indices, not_duplicated)
-            self.buffer_store(buf.var, indices=[local_index], value=value)
+    def iterate_dist_buffer_and_compute(self, buf: Buffer, f_compute: Callable[[List[Expr], List[Expr], Expr], Expr]):
+        def f_apply(local_indices, global_indices, not_duplicated):
+            value = f_compute(local_indices, global_indices, not_duplicated)
+            self.buffer_store(buf.var, indices=local_indices, value=value)
 
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 

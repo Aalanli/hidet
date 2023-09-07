@@ -8,7 +8,7 @@ from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.ir.tile.ops.smem import extract_slice
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.ops import convert_layout, dot
-from hidet.ir.tile.type import TileType
+from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tile.layout import TileLayout, SharedLayout, DotOperandLayout
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
@@ -75,8 +75,8 @@ class SplitDotKRewriter(IRRewriter):
             let_chain: List[Let] = []
             cb = LetChain()  # chain builder
 
-            a = cb.let('a', convert_layout(a, SharedLayout([m, ks])))
-            b = cb.let('b', convert_layout(b, SharedLayout([ks, n])))
+            a = cb.let('a', convert_layout(a, SharedLayout([m, ks]), scope=TileScope.Shared))
+            b = cb.let('b', convert_layout(b, SharedLayout([ks, n]), scope=TileScope.Shared))
             d = c
             for i in range(s):
                 start = int32(i * k)

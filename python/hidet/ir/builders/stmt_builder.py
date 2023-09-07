@@ -76,7 +76,7 @@ class StmtBuilder:
         return v
 
     def buffer_store(self, buf: Expr, indices: Sequence[Union[Expr, int]], value: Expr):
-        self.append(BufferStoreStmt(buf, indices, value))
+        self.append(BufferStoreStmt(buf, convert(indices), value))
 
     def lets(self, bind_vars: Sequence[Union[str, Var]], values: Sequence[Union[int, Expr]]) -> StmtScope:
         assert len(bind_vars) == len(values)

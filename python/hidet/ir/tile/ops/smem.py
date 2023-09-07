@@ -2,7 +2,7 @@ from typing import Union, Optional, List, Dict, Any
 
 from hidet.ir.expr import Expr
 from hidet.ir.tile.expr import TileOp
-from hidet.ir.tile.layout import TileLayout, repeat
+from hidet.ir.tile.layout import TileLayout, repeat, SharedLayout
 from hidet.ir.tile.type import TileType, PointerType, TileScope, tile_type
 from hidet.ir.type import BaseType, DataType, void
 
@@ -20,7 +20,7 @@ class AllocTensor(TileOp):
         super().__init__(args=[], attrs={"dtype": dtype, "shape": shape})
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
-        self.layout: TileLayout = layout if layout else repeat(*shape)
+        self.layout: TileLayout = layout if layout else SharedLayout(shape)
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         assert len(arg_types) == 0
@@ -86,7 +86,7 @@ class ExtractSlice(TileOp):
             shape = src_shape[: self.axis] + src_shape[self.axis + 1 :]
         else:
             shape = src_shape[: self.axis] + [self.extent] + src_shape[self.axis + 1 :]
-        return tile_type(elem_type=src_type.type, shape=shape, layout=self.layout)
+        return tile_type(elem_type=src_type.type, shape=shape, scope=TileScope.Shared, layout=self.layout)
 
 
 def extract_slice(src: Expr, start_index: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):

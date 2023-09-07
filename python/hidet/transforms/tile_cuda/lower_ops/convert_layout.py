@@ -1,20 +1,17 @@
 from typing import List, Union
 
-from hidet.ir.expr import Expr, var, left_shift
-from hidet.ir.mapping import auto_map
-from hidet.ir.mapping import spatial_map
-from hidet.ir.primitives.cuda import shfl_down_sync, shfl_up_sync, threadIdx
-from hidet.ir.tile.layout import BlockLayout
-from hidet.ir.tile.type import TileScope
+from hidet.ir.expr import Expr
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
-from hidet.utils import prod, is_power_of_two, log_two
+from hidet.utils import prod
 from .registry import TileOpImpl, Buffer, register_impl
 
 
 @register_impl(ConvertLayout)
 class ConvertLayoutImpl(TileOpImpl):
     def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Buffer):
+        from hidet.ir.primitives.cuda.tile import alloc_shared
+
         src: Buffer = args[0]
         dst: Buffer = output
 
@@ -56,16 +53,16 @@ class ConvertLayoutImpl(TileOpImpl):
             def f_apply(local_indices, global_indices, not_duplicated):
                 with self.if_then(not_duplicated):
                     self.buffer_store(dst.var, global_indices, value=src[local_indices])
-
+            self.assign(dst.var, alloc_shared(prod([s + 1 for s in dst.shape]) * dst.dtype.nbytes))
             self.iterate_dist_buffer_and_apply(src, f_apply)
             self.sync_threads()
-        elif src.is_shared() and dst.scope.is_register():
+        elif src.scope.is_shared() and dst.scope.is_register():
 
             def f_compute(local_indices, global_indices, not_duplicated):
                 return src[global_indices]
 
             self.iterate_dist_buffer_and_compute(dst, f_compute)
-        elif src.is_shared() and dst.is_shared():
+        elif src.scope.is_shared() and dst.scope.is_shared():
             raise NotImplementedError()
         else:
             assert False

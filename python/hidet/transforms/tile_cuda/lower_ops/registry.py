@@ -34,6 +34,11 @@ class Buffer:
         self.layout: TileLayout = layout
         self.info: TensorInfo = info
 
+        if scope.is_shared():
+            assert isinstance(layout, SharedLayout)
+        elif scope.is_register():
+            assert not isinstance(layout, SharedLayout)
+
     def __getitem__(self, item):
         if self.scope == self.scope.Shared:
             local_indices, _ = self.layout.logical2local(item)

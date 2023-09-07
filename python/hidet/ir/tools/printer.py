@@ -629,6 +629,7 @@ class IRPrinter(IRFunctor):
 
         if isinstance(layout, BlockLayout):
             sub_items = {
+                'shape': self(layout.shape),
                 'size_per_thread': self(layout.size_per_thread),
                 'thread_per_warp': self(layout.thread_per_warp),
                 'warps_per_block': self(layout.warps_per_block),

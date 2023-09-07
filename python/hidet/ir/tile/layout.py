@@ -405,6 +405,7 @@ class BlockLayout(ParameterizedTileLayout):
         self.block_shape: List[int] = [min(a, b) for a, b in zip(
             self.shape, Vector(self.size_per_thread) * self.thread_per_warp * self.warps_per_block
         )]
+        self.layout_shape: List[int] = list(Vector(self.warps_per_block) * self.thread_per_warp * self.size_per_thread)
         super().__init__(
             layout=(
                 atom(*Vector(self.shape) // self.block_shape, workers=[1 for _ in range(len(self.shape))])
@@ -441,6 +442,7 @@ class BlockLayout(ParameterizedTileLayout):
             size_per_thread = [1] * len(shape)
         if len(size_per_thread) != len(shape):
             raise ValueError(f"size_per_thread must have the same length as shape, got {size_per_thread}")
+        orig_shape = shape
         shape = [max(extent // size, 1) for extent, size in zip(shape, size_per_thread)]
         thread_per_warp = []
         warps_per_block = []
@@ -482,7 +484,7 @@ class BlockLayout(ParameterizedTileLayout):
         assert prod(warps_per_block) == num_warps
         assert prod(thread_per_warp) == 32
 
-        return BlockLayout(shape, warps_per_block, thread_per_warp, size_per_thread)
+        return BlockLayout(orig_shape, warps_per_block, thread_per_warp, size_per_thread)
 
 
 class FlattenBlockLayout(TileLayout):
@@ -573,11 +575,22 @@ if __name__ == '__main__':
     # print(b_layout.layout)
     # print(b_layout.visualize())
 
-    a = BlockLayout(shape=[16], warps_per_block=[1], thread_per_warp=[32], size_per_thread=[1])
+    # a = BlockLayout(shape=[16], warps_per_block=[1], thread_per_warp=[32], size_per_thread=[1])
+    # print(a.visualize())
+    # for w in range(32):
+    #     print(w)
+    #     for i in range(16):
+    #         local_indices, is_valid = a.logical2local([int32(i)], worker_index=int32(w))
+    #         print('({}, {}, {}) '.format(w, local_indices[0], is_valid), end='')
+    #     print()
+
+    a = BlockLayout(shape=[16, 16], warps_per_block=[1, 1], thread_per_warp=[4, 8], size_per_thread=[2, 2])
     print(a.visualize())
-    for w in range(32):
-        print(w)
-        for i in range(16):
-            local_indices, is_valid = a.logical2local([int32(i)], worker_index=int32(w))
-            print('({}, {}, {}) '.format(w, local_indices[0], is_valid), end='')
+    for i in range(16):
+        for j in range(16):
+            for w in range(32):
+                local_indices, is_valid = a.logical2local([int32(i), int32(j)], int32(w))
+                _, not_duplicated = a.local2logical(local_indices, int32(w))
+                if is_valid and not_duplicated:
+                    print('{}'.format(w), end=' ')
         print()

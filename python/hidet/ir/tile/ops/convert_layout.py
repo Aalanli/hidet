@@ -13,6 +13,9 @@ class ConvertLayout(TileOp):
         self.layout: TileLayout = layout
         self.scope: TileScope = TileScope.make(scope) if scope else TileScope.Register
 
+        from hidet.ir.tile.layout import SharedLayout
+        assert not (self.scope.is_shared() ^ isinstance(self.layout, SharedLayout))
+
     @property
     def var_name_hint(self):
         return 'cvt'

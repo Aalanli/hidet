@@ -58,7 +58,7 @@ class FoldConvertLayoutTransform(PatternTransform):
     def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
         x = matched[self.x]
         cvt2: ConvertLayout = self.get_tile_op(self.cvt2, matched, var2call)
-        return ConvertLayout(x, cvt2.layout).make_call()
+        return ConvertLayout(x, cvt2.layout, cvt2.scope).make_call()
 
 
 class ConvertConstructLayoutTransform(PatternTransform):

@@ -92,6 +92,7 @@ class ReduceOpImpl(TileOpImpl):
                 self.buffer_store(dst.var, dst_indices, value)
 
     def intra_block_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
+        from hidet.ir.utils.index_transform import index_deserialize
         layout: BlockLayout = src.block_layout
         shape: List[int] = src.shape
 
@@ -121,12 +122,12 @@ class ReduceOpImpl(TileOpImpl):
             smem_shape: List[int] = shape[:axis] + [layout.warps_per_block[axis]] + shape[axis + 1 :]
             smem_buf = self.alloc_shared_buffer(dst.dtype, shape=smem_shape, hint='reduce_{}'.format(rk.name))
             # 1) regs -> smem
-            lane_indices: List[Expr] = layout.lane_indices()
-            warp_indices: List[Expr] = layout.warp_indices()
+            lane_indices: List[Expr] = index_deserialize(threadIdx.x % 32, layout.thread_per_warp)
+            warp_indices: List[Expr] = index_deserialize(threadIdx.x // 32, layout.warps_per_block)
             with self.for_grid(spatial_shape) as spatial_indices:
                 with self.if_then(lane_indices[axis] == 0):
                     dst_indices = spatial_indices[:axis] + [0] + spatial_indices[axis:]
-                    smem_indices, not_duplicated = layout.local_to_global(dst_indices, global_shape=shape)
+                    smem_indices, not_duplicated = layout.local2logical(dst_indices)
                     smem_indices[axis] = warp_indices[axis]
                     with self.if_then(not_duplicated):
                         self.buffer_store(smem_buf.var, smem_indices, dst[dst_indices])
@@ -155,11 +156,11 @@ class ReduceOpImpl(TileOpImpl):
             with self.for_grid(spatial_shape) as spatial_indices:
                 with self.if_then(lane_indices[axis] == 0):
                     smem_indices = spatial_indices[:axis] + [0] + spatial_indices[axis:]
-                    dst_indices, _ = layout.local_to_global(smem_indices, global_shape=shape)  # type: List
+                    dst_indices, _ = layout.local2logical(smem_indices)  # type: List
                     dst_indices[axis] = 0
                     self.buffer_store(dst.var, smem_indices, smem_buf[dst_indices])
 
-    def broadcast_back(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
+    def broadcast_back(self, src: Buffer, dst: Buffer, axis: int):
         # decompose layout_shape[axis]:
         # --                size_per_thread = 2
         # --------          thread_per_warp = 4
@@ -203,6 +204,6 @@ class ReduceOpImpl(TileOpImpl):
             self.intra_thread_reduce(src, dst, op.axis, op.kind)
             self.intra_warp_reduce(src, dst, op.axis, op.kind)
             self.intra_block_reduce(src, dst, op.axis, op.kind)
-            self.broadcast_back(src, dst, op.axis, op.kind)
+            self.broadcast_back(src, dst, op.axis)
         else:
             raise NotImplementedError()

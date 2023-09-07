@@ -183,9 +183,9 @@ class InstantiateLayoutRewriter(IRRewriter):
             m, n = c_type.shape
             k = a_type.shape[1]
             num_threads = self.num_warps * 32
-            if m * n >= num_threads * 16:
+            if m >= 4 and n >= 4 and m * n >= num_threads * 16:
                 size_per_thread = [4, 4]
-            elif m * n >= num_threads * 4:
+            elif m >= 2 and n >= 2 and m * n >= num_threads * 4:
                 size_per_thread = [2, 2]
             else:
                 size_per_thread = [1, 1]

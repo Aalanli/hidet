@@ -21,6 +21,9 @@ class TileType(BaseType):
         self.layout: Optional[TileLayout] = layout
         self.scope: TileScope = TileScope.make(scope) if scope is not None else TileScope.Register
 
+        from hidet.ir.tile.layout import SharedLayout
+        assert not (self.scope.is_shared() ^ isinstance(self.layout, SharedLayout))
+
 
 def tile_type(
     elem_type,  # Union[PointerType, DataType]

@@ -93,6 +93,7 @@ class ReduceOpImpl(TileOpImpl):
 
     def intra_block_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
         from hidet.ir.utils.index_transform import index_deserialize
+
         layout: BlockLayout = src.block_layout
         shape: List[int] = src.shape
 

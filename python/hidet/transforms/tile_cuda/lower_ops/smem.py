@@ -39,7 +39,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
 
         dtype: DataType = get_type_erased_dtype(ptr.dtype)
 
-        if isinstance(layout, BlockLayout):
+        if isinstance(layout, BlockLayout) and other is None:
             axis: int = len(layout.shape) - 1  # the last axis is the innermost axis
 
             # the number of elements loaded by each thread
@@ -60,10 +60,8 @@ class InsertSliceAsyncImpl(TileOpImpl):
 
             assert is_power_of_two(cp_size)
 
-            # cp.async requires
-            # 1. cp_size in [4, 8, 16] bytes
-            # 2. the other value can only be zero, thus do not support explicit other
-            if cp_size >= 4 and other is None:
+            if cp_size in [4, 8, 16]:
+                # cp.async requires cp_size in [4, 8, 16] bytes
                 local_shape: List[int] = layout.local_shape()
                 assert local_shape[axis] % vec_size == 0
                 local_shape = [e if i != axis else e // vec_size for i, e in enumerate(local_shape)]
@@ -84,28 +82,39 @@ class InsertSliceAsyncImpl(TileOpImpl):
                 self.assign(output.var, dst.var)
                 return
 
-        if isinstance(ptr.layout, DistributedLayout):
-            if mask:
-                assert mask.layout == ptr.layout
-            if other:
-                assert other.layout == ptr.layout
+        if mask:
+            assert mask.layout == ptr.layout
+        if other:
+            assert other.layout == ptr.layout
 
-            def f_apply(local_index, global_indices, not_duplicated):
-                if mask is None:
-                    with self.if_then(not_duplicated):
-                        if dtype.nbytes < 4:
-                            self.append(load(dtype, addr=ptr[local_index], dst_addrs=[~dst[global_indices]]))
+        def f_apply(local_indices, global_indices, not_duplicated):
+            global_indices = global_indices[:insert_axis] + [index] + global_indices[insert_axis:]
+            with self.if_then(not_duplicated):
+                if dtype.nbytes < 4 or (mask is not None and other is not None):
+                    if mask is None:
+                        self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~dst[global_indices]]))
+                    else:
+                        if other is None:
+                            other_value: Expr = dtype.zero
                         else:
-                            self.append(
-                                cp_async(dst=~dst[global_indices], src=ptr[local_index], cp_size=dtype.nbytes)
-                            )
+                            other_value: Expr = other[local_indices]
+                        with self.if_then(mask[local_indices]):
+                            self.append(load(dtype, addr=ptr[local_indices], dst_addrs=[~dst[global_indices]]))
+                        with self.otherwise():
+                            self.buffer_store(dst, global_indices, other_value)
                 else:
-                    raise NotImplementedError()
+                    if mask is not None:
+                        src_size = if_then_else(mask[local_indices], dtype.nbytes, 0)
+                    else:
+                        src_size = None
+                    self.append(
+                        cp_async(
+                            dst=~dst[global_indices], src=ptr[local_indices], cp_size=dtype.nbytes, src_size=src_size
+                        )
+                    )
 
-            self.iterate_dist_buffer_and_apply(ptr, f_apply)
-            self.assign(output.var, dst.var)
-        else:
-            raise NotImplementedError()
+        self.iterate_dist_buffer_and_apply(ptr, f_apply)
+        self.assign(output.var, dst.var)
 
 
 @register_impl(AsyncCommitGroup)

@@ -15,6 +15,38 @@ import numpy
 numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)
 
 
+def demo_cp_async():
+    from hidet.lang import attrs, printf, cast, deref
+    from hidet.lang.types import f16, f32, int32
+    from hidet.lang.cuda import cp_async, shared_tensor, threadIdx, cp_async_wait_all
+    from hidet.ir.expr import left_shift
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def func(ptr: ~f16):
+            attrs.func_kind = 'cuda_kernel'
+            attrs.cuda.grid_dim = 1
+            attrs.cuda.block_dim = 32
+
+            smem = shared_tensor(f16, shape=[1])
+
+            if threadIdx.x == 0:
+                cp_async(dst=smem, src=ptr, cp_size=2, src_size=2)
+                cp_async_wait_all()
+                a = deref(cast(~smem[0], ~int32))
+                for i in range(32):
+                    if a & left_shift(1, 31 - i):
+                        printf('1')
+                    else:
+                        printf('0')
+                printf('\n')
+
+    func = script_module.build()
+
+    a = hidet.full(shape=[1], fill_value=0b00001111000011110000111100001111, dtype='int32', device='cuda')
+    func(a)
+
+
 def demo_matmul_x2(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=False):
     from hidet.ir.type import data_type
     from hidet.lang.types import f32, int32
@@ -87,8 +119,8 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
     from hidet.lang import tile as ti
 
     num_warps = 8
-    block_m = 128
-    block_n = 64
+    block_m = 32
+    block_n = 128
     block_k = 32
     dtype = data_type(dtype)
 
@@ -152,14 +184,17 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
 
 
 def main():
+    # demo_cp_async()
+    # exit(0)
     for m_size, n_size, k_size in [
-        [1024, 1024, 1024],
         # [32, 4096, 4096],
+        # [32, 12288, 4096],
+        [32, 12288, 4096],
         # [1023, 1023, 1024],
         # [1024, 1024, 1023],
         # [1111, 1111, 1111]
     ]:
-        demo_matmul(m_size, n_size, k_size, dtype='float32', bench=True)
+        demo_matmul(m_size, n_size, k_size, dtype='float16', bench=True)
         # report = ncu_run(demo_matmul, m_size, n_size, k_size, dtype='float32')
         # report.visualize()
 

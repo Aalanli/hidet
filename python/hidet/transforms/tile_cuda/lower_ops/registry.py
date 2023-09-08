@@ -1,4 +1,4 @@
-from typing import List, Dict, Type, Union, Callable, Tuple, Any, Optional
+from typing import List, Dict, Type, Union, Callable, Tuple, Any, Optional, Sequence
 import inspect
 from hidet.ir.type import DataType, PointerType, TensorPointerType, tensor_pointer_type, sizeof
 from hidet.ir.expr import Expr, Var, tensor_var
@@ -87,8 +87,20 @@ class TileOpImpl(StmtBuilder):
             shape=shape,
             scope=TileScope.Shared,
             local_shape=shape,
-            layout=SharedLayout(shape)
+            layout=SharedLayout(shape),
         )
+
+    def buffer_store(self, buf: Union[Expr, Buffer], indices: Sequence[Union[Expr, int]], value: Expr):
+        if isinstance(buf, Buffer):
+            if buf.scope == buf.scope.Shared:
+                local_indices, _ = buf.layout.logical2local(list(indices))
+                super().buffer_store(buf.var, indices=local_indices, value=value)
+            elif buf.scope == buf.scope.Register:
+                super().buffer_store(buf.var, indices=indices, value=value)
+            else:
+                raise NotImplementedError()
+        else:
+            super().buffer_store(buf, indices, value)
 
     def sync_threads(self):
         self.append(syncthreads())

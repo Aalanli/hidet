@@ -8,6 +8,7 @@ def test_expand_dims():
     from hidet.lang import tile as ti
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def use_expand_dims(c_ptr: ~f32):
             attrs.func_kind = 'cuda_tile'
@@ -26,5 +27,3 @@ def test_expand_dims():
 
     c_expected = np.arange(16 * 16, dtype=np.float32).reshape([16, 16])
     hidet.utils.assert_close(actual=c, expected=c_expected)
-
-

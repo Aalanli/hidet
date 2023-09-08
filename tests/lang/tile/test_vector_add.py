@@ -9,6 +9,7 @@ def test_vector_add(n: int = 1024):
     block_size = 128
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def vec_add(a: ~f32, b: ~f32, c: ~f32):
             attrs.func_kind = 'cuda_tile'

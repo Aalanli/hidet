@@ -14,7 +14,6 @@ class TileType(BaseType):
         shape: List[int],
         layout: Optional[TileLayout] = None,
         scope: Optional[Union[TileScope, str]] = None,
-
     ):
         self.type: Union[PointerType, DataType] = elem_type
         self.shape: List[int] = shape
@@ -22,6 +21,7 @@ class TileType(BaseType):
         self.scope: TileScope = TileScope.make(scope) if scope is not None else TileScope.Register
 
         from hidet.ir.tile.layout import SharedLayout
+
         assert not (self.scope.is_shared() ^ isinstance(self.layout, SharedLayout))
 
 
@@ -29,8 +29,7 @@ def tile_type(
     elem_type,  # Union[PointerType, DataType]
     shape: List[int],
     layout: Optional[TileLayout] = None,
-    scope: Optional[Union[TileScope, str]] = None
-
+    scope: Optional[Union[TileScope, str]] = None,
 ):
     assert isinstance(elem_type, (PointerType, DataType))
     return TileType(elem_type, shape, layout, scope)

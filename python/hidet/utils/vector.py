@@ -67,4 +67,3 @@ class Vector:
 
     def __rmod__(self, other):
         return Vector._bin(other, lambda x, y: x % y, self)
-

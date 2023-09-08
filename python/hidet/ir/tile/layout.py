@@ -40,18 +40,16 @@ class TileLayout:
         """
         raise NotImplementedError()
 
-    def logical2local(self, logical_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
+    def logical2local(
+        self, logical_indices: List[Expr], worker_index: Optional[Expr] = None
+    ) -> Tuple[List[Expr], Expr]:
         """
         ret: local_index, is_valid
         """
         raise NotImplementedError()
 
     def atom(
-        self,
-        *shape,
-        workers: List[int],
-        ranks: Optional[List[int]] = None,
-        worker_ranks: Optional[List[int]] = None
+        self, *shape, workers: List[int], ranks: Optional[List[int]] = None, worker_ranks: Optional[List[int]] = None
     ):
         return ComposedLayout(outer=self, inner=atom(*shape, workers=workers, ranks=ranks, worker_ranks=worker_ranks))
 
@@ -124,7 +122,7 @@ class AtomLayout(TileLayout):
         shape: List[int],
         worker_shape: List[int],
         ranks: Optional[List[int]] = None,
-        worker_ranks: Optional[List[int]] = None
+        worker_ranks: Optional[List[int]] = None,
     ):
         self.shape: List[int] = shape
         self.worker_shape: List[int] = worker_shape
@@ -164,6 +162,7 @@ class AtomLayout(TileLayout):
 
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
+
             worker_index = threadIdx.x
 
         worker_indices = index_deserialize(worker_index, self.worker_shape, ranks=self.worker_ranks)
@@ -187,6 +186,7 @@ class AtomLayout(TileLayout):
 
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
+
             worker_index = threadIdx.x
 
         worker_indices = index_deserialize(worker_index, self.worker_shape, ranks=self.worker_ranks)
@@ -218,12 +218,7 @@ class RepeatLayout(AtomLayout):
 
 class SpatialLayout(AtomLayout):
     def __init__(self, shape: List[int], ranks: Optional[List[int]] = None):
-        super().__init__(
-            shape=shape,
-            worker_shape=shape,
-            ranks=ranks,
-            worker_ranks=ranks
-        )
+        super().__init__(shape=shape, worker_shape=shape, ranks=ranks, worker_ranks=ranks)
 
 
 class ComposedLayout(TileLayout):
@@ -248,6 +243,7 @@ class ComposedLayout(TileLayout):
     def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
+
             worker_index = threadIdx.x
         outer_worker = worker_index // self.inner.num_workers()
         inner_worker = worker_index % self.inner.num_workers()
@@ -264,6 +260,7 @@ class ComposedLayout(TileLayout):
     ) -> Tuple[List[Expr], Expr]:
         if worker_index is None:
             from hidet.ir.primitives.cuda import threadIdx
+
             worker_index = threadIdx.x
         outer_logical = [a // b for a, b in zip(logical_indices, self.inner.logical_shape())]
         inner_logical = [a % b for a, b in zip(logical_indices, self.inner.logical_shape())]
@@ -388,23 +385,20 @@ class DistributedLayout(TileLayout):
 
 class BlockLayout(ParameterizedTileLayout):
     def __init__(
-        self,
-        shape: List[int],
-        warps_per_block: List[int],
-        thread_per_warp: List[int],
-        size_per_thread: List[int],
+        self, shape: List[int], warps_per_block: List[int], thread_per_warp: List[int], size_per_thread: List[int]
     ):
         self.shape: List[int] = shape
         self.warps_per_block: List[int] = warps_per_block
         self.thread_per_warp: List[int] = thread_per_warp
         self.size_per_thread: List[int] = size_per_thread
         self.thread_shape: List[int] = [min(a, b) for a, b in zip(self.shape, self.size_per_thread)]
-        self.warp_shape: List[int] = [min(a, b) for a, b in zip(
-            self.shape, Vector(self.size_per_thread) * self.thread_per_warp
-        )]
-        self.block_shape: List[int] = [min(a, b) for a, b in zip(
-            self.shape, Vector(self.size_per_thread) * self.thread_per_warp * self.warps_per_block
-        )]
+        self.warp_shape: List[int] = [
+            min(a, b) for a, b in zip(self.shape, Vector(self.size_per_thread) * self.thread_per_warp)
+        ]
+        self.block_shape: List[int] = [
+            min(a, b)
+            for a, b in zip(self.shape, Vector(self.size_per_thread) * self.thread_per_warp * self.warps_per_block)
+        ]
         self.layout_shape: List[int] = list(Vector(self.warps_per_block) * self.thread_per_warp * self.size_per_thread)
         super().__init__(
             layout=(
@@ -512,17 +506,17 @@ class FlattenBlockLayout(TileLayout):
     def logical_shape(self) -> List[int]:
         shape = self.flat_layout.logical_shape()
         assert shape[self.axis] == 1
-        return shape[: self.axis] + shape[self.axis + 1:]
+        return shape[: self.axis] + shape[self.axis + 1 :]
 
     def local2logical(self, local_indices: List[Expr], worker_index: Optional[Expr] = None) -> Tuple[List[Expr], Expr]:
         logical_indices, not_duplicated = self.flat_layout.local2logical(local_indices, worker_index)
-        logical_indices = logical_indices[: self.axis] + logical_indices[self.axis + 1:]
+        logical_indices = logical_indices[: self.axis] + logical_indices[self.axis + 1 :]
         return logical_indices, not_duplicated
 
     def logical2local(
         self, logical_indices: List[Expr], worker_index: Optional[Expr] = None
     ) -> Tuple[List[Expr], Expr]:
-        logical_indices = logical_indices[: self.axis] + [int32.zero] + logical_indices[self.axis:]
+        logical_indices = logical_indices[: self.axis] + [int32.zero] + logical_indices[self.axis :]
         return self.flat_layout.logical2local(logical_indices, worker_index)
 
 
@@ -542,14 +536,14 @@ class BlockDotOperandLayout(DotOperandLayout):
                 shape=[shape[0], 1],
                 warps_per_block=parent.warps_per_block,
                 thread_per_warp=parent.thread_per_warp,
-                size_per_thread=[parent.size_per_thread[0], 1]
+                size_per_thread=[parent.size_per_thread[0], 1],
             )
         else:
             layout = repeat(k_size, 1) * BlockLayout(
                 shape=[1, shape[1]],
                 warps_per_block=parent.warps_per_block,
                 thread_per_warp=parent.thread_per_warp,
-                size_per_thread=[1, parent.size_per_thread[1]]
+                size_per_thread=[1, parent.size_per_thread[1]],
             )
         super().__init__(layout)
 

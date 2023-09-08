@@ -53,6 +53,7 @@ class ConvertLayoutImpl(TileOpImpl):
             def f_apply(local_indices, global_indices, not_duplicated):
                 with self.if_then(not_duplicated):
                     self.buffer_store(dst.var, global_indices, value=src[local_indices])
+
             self.assign(dst.var, alloc_shared(prod([s + 1 for s in dst.shape]) * dst.dtype.nbytes))
             self.iterate_dist_buffer_and_apply(src, f_apply)
             self.sync_threads()

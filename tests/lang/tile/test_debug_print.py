@@ -7,6 +7,7 @@ def test_debug_print():
     from hidet.lang import tile as ti
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def use_arange():
             attrs.func_kind = 'cuda_tile'

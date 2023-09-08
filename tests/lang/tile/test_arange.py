@@ -7,6 +7,7 @@ def test_arange():
     from hidet.lang import tile as ti
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def use_arange(a_ptr: ~f32, b_ptr: ~f32, n: int32):
             attrs.func_kind = 'cuda_tile'

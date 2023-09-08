@@ -21,12 +21,11 @@ class ResolveDotRewriter(IRRewriter):
         assert isinstance(c_type, TileType)
         dtype = c_type.type
 
-        if dtype in [float16, bfloat16]:
-            return MmaDot(a, b, c)
-        elif dtype in [float32]:
+        # if dtype in [float16, bfloat16]:
+        #     return MmaDot(a, b, c)
+        if dtype in [float16, float32]:
             return SimtDot(a, b, c)
-        else:
-            raise NotImplementedError(dtype)
+        raise NotImplementedError(dtype)
 
 
 class ResolveDotPass(TileFunctionPass):

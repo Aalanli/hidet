@@ -14,6 +14,7 @@ class ConvertLayout(TileOp):
         self.scope: TileScope = TileScope.make(scope) if scope else TileScope.Register
 
         from hidet.ir.tile.layout import SharedLayout
+
         assert not (self.scope.is_shared() ^ isinstance(self.layout, SharedLayout))
 
     @property

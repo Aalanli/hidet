@@ -3,18 +3,14 @@ import hidet
 import numpy as np
 
 
-@pytest.mark.parametrize('m, n', [
-    (32, 16),
-    (16, 32),
-    (128, 128),
-    (512, 512),
-])
+@pytest.mark.parametrize('m, n', [(32, 16), (16, 32), (128, 128), (512, 512)])
 def test_reduce(m, n):
     from hidet.lang.types import int32
     from hidet.lang import attrs
     from hidet.lang import tile as ti
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def use_arange(sum0: ~int32, sum1: ~int32, min0: ~int32, min1: ~int32, max0: ~int32, max1: ~int32):
             attrs.func_kind = 'cuda_tile'

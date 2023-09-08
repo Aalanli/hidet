@@ -7,6 +7,7 @@ def test_dot(m=16, n=16, k=16):
     from hidet.lang import tile as ti
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def dot(a_ptr: ~f32, b_ptr: ~f32, c_ptr: ~f32):
             attrs.func_kind = 'cuda_tile'
@@ -31,4 +32,3 @@ def test_dot(m=16, n=16, k=16):
     c2 = a @ b
 
     hidet.utils.assert_close(c1, c2)
-

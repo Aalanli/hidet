@@ -10,6 +10,7 @@ def test_ldst():
     block_k = 16
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def matmul(a_ptr: ~f32, b_ptr: ~f32):
             attrs.func_kind = 'cuda_tile'
@@ -34,6 +35,7 @@ def test_ldgsts_lds128():
     from hidet.lang.cuda import threadIdx, cp_async, cp_async_wait_all
 
     with hidet.script_module() as script_module:
+
         @hidet.script
         def func(out: f32[256]):
             attrs.func_kind = 'cuda_kernel'
@@ -47,27 +49,15 @@ def test_ldgsts_lds128():
             # ldgsts
             # L1 exc, L1, L1 ideal, L2 exc, L2, L2 ideal
             # 0	4	4	0	16	16
-            cp_async(
-                dst=~a[tid * 4],
-                src=~out[tid * 4],
-                cp_size=16
-            )
+            cp_async(dst=~a[tid * 4], src=~out[tid * 4], cp_size=16)
             cp_async_wait_all()
 
             # 4	8	4	16	32	16
-            cp_async(
-                dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 4],
-                src=~out[tid * 8],
-                cp_size=16
-            )
+            cp_async(dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 4], src=~out[tid * 8], cp_size=16)
             cp_async_wait_all()
 
             # 4	8	4	16	32	16
-            cp_async(
-                dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 8],
-                src=~out[tid * 8],
-                cp_size=16
-            )
+            cp_async(dst=~a[((3 - (tid // 8)) * 8 + tid % 8) * 8], src=~out[tid * 8], cp_size=16)
             cp_async_wait_all()
 
             # lds

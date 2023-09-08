@@ -49,7 +49,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         return BlockLayout.from_shape(
             shape=ttype.shape,
             num_warps=orig_layout.num_workers() // 32,
-            size_per_thread=[1 if i != len(ttype.shape) - 1 else vector_elements for i in range(len(ttype.shape))]
+            size_per_thread=[1 if i != len(ttype.shape) - 1 else vector_elements for i in range(len(ttype.shape))],
         )
 
     def visit_Function(self, func: Function):

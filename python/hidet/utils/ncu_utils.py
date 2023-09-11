@@ -34,9 +34,6 @@ _ncu_template = """
 """.replace(
     '\n', ' '
 ).strip()
-"""
-/opt/nvidia/nsight-compute/2023.2.1/target/linux-desktop-glibc_2_11_3-x64/ncu --config-file off --export "/home/yaoyao/Documents/NVIDIA Nsight Compute/report%i" --force-overwrite --set detailed --rule CPIStall --rule FPInstructions --rule HighPipeUtilization --rule IssueSlotUtilization --rule LaunchConfiguration --rule Occupancy --rule PCSamplingData --rule SOLBottleneck --rule SOLFPRoofline --rule SharedMemoryConflicts --rule SlowPipeLimiter --rule ThreadDivergence --rule UncoalescedGlobalAccess --rule UncoalescedSharedAccess /home/yaoyao/miniconda3/bin/python /home/yaoyao/repos/triton/python/tutorials/03-matrix-multiplication.py 
-"""
 
 
 class NsightComputeReport:

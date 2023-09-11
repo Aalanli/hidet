@@ -1,4 +1,5 @@
 from .creation import arange, full, construct
+from .activations import exp, silu
 from .memory import load, store
 from .system import num_programs, program_id
 from .transform import broadcast, expand_dims, cast
@@ -8,6 +9,7 @@ from .debug import debug_print
 from .assign import assign
 
 from .creation import Arange, Full, Construct
+from .activations import Exp, Silu
 from .memory import Load, Store
 from .transform import Broadcast, ExpandDims, CastOp
 from .convert_layout import ConvertLayout

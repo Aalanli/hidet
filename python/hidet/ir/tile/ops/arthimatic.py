@@ -19,11 +19,18 @@ class UnaryTileOp(TileOp):
     def apply_scalar(self, x: Expr) -> Expr:
         import hidet.ir.expr
 
+        cls_map = {
+            'Neg': hidet.ir.expr.Neg,
+            'LogicalNot': hidet.ir.expr.LogicalNot,
+            'BitwiseNot': hidet.ir.expr.BitwiseNot,
+        }
+
         cls_name = self.__class__.__name__
-        if not hasattr(hidet.ir.expr, cls_name):
+
+        if cls_name not in cls_map:
             raise NotImplementedError(f'No implementation for {cls_name} binary op')
 
-        expr_cls = getattr(hidet.ir.expr, cls_name)
+        expr_cls = cls_map[cls_name]
         return Expr._unary(expr_cls, x)
 
 

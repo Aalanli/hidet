@@ -169,9 +169,8 @@ class GPT2Model(nn.Module):
         # updated_cur_keys = torch.concat([past_keys, cur_keys], dim=3)
         # updated_cur_values = torch.concat([past_values, cur_values], dim=3)
         
-        position_ids = position_ids[:, -1:] + 1  # [batch_size, 1]
 
-        return hidden_states, position_ids, cur_keys, cur_values
+        return hidden_states, cur_keys, cur_values
         # return hidden_states[-1:], position_ids, None, None
 
 
@@ -231,7 +230,7 @@ class GPT2LMHead(nn.Module):
 
         return module
 
-    def forward(self, input_ids, position_ids, past_keys=None, past_values=None):
+    def forward(self, input_ids, past_keys=None, past_values=None, position_ids=None):
         # params:
         #   input_ids: int32[batch_size, seq_length]
         #   position_ids: int32[batch_size, seq_length]
@@ -242,13 +241,23 @@ class GPT2LMHead(nn.Module):
         #   position_ids: int32[batch_size, 1]
         #   updated_keys: [layers, batch_size, prev_seq_length + seq_length, hidden_size]
         #   updated_values: [layers, batch_size, prev_seq_length + seq_length, hidden_size]
-        batch_sz, seq_len = input_ids.shape
+        batch_sz, seq_length = input_ids.shape
         if past_keys is None:
             past_keys = torch.zeros([self.num_hidden_layers ,batch_sz, self.num_heads, 0, self.head_dim], dtype=input_ids.dtype, device=input_ids.device)
         if past_values is None:
             past_values = torch.zeros([self.num_hidden_layers ,batch_sz, self.num_heads, 0, self.head_dim], dtype=input_ids.dtype, device=input_ids.device)
         
-        hidden_states, position_ids, past_keys, past_values = self.transformer(
+        past_key_values_length = past_keys.shape[3]
+        if position_ids is None:
+            device = input_ids.device
+            position_ids = torch.arange(
+                past_key_values_length, seq_length + past_key_values_length, dtype=torch.long, device=device
+            )
+            position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
+        else:
+            position_ids = position_ids.view(-1, seq_length).long()
+
+        hidden_states, past_keys, past_values = self.transformer(
             input_ids, position_ids, past_keys, past_values
         )
         logits = self.lm_head(hidden_states[:, -1:])  # [batch_size, 1, vocab_size]
@@ -256,44 +265,39 @@ class GPT2LMHead(nn.Module):
         # we want to keep types consistent, since in the autoregressive case,
         #   the output is fed back into the input of the compiled model
         updated_input_ids = updated_input_ids.to(input_ids.dtype)
-        return updated_input_ids, position_ids, past_keys, past_values
+        return updated_input_ids, past_keys, past_values
 
-from decoding_config import ModelConfig, DecodingSampleConfig
+from decoding_config import ModelConfig, DecodingSampleConfig, BenchResult
 import onnx
 
 def get_model(name: str = 'gpt2'):
     assert name in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl', 'distilgpt2']
     from transformers import GPT2Config
 
-    hf_gpt2 = GPT2LMHead.from_transformers(name)
-    hf_gpt2.eval()
-    hf_gpt2.to('cuda')
+    hf_gpt2 = GPT2LMHead.from_transformers(name).eval().cuda().half()
+
     hf_gpt2_config = GPT2Config.from_pretrained(name)
     model_config = ModelConfig(n_layers=hf_gpt2_config.n_layer, n_heads=hf_gpt2_config.n_head, head_dim=hf_gpt2_config.n_embd // hf_gpt2_config.n_head)
     return hf_gpt2, model_config
 
+
 def save_onnx(model, model_config: ModelConfig, decoding_config: DecodingSampleConfig, path: str = 'gpt2.onnx'):
     x = torch.randint(0, 50257, (decoding_config.batch_size, decoding_config.q_seq_len), dtype=torch.int32).cuda()
-    ps = torch.arange(0, decoding_config.q_seq_len, dtype=torch.int32).unsqueeze(0).repeat(decoding_config.batch_size, 1).cuda()
-
     kc = torch.randn(model_config.n_layers, decoding_config.batch_size, model_config.n_heads, decoding_config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
     vc = torch.randn(model_config.n_layers, decoding_config.batch_size, model_config.n_heads, decoding_config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
-
     torch.onnx.export(
         model, 
-        (x, ps, kc, vc),
+        (x, kc, vc),
         path,
         export_params=True,
         do_constant_folding=True,
-        input_names=['input_ids', 'position_ids', 'past_keys', 'past_values'],
-        output_names=['updated_input_ids', 'updated_position_ids', 'updated_keys', 'updated_values'],
+        input_names=['input_ids', 'past_keys', 'past_values'],
+        output_names=['updated_input_ids', 'updated_keys', 'updated_values'],
         dynamic_axes={
             'input_ids': {0: 'batch_size', 1: 'seq_length'},
-            'position_ids': {0: 'batch_size', 1: 'seq_length'},
             'past_keys': {1: 'batch_size', 3: 'prev_seq_length'},
             'past_values': {1: 'batch_size', 3: 'prev_seq_length'},
             'updated_input_ids': {0: 'batch_size'},
-            'updated_position_ids': {0: 'batch_size'},
             'updated_keys': {1: 'batch_size', 3: 'prev_seq_length+seq_length'},
             'updated_values': {1: 'batch_size', 3: 'prev_seq_length+seq_length'},
         }
@@ -303,7 +307,7 @@ def save_onnx(model, model_config: ModelConfig, decoding_config: DecodingSampleC
 
 import onnxruntime
 import numpy as np
-from hidet.utils.benchmark import benchmark_func
+import triton
 
 from decoding_config import ModelConfig, DecodingSampleConfig
 
@@ -311,8 +315,6 @@ from decoding_config import ModelConfig, DecodingSampleConfig
 def benchmark_onnx(ort_session: onnxruntime.InferenceSession, model_config: ModelConfig, config: DecodingSampleConfig):
     binding = ort_session.io_binding()
     x = torch.randint(0, 50257, (config.batch_size, config.q_seq_len), dtype=torch.int32).cuda()
-    ps = torch.arange(0, config.q_seq_len, dtype=torch.int32).unsqueeze(0).repeat(config.batch_size, 1).cuda()
-
     kc = torch.randn(model_config.n_layers, config.batch_size, model_config.n_heads, config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
     vc = torch.randn(model_config.n_layers, config.batch_size, model_config.n_heads, config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
 
@@ -326,7 +328,6 @@ def benchmark_onnx(ort_session: onnxruntime.InferenceSession, model_config: Mode
             buffer_ptr=tensor.data_ptr()
         )
     bind_input('input_ids', x, np.int32)
-    bind_input('position_ids', ps, np.int32)
     bind_input('past_keys', kc, np.float16)
     bind_input('past_values', vc, np.float16)
 
@@ -340,27 +341,93 @@ def benchmark_onnx(ort_session: onnxruntime.InferenceSession, model_config: Mode
             buffer_ptr=tensor.data_ptr()
         )
     output_ids = torch.empty([config.batch_size, 1], dtype=torch.int32, device='cuda')
-    output_position_ids = torch.empty([config.batch_size, 1], dtype=torch.int32, device='cuda')
     output_keys   = torch.empty([model_config.n_layers, config.batch_size, model_config.n_heads, kc.shape[3] + x.shape[1], model_config.head_dim], dtype=torch.float16, device='cuda')
     output_values = torch.empty([model_config.n_layers, config.batch_size, model_config.n_heads, kc.shape[3] + x.shape[1], model_config.head_dim], dtype=torch.float16, device='cuda')
 
     bind_output('updated_input_ids', output_ids, np.int32)
-    bind_output('updated_position_ids', output_position_ids, np.int32)
     bind_output('updated_keys', output_keys, np.float16)
     bind_output('updated_values', output_values, np.float16)
-    return benchmark_func(lambda: ort_session.run_with_iobinding(binding), repeat=config.repeat, median=False, warmup=config.warmup)
+    return triton.testing.do_bench(lambda: ort_session.run_with_iobinding(binding))
+    # return benchmark_func(lambda: ort_session.run_with_iobinding(binding), repeat=config.repeat, median=False, warmup=config.warmup)
 
 def benchmark_torch(model, model_config: ModelConfig, config: DecodingSampleConfig):
     x = torch.randint(0, 50257, (config.batch_size, config.q_seq_len), dtype=torch.int32).cuda()
-    ps = torch.arange(0, config.q_seq_len, dtype=torch.int32).unsqueeze(0).repeat(config.batch_size, 1).cuda()
-
     kc = torch.randn(model_config.n_layers, config.batch_size, model_config.n_heads, config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
     vc = torch.randn(model_config.n_layers, config.batch_size, model_config.n_heads, config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
     
-    return benchmark_func(lambda: model(x, ps, kc, vc), repeat=config.repeat, median=False, warmup=config.warmup)
+    return triton.testing.do_bench(lambda: model(x, kc, vc))
+    # return benchmark_func(lambda: model(x, ps, kc, vc), repeat=config.repeat, median=False, warmup=config.warmup)
 
 
-model, config = get_model()
-ort_session = onnxruntime.InferenceSession("gpt2.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-print(benchmark_onnx(ort_session, config, DecodingSampleConfig(124, 128, 2)))
-print(benchmark_torch(model, config, DecodingSampleConfig(124, 128, 2)))
+from typing import List, Dict, Tuple
+
+def get_numbers_gpt2(decoding_configs: List[DecodingSampleConfig], model_name: str = 'gpt2') -> List[List[BenchResult]]:
+    import gc
+    from torch import _dynamo
+    numbers = [[] for _ in decoding_configs]
+
+    model, config = get_model(model_name)
+    if not os.path.exists(f'{model_name}.onnx'):
+        save_onnx(model, config, decoding_configs[0], f'{model_name}.onnx')
+    
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model, config, dconfig)
+        numbers[i].append(BenchResult(model=model_name, framework='torch', precision='f16', median=med, low=low, high=high))
+
+    model1 = torch.compile(model)
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model1, config, dconfig)
+        numbers[i].append(BenchResult(model=model_name, framework='torch-compile', precision='f16', median=med, low=low, high=high))
+    del model1
+
+    model2 = torch.compile(model, mode='max-autotune')
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model2, config, dconfig)
+        numbers[i].append(BenchResult(model=model_name, framework='torch-compile-max-autotune', precision='f16', median=med, low=low, high=high))
+    
+    del model
+    del model2
+    _dynamo.reset()
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    ort_session = onnxruntime.InferenceSession(f"{model_name}.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_onnx(ort_session, config, dconfig)
+        numbers[i].append(BenchResult(model=model_name, framework='onnx', precision='f16', median=med, low=low, high=high))
+    del ort_session
+
+    return numbers
+
+
+if __name__ == '__main__':
+    decoding_configs = [
+        DecodingSampleConfig(q_seq_len=124, kv_seq_len=128, batch_size=1),
+        DecodingSampleConfig(q_seq_len=124, kv_seq_len=128, batch_size=2)
+    ]
+    for m in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl', 'distilgpt2']:
+        numbers = get_numbers_gpt2(decoding_configs, m)
+        print(numbers)
+    
+# # %%
+# gpt_config = GPT2Config()
+# model = GPT2LMHead(gpt_config).cuda().half()
+# x = torch.randint(0, 50257, (1, 124), dtype=torch.int32).cuda()
+# kc = torch.randn(gpt_config.num_hidden_layers, 1, gpt_config.num_heads, 128, gpt_config.hidden_size // gpt_config.num_heads, dtype=torch.float16, device='cuda')
+# vc = torch.randn(gpt_config.num_hidden_layers, 1, gpt_config.num_heads, 128, gpt_config.hidden_size // gpt_config.num_heads, dtype=torch.float16, device='cuda')
+
+# graph = torch._dynamo.export(model, (x, kc, vc))
+# # %%
+# model = torch.compile(model, backend='hidet')
+# model(x, kc, vc)
+
+
+# # %%
+# import hidet
+# onnx_module = hidet.graph.frontend.from_onnx('gpt2.onnx')
+
+# ids = hidet.symbol(['batch_size', 'seq_len'], dtype='int32', device='cuda')
+# keys = hidet.symbol([12, 'batch_size', 12, 'seq_len', 64], dtype='float16', device='cuda')
+# values = hidet.symbol([12, 'batch_size', 12, 'seq_len', 64], dtype='float16', device='cuda')
+
+# output_ids, output_keys, output_values = onnx_module(ids, keys, values)

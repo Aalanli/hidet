@@ -4,7 +4,7 @@ import math
 import torch
 from torch import nn
 from torch.nn import functional as F
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import LlamaConfig
 
@@ -564,7 +564,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
         token = logits.argmax(dim=-1).to(input_ids.dtype)
         return token[:, -1:], past_keys, past_values
 
-from decoding_config import ModelConfig, DecodingSampleConfig
+from decoding_config import ModelConfig, DecodingSampleConfig, BenchResult
 import onnx
 
 def get_model(name: str = 'decapoda-research/llama-7b-hf'):
@@ -644,10 +644,59 @@ def benchmark_onnx(ort_session: onnxruntime.InferenceSession, model_config: Mode
     bind_output('updated_keys', output_keys, np.float16)
     bind_output('updated_values', output_values, np.float16)
 
-    return triton.testing.do_bench(lambda: ort_session.run_with_iobinding(binding))[1]
+    return triton.testing.do_bench(lambda: ort_session.run_with_iobinding(binding))
+
+
+def benchmark_torch(model, model_config: ModelConfig, decoding_config: DecodingSampleConfig):
+    device = 'cuda'
+    ids = torch.randint(0, 100, (decoding_config.batch_size, decoding_config.q_seq_len), dtype=torch.int32, device=device)
+    past_keys =    torch.randn(model_config.n_layers, decoding_config.batch_size, model_config.n_heads, decoding_config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device=device)
+    past_values =  torch.randn(model_config.n_layers, decoding_config.batch_size, model_config.n_heads, decoding_config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device=device)
+    return triton.testing.do_bench(lambda: model(ids, past_keys, past_values))
+
+def print_memory():
+    print('alloc:', torch.cuda.memory_allocated() / 1e9, 'reserved:', torch.cuda.memory_reserved() / 1e9)
+
+def get_numbers_llama7b(decoding_configs: List[DecodingSampleConfig]) -> List[List[BenchResult]]:
+    import gc
+    from torch import _dynamo
+    numbers = [[] for _ in decoding_configs]
+
+    model, config = get_model()
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model, config, dconfig)
+        numbers[i].append(BenchResult('llama7b', 'torch', 'f16', med, low, high))
+
+    model1 = torch.compile(model)
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model1, config, dconfig)
+        numbers[i].append(BenchResult('llama7b', 'torch-compile', 'f16', med, low, high))
+    del model1
+    print_memory()
+
+    model2 = torch.compile(model, mode='max-autotune')
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_torch(model2, config, dconfig)
+        numbers[i].append(BenchResult('llama7b', 'torch-compile-max-autotune', 'f16', med, low, high))
+    del model
+    del model2
+    _dynamo.reset()
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    print_memory()
+    ort_session = onnxruntime.InferenceSession("/home/allan/Programs/hidet_repo/llama7b_onnx/llama-7b-f16.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+    for i, dconfig in enumerate(decoding_configs):
+        med, low, high = benchmark_onnx(ort_session, config, dconfig)
+        numbers[i].append(BenchResult('llama7b', 'onnx', 'f16', med, low, high))
+    del ort_session
+
+    print_memory()
+    return numbers
 
 
 if __name__ == '__main__':
-    ort_session = onnxruntime.InferenceSession("/home/allan/Programs/hidet_repo/llama7b_onnx/llama-7b-f16.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-    benchmark_onnx(ort_session, ModelConfig(32, 32, 128), DecodingSampleConfig(1, 32, 1))
+    decoding_config = [DecodingSampleConfig(batch_size=1, q_seq_len=32, kv_seq_len=128)]
+    numbers = get_numbers_llama7b(decoding_config)
+    print(numbers)
 

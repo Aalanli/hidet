@@ -1,4 +1,4 @@
-from .creation import arange, full, construct
+from .creation import arange, full, construct, grid
 from .activations import exp, silu
 from .memory import load, store
 from .system import num_programs, program_id

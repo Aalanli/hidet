@@ -28,8 +28,12 @@ class c_pointer_compatible:
             return ctypes.c_void_p(obj.storage.addr)
         elif isinstance(obj, int):
             return ctypes.c_void_p(obj)
-        elif obj.__class__.__name__ == 'Tensor' and obj.__module__ == 'torch':
-            return ctypes.c_void_p(obj.data_ptr())
+        elif obj.__module__.startswith('torch'):
+            import torch
+            if isinstance(obj, torch.Tensor):
+                return ctypes.c_void_p(obj.data_ptr())
+            else:
+                raise ValueError(f"Argument type '{type(obj)}' can not converted to a pointer.")
         elif isinstance(obj, Array):
             char_array = (ctypes.c_char * obj.nbytes).from_buffer(obj.buffer)
             return ctypes.cast(char_array, ctypes.c_void_p)

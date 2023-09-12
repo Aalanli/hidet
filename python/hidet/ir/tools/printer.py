@@ -437,10 +437,13 @@ class IRPrinter(IRFunctor):
         return doc
 
     def visit_SeqStmt(self, stmt: SeqStmt):
-        doc = Doc()
-        for s in stmt.seq:
-            doc += self(s)
-        return doc
+        if len(stmt.seq) == 0:
+            return NewLine() + Text('pass')
+        else:
+            doc = Doc()
+            for s in stmt.seq:
+                doc += self(s)
+            return doc
 
     def visit_DataType(self, t: DataType):
         return Text('{}'.format(t.name))

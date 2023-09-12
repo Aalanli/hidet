@@ -67,6 +67,17 @@ def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
     return Full(value, shape).make_call()
 
 
+def grid(shape: List[int], starts: List[Union[Expr, int]], strides: List[Union[Expr, int]]):
+    from hidet.ir.expr import convert
+
+    starts = [convert(start) for start in starts]
+    strides = [convert(stride) for stride in strides]
+    return Construct.from_compute(
+        shape=shape,
+        f_compute=lambda axes: sum((axes[i] + starts[i]) * strides[i] for i in range(len(shape)))
+    ).make_call()
+
+
 def zeros(shape: List[int], dtype: Union[DataType, str] = 'float32'):
     dtype = data_type(dtype)
     return full(dtype.zero, shape)

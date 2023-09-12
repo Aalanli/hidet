@@ -10,7 +10,7 @@ hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-hidet.utils.clear_cache_dir()
+# hidet.utils.clear_cache_dir()
 
 import numpy
 
@@ -150,6 +150,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
         rank=0,
         distributed_init_method='tcp://localhost:4444',
     )
+    torch.set_grad_enabled(False)
 
     # x: [seq, h]
     # w1: [h, 2m]
@@ -177,36 +178,32 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
 
             pid = ti.program_id()
 
-            x_ptrs = x_ptr + ti.expand_dims(ti.arange(0, block_s), axis=1) * h_size + ti.arange(0, block_h)
-            w1_ptrs = (
-                w1_ptr + ti.expand_dims(ti.arange(0, block_h), axis=1) * (2 * m_size) + ti.arange(0, block_m)
-                + pid * block_m
-            )
+            # x_ptrs = x_ptr + ti.grid(shape=[block_s, block_h], starts=[0, 0], strides=[h_size, 1])
+            # w1_ptrs = w1_ptr + ti.grid(shape=[block_h, block_m], starts=[0, pid * block_m], strides=[2 * m_size, 1])
+            # y1_lhs = ti.zeros([block_s, block_m], dtype=f16)
+            # y1_rhs = ti.zeros([block_s, block_m], dtype=f16)
+            #
+            # for k in range(h_size // block_h):
+            #     x = ti.load(x_ptrs)  # [block_s, block_h]
+            #     w1_lhs = ti.load(w1_ptrs)  # [block_h, block_m]
+            #     w1_rhs = ti.load(w1_ptrs + m_size)
+            #     y1_lhs += ti.dot(x, w1_lhs)
+            #     y1_rhs += ti.dot(x, w1_rhs)
+            #     x_ptrs += block_h
+            #     w1_ptrs += 2 * m_size * block_h
 
-            y1_lhs = ti.zeros([block_s, block_m], dtype=f16)
-            y1_rhs = ti.zeros([block_s, block_m], dtype=f16)
+            # y1 = ti.silu(y1_lhs) * y1_rhs  # [block_s, block_m]
+            y1 = ti.zeros([block_s, block_m], dtype=f16)
 
-            for k in range(h_size // block_h):
-                x = ti.load(x_ptrs)  # [block_s, block_h]
-                w1_lhs = ti.load(w1_ptrs)  # [block_h, block_m]
-                w1_rhs = ti.load(w1_ptrs + m_size)
-                y1_lhs += ti.dot(x, w1_lhs)
-                y1_rhs += ti.dot(x, w1_rhs)
-                x_ptrs += block_m
-                w1_ptrs += 2 * m_size * block_h
+            w2_ptrs = w2_ptr + ti.grid(shape=[block_m, block_h], starts=[pid * block_m, 0], strides=[h_size, 1])
+            y_ptrs = y_ptr + ti.grid(shape=[block_s, block_h], starts=[pid * seq, 0], strides=[h_size, 1])
 
-            y1 = ti.silu(y1_lhs) * y1_rhs  # [block_s, block_m]
-
-            w2_ptrs = (
-                w2_ptr + ti.expand_dims(ti.arange(0, block_m) + pid * block_m, axis=1) * h_size + ti.arange(0, block_h)
-            )
-            y_ptrs = y_ptr + ti.expand_dims(ti.arange(0, block_s) + pid * seq, axis=1) * h_size + ti.arange(0, block_h)
-
-            mask = ti.expand_dims(ti.arange(0, block_s), axis=1) < seq
+            mask = ti.grid(shape=[block_s, 1], starts=[0, 0], strides=[1, 0]) < seq
 
             for k in range(h_size // block_h):
                 w2 = ti.load(w2_ptrs)  # [block_m, block_h]
-                y = ti.dot(y1, w2)  # [block_s, block_h]
+                # w2 = ti.zeros([block_m, block_h], dtype=f16)
+                y = ti.dot(y1, w2)     # [block_s, block_h]
                 ti.store(ptr=y_ptrs, value=y, mask=mask)
                 w2_ptrs += block_h
                 y_ptrs += block_h
@@ -248,15 +245,23 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
 
     func2 = script_module.build()
 
-    torch_ffn = hllm.models.llama.LlamaMLP(hidden_size=h_size, intermediate_size=m_size, hidden_act='silu')
+    torch_ffn = hllm.models.llama.LlamaMLP(h_size, m_size, hidden_act='silu').eval().half()
+    use_torch_weight = False
+    if use_torch_weight:
+        w1 = torch_ffn.gate_up_proj.weight.T.contiguous()
+        w2 = torch_ffn.down_proj.weight.T.contiguous()
+        assert w1.is_contiguous() and w2.is_contiguous()
+    else:
+        w1 = hidet.randn([h_size, 2 * m_size], dtype='float16', stddev=0.1, device='cuda')
+        w2 = hidet.randn([m_size * 2, h_size * 2], dtype='float16', stddev=0.1, device='cuda')
 
     def hidet_func(x):
         y1 = torch.empty([seq * (m_size // block_m), h_size], dtype=torch.float16, device='cuda')
         y2 = torch.empty([seq, h_size], dtype=torch.float16, device='cuda')
-        w1 = torch_ffn.gate_up_proj.weight
-        w2 = torch_ffn.down_proj.weight
         func1(x, w1, w2, y1)
+        hidet.cuda.synchronize()
         func2(y1, y2)
+        hidet.cuda.synchronize()
         return y2
 
     def torch_func(x):

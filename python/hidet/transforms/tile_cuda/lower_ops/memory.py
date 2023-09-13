@@ -6,7 +6,7 @@ from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.type import PointerType, DataType, void_p
 from .registry import TileOpImpl, Buffer, register_impl
-from .utils import get_type_erased_dtype
+from .utils import get_type_erased_dtype, get_dtype_from_bytes
 
 
 @register_impl(Load)
@@ -31,11 +31,16 @@ class LoadImpl(TileOpImpl):
 
                 with self.for_mapping(repeat_map(mapping_shape)) as indices:
                     local_indices = [idx if dim != axis else idx * vec_size for dim, idx in enumerate(indices)]
+                    if vec_size > 4:
+                        squash_vec_size = vec_size // 4
+                        dtype = get_dtype_from_bytes(squash_vec_size * dtype.nbytes)
+                    else:
+                        squash_vec_size = 1
                     dst_addrs = []
                     local_indices_iter = local_indices.copy()
-                    for i in range(vec_size):
+                    for i in range(vec_size // squash_vec_size):
                         dst_addrs.append(~output.var[local_indices_iter])
-                        local_indices_iter[axis] += 1
+                        local_indices_iter[axis] += squash_vec_size
                     self.append(
                         load(dtype, addr=ptr[local_indices], dst_addrs=dst_addrs, space='global', nc_cache=True)
                     )

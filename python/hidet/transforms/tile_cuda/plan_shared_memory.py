@@ -21,6 +21,7 @@ from hidet.utils import prod, is_power_of_two
 from hidet.utils import same_list
 from hidet.transforms.base import FunctionPass
 from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
+from hidet.transforms.inline_let_stmt import NaiveLetStmtInlineRewriter
 
 alloc_name = 'cuda_alloc_shared'
 

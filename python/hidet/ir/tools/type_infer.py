@@ -9,6 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Union, Type
 from enum import Enum
 from hidet.ir.type import DataType, TensorType, FuncType, PointerType, TensorPointerType, data_type, tensor_pointer_type
 from hidet.ir.type import tensor_type, BaseType, ArrayType
@@ -35,38 +36,38 @@ def is_bool(tp: DataType):
 
 
 class BinaryTypeInfer:
-    def infer(self, lhs: BaseType, rhs: BaseType, e: BinaryExpr):
+    def infer(self, lhs: BaseType, rhs: BaseType, op: Type[BinaryExpr]):
         if isinstance(lhs, DataType) and isinstance(rhs, DataType):
-            return self.dtype(lhs, rhs, e)
+            return self.dtype(lhs, rhs, op)
         elif isinstance(lhs, PointerType) and isinstance(rhs, PointerType):
-            return self.pointer(lhs, rhs, e)
+            return self.pointer(lhs, rhs, op)
         elif isinstance(lhs, TileType) and isinstance(rhs, TileType):
-            return self.tile(lhs, rhs, e)
+            return self.tile(lhs, rhs, op)
         elif isinstance(lhs, PointerType) and isinstance(rhs, DataType):
-            return self.pointer_dtype(lhs, rhs, e)
+            return self.pointer_dtype(lhs, rhs, op)
         elif isinstance(lhs, DataType) and isinstance(rhs, PointerType):
-            return self.pointer_dtype(rhs, lhs, e)
+            return self.pointer_dtype(rhs, lhs, op)
         elif isinstance(lhs, TileType) and isinstance(rhs, DataType):
-            return self.tile_dtype(lhs, rhs, e)
+            return self.tile_dtype(lhs, rhs, op)
         elif isinstance(lhs, DataType) and isinstance(rhs, TileType):
-            return self.tile_dtype(rhs, lhs, e)
+            return self.tile_dtype(rhs, lhs, op)
         elif isinstance(lhs, TileType) and isinstance(rhs, PointerType):
-            return self.tile_pointer(lhs, rhs, e)
+            return self.tile_pointer(lhs, rhs, op)
         elif isinstance(lhs, PointerType) and isinstance(rhs, TileType):
-            return self.tile_pointer(rhs, lhs, e)
+            return self.tile_pointer(rhs, lhs, op)
         else:
-            self.fail(lhs, rhs, e)
+            self.fail(lhs, rhs, op)
 
-    def dtype(self, lhs: DataType, rhs: DataType, e):
-        self.fail(lhs, rhs, e)
+    def dtype(self, lhs: DataType, rhs: DataType, op: Type[BinaryExpr]):
+        self.fail(lhs, rhs, op)
 
-    def pointer(self, lhs: PointerType, rhs: PointerType, e):
-        self.fail(lhs, rhs, e)
+    def pointer(self, lhs: PointerType, rhs: PointerType, op):
+        self.fail(lhs, rhs, op)
 
-    def pointer_dtype(self, pointer: PointerType, dtype: DataType, e):
-        self.fail(pointer, dtype, e)
+    def pointer_dtype(self, pointer: PointerType, dtype: DataType, op):
+        self.fail(pointer, dtype, op)
 
-    def tile(self, lhs: TileType, rhs: TileType, e):
+    def tile(self, lhs: TileType, rhs: TileType, op):
         from hidet.ir.utils import broadcast_shape
 
         shape = broadcast_shape(lhs.shape, rhs.shape)
@@ -74,61 +75,61 @@ class BinaryTypeInfer:
             layout = None
         else:
             raise NotImplementedError()
-        return tile_type(self.infer(lhs.type, rhs.type, e), shape, layout)
+        return tile_type(self.infer(lhs.type, rhs.type, op), shape, layout)
 
-    def tile_dtype(self, ttype: TileType, dtype: DataType, e):
-        return tile_type(self.infer(ttype.type, dtype, e), ttype.shape, ttype.layout)
+    def tile_dtype(self, ttype: TileType, dtype: DataType, op):
+        return tile_type(self.infer(ttype.type, dtype, op), ttype.shape, ttype.layout)
 
-    def tile_pointer(self, ttype: TileType, pointer: PointerType, e):
-        return tile_type(self.infer(ttype.type, pointer, e), ttype.shape, ttype.layout)
+    def tile_pointer(self, ttype: TileType, pointer: PointerType, op):
+        return tile_type(self.infer(ttype.type, pointer, op), ttype.shape, ttype.layout)
 
-    def fail(self, a, b, e):
-        raise RuntimeError('can not infer type for: {} {} {}'.format(a, type(e).__name__, b))
+    def fail(self, a, b, op):
+        raise RuntimeError('can not infer type for: {} {} {}'.format(a, type(op).__name__, b))
 
 
 class ArithBinaryInfer(BinaryTypeInfer):
-    def dtype(self, lhs: DataType, rhs: DataType, e):
+    def dtype(self, lhs: DataType, rhs: DataType, op):
         from hidet.ir.dtypes.promotion import promote_type
 
         return promote_type(lhs, rhs)
 
-    def pointer(self, lhs: PointerType, rhs: PointerType, e):
-        if isinstance(e, Sub):
+    def pointer(self, lhs: PointerType, rhs: PointerType, op):
+        if issubclass(op, Sub):
             return dtypes.int64
         else:
-            self.fail(lhs, rhs, e)
+            self.fail(lhs, rhs, op)
 
-    def pointer_dtype(self, pointer: PointerType, dtype: DataType, e):
-        if isinstance(e, (Add, Sub)):
+    def pointer_dtype(self, pointer: PointerType, dtype: DataType, op):
+        if issubclass(op, (Add, Sub)):
             return pointer
         else:
-            self.fail(pointer, dtype, e)
+            self.fail(pointer, dtype, op)
 
 
 class CompareBinaryInfer(BinaryTypeInfer):
-    def dtype(self, lhs: DataType, rhs: DataType, e):
+    def dtype(self, lhs: DataType, rhs: DataType, op):
         return dtypes.boolean
 
-    def pointer(self, lhs: PointerType, rhs: PointerType, e):
-        if isinstance(e, (Equal, NotEqual)):
+    def pointer(self, lhs: PointerType, rhs: PointerType, op):
+        if issubclass(op, (Equal, NotEqual)):
             return dtypes.boolean
         else:
-            self.fail(lhs, rhs, e)
+            self.fail(lhs, rhs, op)
 
-    def pointer_dtype(self, pointer: PointerType, dtype: DataType, e):
-        if isinstance(e, (Equal, NotEqual)):
+    def pointer_dtype(self, pointer: PointerType, dtype: DataType, op):
+        if issubclass(op, (Equal, NotEqual)):
             return dtypes.boolean
         else:
-            self.fail(pointer, dtype, e)
+            self.fail(pointer, dtype, op)
 
 
 class LogicalBinaryInfer(BinaryTypeInfer):
     # and, or
-    def dtype(self, lhs: DataType, rhs: DataType, e):
+    def dtype(self, lhs: DataType, rhs: DataType, op):
         if is_bool(lhs) and is_bool(rhs):
             return dtypes.boolean
         else:
-            self.fail(lhs, rhs, e)
+            self.fail(lhs, rhs, op)
 
 
 _arith_binary_infer = ArithBinaryInfer()
@@ -147,12 +148,13 @@ class TypeInfer(IRFunctor):
     def visit_Binary(self, e: BinaryExpr):
         a_type: BaseType = self.visit(e.a)
         b_type: BaseType = self.visit(e.b)
+        op = type(e)
         if isinstance(e, (Add, Sub, Multiply, Div, Mod)):
-            return _arith_binary_infer.infer(a_type, b_type, e)
+            return _arith_binary_infer.infer(a_type, b_type, op)
         elif isinstance(e, (LessThan, Equal, LessEqual, NotEqual)):
-            return _compare_binary_infer.infer(a_type, b_type, e)
+            return _compare_binary_infer.infer(a_type, b_type, op)
         elif isinstance(e, (LogicalAnd, LogicalOr)):
-            return _logical_binary_infer.infer(a_type, b_type, e)
+            return _logical_binary_infer.infer(a_type, b_type, op)
         else:
             raise NotImplementedError()
 

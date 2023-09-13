@@ -9,7 +9,7 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
-from hidet.ir.tile.ops import Construct, Assign, convert_layout, ConvertLayout, CastOp
+from hidet.ir.tile.ops import Construct, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
@@ -132,7 +132,9 @@ class ChangeForArgLayoutRewriter(IRRewriter):
         self.usages: Dict[Var, VarUsage] = dict()
 
     def anchor_priority(self, op: Type[TileOp]):
-        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, Arange, Full]
+        order = [
+            Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, Arange, Full, DebugPrint
+        ]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):
                 return len(order) - idx

@@ -1,8 +1,8 @@
-from typing import Union, Optional, List
-from hidet.ir.type import BaseType
+from typing import Union, Optional, List, Union
+from hidet.ir.type import BaseType, DataType, PointerType
 from hidet.ir.expr import Var, Expr
-from hidet.ir.tile.type import tile_type, TileType
-from hidet.ir.tile.expr import TileOp
+from hidet.ir.tile.type import tile_type, TileType, TileScope
+from hidet.ir.tile.expr import TileOp, TileLayout
 
 
 class UnaryTileOp(TileOp):
@@ -44,29 +44,44 @@ class BinaryTileOp(TileOp):
             if x.type.layout and y.type.layout:
                 assert x.type.layout == y.type.layout
 
+    @classmethod
+    def expr_cls(cls):
+        import hidet.ir.expr
+
+        cls_name = cls.__name__
+        if not hasattr(hidet.ir.expr, cls_name):
+            raise NotImplementedError(f'No implementation for {cls_name} binary op')
+        return getattr(hidet.ir.expr, cls_name)
+
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
-        from hidet.ir.dtypes import boolean
+        from hidet.ir.tools.type_infer import _arith_binary_infer, _compare_binary_infer, _logical_binary_infer
 
         a_type = arg_types[0]
         b_type = arg_types[1]
+        op = self.expr_cls()
         assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
         assert a_type.layout == b_type.layout and a_type.scope == b_type.scope
 
+        shape: List[int] = a_type.shape
+        scope: TileScope = a_type.scope
+        layout: TileLayout = a_type.layout
+
+        a_dtype: Union[DataType, PointerType] = a_type.type
+        b_dtype: Union[DataType, PointerType] = b_type.type
+
         if isinstance(self, (Add, Sub, Multiply, Div, Mod)):
-            return arg_types[0]
-        elif isinstance(self, (LessThan, LessEqual, Equal, NotEqual, LogicalAnd, LogicalOr)):
-            return tile_type(elem_type=boolean, shape=a_type.shape, scope=a_type.scope, layout=a_type.layout)
+            c_type = _arith_binary_infer.infer(a_dtype, b_dtype, op)
+        elif isinstance(self, (LessThan, Equal, LessEqual, NotEqual)):
+            c_type = _compare_binary_infer.infer(a_dtype, b_dtype, op)
+        elif isinstance(self, (LogicalAnd, LogicalOr)):
+            c_type = _logical_binary_infer.infer(a_dtype, b_dtype, op)
         else:
             raise NotImplementedError()
 
-    def apply_scalar(self, x: Expr, y: Expr) -> Expr:
-        import hidet.ir.expr
+        return tile_type(elem_type=c_type, shape=shape, scope=scope, layout=layout)
 
-        cls_name = self.__class__.__name__
-        if not hasattr(hidet.ir.expr, cls_name):
-            raise NotImplementedError(f'No implementation for {cls_name} binary op')
-        expr_cls = getattr(hidet.ir.expr, cls_name)
-        return Expr._binary(expr_cls, x, y)
+    def apply_scalar(self, x: Expr, y: Expr) -> Expr:
+        return Expr._binary(self.expr_cls(), x, y)
 
 
 class Neg(UnaryTileOp):

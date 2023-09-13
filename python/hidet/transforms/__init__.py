@@ -85,7 +85,7 @@ def lower(ir_module: IRModule) -> IRModule:
         remove_layout_convert_pass(),
         # value_analyze_pass(),
         software_pipeline_pass(),
-        split_dot_k_pass(),
+        # split_dot_k_pass(),
         lower_tile_dialect_pass(),
         plan_shared_memory_pass(),
     ]

@@ -10,7 +10,7 @@ hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-# hidet.utils.clear_cache_dir()
+hidet.utils.clear_cache_dir()
 
 import numpy
 
@@ -134,7 +134,20 @@ def bench_matmul():
         # report.visualize()
 
 
-def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
+def demo_type_infer():
+    from hidet.ir.dtypes import f16, i32
+    from hidet.ir.expr import Var
+    from hidet.ir.tile.ops.creation import zeros
+    from hidet.lang import tile as ti
+    from hidet.ir.tools import infer_type
+
+    pa = Var('pa', ~f16) + zeros([16, 16], dtype=i32)
+    pb = Var('pb', ~f16)
+    diff = pa - pb
+    print(infer_type(diff))
+
+
+def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
     import torch
     import torch.distributed
     import vllm.worker.worker
@@ -159,12 +172,12 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
     # y2 = silu_and_mul(y1) # [seq, m]
     # y3 = y2 @ w2          # [seq, h]
 
-    h_size = hidden_size
     m_size = intermediate_size
+    h_size = hidden_size
 
     block_s = (seq + 15) // 16 * 16
-    block_m = 32
-    block_h = 64
+    block_m = 8
+    block_h = 16
 
     assert m_size % block_m == 0
     assert h_size % block_h == 0
@@ -174,7 +187,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
         def llama_ffn(x_ptr: ~f16, w1_ptr: ~f16, w2_ptr: ~f16, y_ptr: ~f16):
             attrs.func_kind = 'cuda_tile'
             attrs.cuda.block_dim = 256
-            attrs.cuda.grid_dim = intermediate_size // block_m
+            attrs.cuda.grid_dim = m_size // block_m
 
             pid = ti.program_id()
 
@@ -202,15 +215,18 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
 
             for k in range(h_size // block_h):
                 w2 = ti.load(w2_ptrs)  # [block_m, block_h]
-                # w2 = ti.zeros([block_m, block_h], dtype=f16)
-                y = ti.dot(y1, w2)     # [block_s, block_h]
+                y = ti.dot(y1, w2)  # [block_s, block_h]
+                # ti.debug_print(w2)
+                # ti.debug_print(w2_ptrs)
+                # ti.debug_print(w2)
+                # ti.debug_print(w2_ptrs)
                 ti.store(ptr=y_ptrs, value=y, mask=mask)
                 w2_ptrs += block_h
                 y_ptrs += block_h
 
     func1 = script_module.build()
 
-    reduce_block_h = 64
+    reduce_block_h = 32
     reduce_block_s = block_s
     assert h_size % reduce_block_h == 0
 
@@ -243,7 +259,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
                 mask=ti.expand_dims(ti.arange(0, reduce_block_s), axis=1) < seq
             )
 
-    func2 = script_module.build()
+    # func2 = script_module.build()
 
     torch_ffn = hllm.models.llama.LlamaMLP(h_size, m_size, hidden_act='silu').eval().half()
     use_torch_weight = False
@@ -253,15 +269,17 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
         assert w1.is_contiguous() and w2.is_contiguous()
     else:
         w1 = hidet.randn([h_size, 2 * m_size], dtype='float16', stddev=0.1, device='cuda')
-        w2 = hidet.randn([m_size * 2, h_size * 2], dtype='float16', stddev=0.1, device='cuda')
+        w2 = hidet.randn([m_size, h_size], dtype='float16', stddev=0.1, device='cuda')
 
     def hidet_func(x):
         y1 = torch.empty([seq * (m_size // block_m), h_size], dtype=torch.float16, device='cuda')
         y2 = torch.empty([seq, h_size], dtype=torch.float16, device='cuda')
         func1(x, w1, w2, y1)
         hidet.cuda.synchronize()
-        func2(y1, y2)
-        hidet.cuda.synchronize()
+        expected_y1 = hidet.zeros([seq * (m_size // block_m), h_size], dtype='float16', device='cuda')
+        hidet.utils.assert_close(actual=y1, expected=expected_y1)
+        # func2(y1, y2)
+        # hidet.cuda.synchronize()
         return y2
 
     def torch_func(x):
@@ -275,6 +293,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=11008):
 
 
 def main():
+    # demo_type_infer()
     demo_llama_ffn()
 
 

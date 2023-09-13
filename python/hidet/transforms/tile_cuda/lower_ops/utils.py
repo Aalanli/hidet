@@ -8,3 +8,9 @@ def get_type_erased_dtype(ptr_type: PointerType) -> DataType:
     nbits: int = sizeof(ptr_type.base_type) * 8
     nbits2dtype = {8: uint8, 16: uint16, 32: uint32, 64: uint64}
     return nbits2dtype[nbits]
+
+
+def get_dtype_from_bytes(nbytes: int) -> DataType:
+    assert nbytes in [1, 2, 4, 8]
+    nbits2dtype = {8: uint8, 16: uint16, 32: uint32, 64: uint64}
+    return nbits2dtype[nbytes * 8]

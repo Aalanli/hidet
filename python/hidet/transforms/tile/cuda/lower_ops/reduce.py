@@ -1,11 +1,15 @@
 from typing import List, Union
 
-from hidet.ir.expr import Expr, var, left_shift
+from hidet.ir.type import sizeof
+from hidet.ir.expr import Expr, var, left_shift, cast
 from hidet.ir.mapping import auto_map
 from hidet.ir.mapping import spatial_map
 from hidet.ir.primitives.cuda import shfl_down_sync, shfl_up_sync, threadIdx
+from hidet.ir.tile.type import TileType
+from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.ops.reduce import ReduceOp, ReduceKind
+from hidet.ir.tools import infer_type
 from hidet.utils import prod, is_power_of_two, log_two
 from .registry import TileOpImpl, Buffer, register_impl
 
@@ -91,7 +95,7 @@ class ReduceOpImpl(TileOpImpl):
                 value = rk.combine(origin_value, neighbor_value)
                 self.buffer_store(dst.var, dst_indices, value)
 
-    def intra_block_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind):
+    def intra_block_reduce(self, src: Buffer, dst: Buffer, axis: int, rk: ReduceKind, op):
         from hidet.ir.utils.index_transform import index_deserialize
 
         layout: BlockLayout = src.block_layout
@@ -121,7 +125,10 @@ class ReduceOpImpl(TileOpImpl):
             local_shape: List[int] = src.local_shape
             spatial_shape: List[int] = local_shape[:axis] + local_shape[axis + 1 :]
             smem_shape: List[int] = shape[:axis] + [layout.warps_per_block[axis]] + shape[axis + 1 :]
-            smem_buf = self.alloc_shared_buffer(dst.dtype, shape=smem_shape, hint='reduce_{}'.format(rk.name))
+            smem_ptr = cast(self.get_smem_ptr(op, nbytes=prod(smem_shape) * sizeof(dst.dtype)), ~dst.dtype)
+            smem_buf = self.make_shared_buffer(
+                dst.dtype, shape=smem_shape, hint='reduce_{}'.format(rk.name), ptr=smem_ptr
+            )
             # 1) regs -> smem
             lane_indices: List[Expr] = index_deserialize(threadIdx.x % 32, layout.thread_per_warp)
             warp_indices: List[Expr] = index_deserialize(threadIdx.x // 32, layout.warps_per_block)
@@ -194,6 +201,27 @@ class ReduceOpImpl(TileOpImpl):
                 to_indices = spatial_indices[:axis] + [i] + spatial_indices[axis:]
                 self.buffer_store(dst.var, to_indices, dst[from_indices])
 
+    def request_smem_nbytes(self, op: ReduceOp) -> int:
+        src_type: TileType = infer_type(op.args[0])
+        dst_type: TileType = infer_type(op.make_call())
+
+        layout = src_type.layout
+        assert isinstance(layout, BlockLayout)
+        shape: List[int] = layout.shape
+        axis = op.axis
+
+        if (
+            shape[axis] <= layout.size_per_thread[axis] * layout.thread_per_warp[axis]
+            or layout.warps_per_block[axis] == 1
+        ):
+            # case 1 and 2
+            return 0
+        else:
+            # case 3
+            shape: List[int] = layout.shape
+            smem_shape: List[int] = shape[:axis] + [layout.warps_per_block[axis]] + shape[axis + 1 :]
+            return prod(smem_shape) * sizeof(dst_type.type)
+
     def implement(self, op: ReduceOp, args: List[Union[Buffer, Expr]], output: Buffer):
         src: Buffer = args[0]
         dst: Buffer = output
@@ -204,7 +232,7 @@ class ReduceOpImpl(TileOpImpl):
             # in-thread reduce
             self.intra_thread_reduce(src, dst, op.axis, op.kind)
             self.intra_warp_reduce(src, dst, op.axis, op.kind)
-            self.intra_block_reduce(src, dst, op.axis, op.kind)
+            self.intra_block_reduce(src, dst, op.axis, op.kind, op)
             self.broadcast_back(src, dst, op.axis)
         else:
             raise NotImplementedError()

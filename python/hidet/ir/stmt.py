@@ -30,6 +30,9 @@ class DeclareScope(enum.Enum):
     Shared = 2
     Register = 3
 
+    def __str__(self):
+        return self.name.lower()
+
     @staticmethod
     def make(name):
         if isinstance(name, DeclareScope):

@@ -53,9 +53,6 @@ from .tile.cuda.split_dot_k import split_dot_k_pass
 from .tile.cuda.resolve_convert_layout import resolve_convert_layout_pass
 from .tile.cuda.plan_shared_memory import plan_shared_memory_pass
 from .tile.cuda.lower_tile_dialect import lower_tile_dialect_pass
-from .tile.cuda._plan_shared_memory import plan_shared_memory_pass as _plan_shared_memory_pass
-
-from .tile.analyzers.value_analyzer import value_analyze_pass
 
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
@@ -85,13 +82,10 @@ def lower(ir_module: IRModule) -> IRModule:
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
         remove_layout_convert_pass(),
-        # value_analyze_pass(),
         software_pipeline_pass(),
         split_dot_k_pass(),
-        resolve_convert_layout_pass(),
         plan_shared_memory_pass(),
         lower_tile_dialect_pass(),
-        # _plan_shared_memory_pass(),
     ]
 
     transforms = [

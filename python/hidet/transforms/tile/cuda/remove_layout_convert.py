@@ -132,9 +132,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
         self.usages: Dict[Var, VarUsage] = dict()
 
     def anchor_priority(self, op: Type[TileOp]):
-        order = [
-            Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, DebugPrint
-        ]
+        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, DebugPrint]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):
                 return len(order) - idx

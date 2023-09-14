@@ -41,10 +41,7 @@ class TileOp(Node):
         return self.name
 
     def reforward(
-        self,
-        args: List[Expr],
-        attr_update: Dict[str, CConst] = None,
-        annotations_update: Dict[str, CConst] = None
+        self, args: List[Expr], attr_update: Dict[str, CConst] = None, annotations_update: Dict[str, CConst] = None
     ):
         attrs = self.attrs.copy()
         annotations = self.annotations.copy()

@@ -33,17 +33,11 @@ class Create(TileOp):
 
 
 def arange(begin: int, end: int):
-    return Create.from_compute(
-        shape=[end - begin],
-        f_compute=lambda axes: axes[0] + convert(begin)
-    ).make_call()
+    return Create.from_compute(shape=[end - begin], f_compute=lambda axes: axes[0] + convert(begin)).make_call()
 
 
 def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
-    return Create.from_compute(
-        shape=list(shape),
-        f_compute=lambda axes: convert(value)
-    ).make_call()
+    return Create.from_compute(shape=list(shape), f_compute=lambda axes: convert(value)).make_call()
 
 
 def grid(shape: List[int], starts: List[Union[Expr, int]], strides: List[Union[Expr, int]]):
@@ -52,8 +46,7 @@ def grid(shape: List[int], starts: List[Union[Expr, int]], strides: List[Union[E
     starts = [convert(start) for start in starts]
     strides = [convert(stride) for stride in strides]
     return Create.from_compute(
-        shape=shape,
-        f_compute=lambda axes: sum((axes[i] + starts[i]) * strides[i] for i in range(len(shape)))
+        shape=shape, f_compute=lambda axes: sum((axes[i] + starts[i]) * strides[i] for i in range(len(shape)))
     ).make_call()
 
 

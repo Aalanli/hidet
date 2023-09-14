@@ -45,8 +45,7 @@ def register_functions():
 
 
 def dynamic_shared_memory(
-    byte_offset: Union[Expr, int],
-    dtype: Optional[Union[DataType, PointerType, str]] = None
+    byte_offset: Union[Expr, int], dtype: Optional[Union[DataType, PointerType, str]] = None
 ) -> Call:
     if dtype is None:
         suffix = 'void'

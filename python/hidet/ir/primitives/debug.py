@@ -32,6 +32,7 @@ def printf(format_string, *args):
 
 def format_string_from_dtype(dtype: Union[DataType, PointerType]) -> str:
     from hidet.ir.dtypes import float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64
+
     if isinstance(dtype, PointerType):
         return '%p'
     elif dtype in [float32, float64]:
@@ -45,5 +46,7 @@ def format_string_from_dtype(dtype: Union[DataType, PointerType]) -> str:
     elif dtype is uint64:
         return '%llu'
     else:
-        raise ValueError('Can not use printf to print "{}" directly, consider converting it to other '
-                         'more standard type first.'.format(dtype))
+        raise ValueError(
+            'Can not use printf to print "{}" directly, consider converting it to other '
+            'more standard type first.'.format(dtype)
+        )

@@ -30,6 +30,7 @@ class c_pointer_compatible:
             return ctypes.c_void_p(obj)
         elif obj.__module__.startswith('torch'):
             import torch
+
             if isinstance(obj, torch.Tensor):
                 return ctypes.c_void_p(obj.data_ptr())
             else:

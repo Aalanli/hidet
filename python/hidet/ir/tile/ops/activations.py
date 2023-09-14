@@ -11,6 +11,7 @@ class ActivationOp(UnaryTileOp):
 class Exp(ActivationOp):
     def apply_scalar(self, x: Expr) -> Expr:
         from hidet.ir.primitives import math
+
         return math.exp(x)
 
 
@@ -19,6 +20,7 @@ class Silu(ActivationOp):
         # x * sigmoid(x) = x * (1 / (1 + exp(-x)))
         from hidet.ir.primitives import math
         from hidet.ir.tools import infer_type
+
         dtype = infer_type(x)
         assert isinstance(dtype, DataType)
         return x / (dtype.one + math.exp(-x))

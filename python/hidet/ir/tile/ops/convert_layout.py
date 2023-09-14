@@ -8,7 +8,7 @@ from hidet.ir.type import BaseType
 
 class ConvertLayout(TileOp):
     def __init__(self, x: Expr, layout: TileLayout, scope: Optional[Union[TileScope, str]] = None):
-        super().__init__(args=[x], attrs={"layout": layout})
+        super().__init__(args=[x], attrs={"layout": layout, "scope": scope})
         self.x: Expr = x
         self.layout: TileLayout = layout
         self.scope: TileScope = TileScope.make(scope) if scope else TileScope.Register

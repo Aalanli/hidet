@@ -75,13 +75,11 @@ class Buffer:
 
 
 class TileOpImpl(StmtBuilder):
-    def alloc_shared_buffer(
-        self, dtype: Union[DataType, PointerType], shape: List[int], hint: str, data_layout=None
+    def make_shared_buffer(
+        self, dtype: Union[DataType, PointerType], shape: List[int], hint: str, ptr: Expr, data_layout=None
     ) -> Buffer:
-        from hidet.ir.primitives.cuda.tile import alloc_shared
-
         buf_var = Var(hint=hint, type=tensor_pointer_type(dtype=dtype, shape=shape, layout=data_layout))
-        self.declare(buf_var, init=alloc_shared(nbytes=sizeof(dtype) * prod(shape)))
+        self.declare(buf_var, init=ptr)
         return Buffer(
             buf_var=buf_var,
             dtype=dtype,
@@ -123,15 +121,20 @@ class TileOpImpl(StmtBuilder):
 
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 
-    def get_smem_ptr(self, op: TileOp) -> Expr:
+    def get_smem_ptr(self, op: TileOp, nbytes: int) -> Expr:
         from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
 
         requested: int = self.request_smem_nbytes(op)
         if requested == 0:
-            raise RuntimeError('Please implement the "request_smem_nbytes" method to return a positive integer before'
-                               ' accessing the requested shared memory.')
+            raise RuntimeError(
+                'Please implement the "request_smem_nbytes" method to return a positive integer before'
+                ' accessing the requested shared memory.'
+            )
         if annotations.global_offset not in op.annotations:
             raise RuntimeError('No shared memory offset found. Did you forget to run the PlanSharedMemory pass?')
+
+        if nbytes > requested:
+            raise RuntimeError(f"Requested {nbytes} bytes of shared memory, but only {requested} bytes are allocated.")
 
         return dynamic_shared_memory(op.annotations[annotations.global_offset])
 
@@ -156,8 +159,13 @@ def register_impl(op_cls: Type[TileOp]):
     return decorator
 
 
-def implement_tile_op(op: TileOp, args: List[Buffer], output: Buffer) -> Stmt:
-    op_cls = type(op)
+def get_tile_op_impl(op_or_op_cls: Union[TileOp, Type[TileOp]]) -> Type[TileOpImpl]:
+    if isinstance(op_or_op_cls, TileOp):
+        op_cls = type(op_or_op_cls)
+    elif issubclass(op_or_op_cls, TileOp):
+        op_cls = op_or_op_cls
+    else:
+        raise RuntimeError(f"Cannot get tile op impl for {op_or_op_cls}")
 
     if op_cls not in _registered_implementations:
         parent_classes: Tuple = inspect.getmro(op_cls)
@@ -167,8 +175,13 @@ def implement_tile_op(op: TileOp, args: List[Buffer], output: Buffer) -> Stmt:
                 break
         else:
             raise RuntimeError(f"Cannot implement tile op:\n {op_cls.op_name()}")
-
     impl_cls = _registered_implementations[op_cls]
+
+    return impl_cls
+
+
+def implement_tile_op(op: TileOp, args: List[Buffer], output: Buffer) -> Stmt:
+    impl_cls = get_tile_op_impl(op)
     impl = impl_cls()
     impl.implement(op, args, output)
     return impl.finish()

@@ -1,26 +1,31 @@
 from typing import List, Union, Optional
 
 from hidet.ir.dtypes import int32
-from hidet.ir.expr import Expr, if_then_else
+from hidet.ir.type import sizeof
+from hidet.ir.expr import Expr, if_then_else, cast
 from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async_wait_group
 from hidet.ir.primitives.cuda.sync import syncthreads
 from hidet.ir.tile.layout import BlockLayout
+from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, AsyncCommitGroup, AsyncWait, ExtractSlice
-from hidet.ir.tile.ops.smem import StoreShared, LoadShared
 from hidet.ir.type import DataType, void_p
 from hidet.transforms.tile import annotations
-from hidet.utils import is_power_of_two
+from hidet.utils import is_power_of_two, prod
 from .registry import TileOpImpl, Buffer, register_impl
 from .utils import get_type_erased_dtype
 
 
 @register_impl(AllocTensor)
 class AllocTensorImpl(TileOpImpl):
+    def request_smem_nbytes(self, op: AllocTensor) -> int:
+        local_shape: List[int] = op.layout.local_shape()
+        return prod(local_shape) * sizeof(op.dtype)
+
     def implement(self, op: AllocTensor, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
-        from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
         if annotations.global_offset not in op.annotations:
             op.annotations[annotations.global_offset] = 0
-        self.assign(output.var, dynamic_shared_memory(op.annotations[annotations.global_offset], void_p))
+        smem_ptr = cast(self.get_smem_ptr(op, nbytes=prod(output.shape) * sizeof(output.dtype)), ~output.dtype)
+        self.assign(output.var, smem_ptr)
 
 
 @register_impl(InsertSliceAsync)
@@ -142,31 +147,3 @@ class ExtractSliceImpl(TileOpImpl):
             indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
             indices[op.axis] = index
         self.assign(output.var, ~src[indices])
-
-
-@register_impl(LoadShared)
-class LoadSharedImpl(TileOpImpl):
-    def implement(self, op: LoadShared, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
-        src: Buffer = args[0]
-        assert src.scope.is_shared() and output.scope.is_register()
-
-        def f_compute(local_indices, global_indices, not_duplicated):
-            return src[global_indices]
-
-        self.iterate_dist_buffer_and_compute(output, f_compute)
-
-
-@register_impl(StoreShared)
-class StoreSharedImpl(TileOpImpl):
-    def implement(self, op: StoreShared, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
-        src: Buffer = args[0]
-        dst: Buffer = args[1]
-
-        assert src.scope.is_register() and dst.scope.is_shared()
-
-        def f_apply(local_indices, global_indices, not_duplicated):
-            with self.if_then(not_duplicated):
-                self.buffer_store(dst, global_indices, src[local_indices])
-
-        self.iterate_dist_buffer_and_apply(src, f_apply)
-        self.assign(output.var, dst.var)

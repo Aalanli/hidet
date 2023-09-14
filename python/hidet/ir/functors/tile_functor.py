@@ -13,7 +13,7 @@ from hidet.ir.tile.ops.reduce import ReduceOp
 from hidet.ir.tile.ops.debug import DebugPrint
 from hidet.ir.tile.ops.dot import Dot
 from hidet.ir.tile.ops.assign import Assign
-from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, ProcedureOp, LoadShared, StoreShared
+from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, ProcedureOp
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 from hidet.utils import same_list
 
@@ -64,10 +64,6 @@ class TileFunctor(BaseFunctor):
             return self.visit_InsertSliceAsync(node)
         elif isinstance(node, ExtractSlice):
             return self.visit_ExtractSlice(node)
-        elif isinstance(node, LoadShared):
-            return self.visit_LoadShared(node)
-        elif isinstance(node, StoreShared):
-            return self.visit_StoreShared(node)
         elif isinstance(node, ProcedureOp):
             return self.visit_ProcedureOp(node)
         elif isinstance(node, TileOp):
@@ -126,12 +122,6 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_ExtractSlice(self, e: ExtractSlice):
-        raise NotImplementedError()
-
-    def visit_LoadShared(self, e: LoadShared):
-        raise NotImplementedError()
-
-    def visit_StoreShared(self, e: StoreShared):
         raise NotImplementedError()
 
     def visit_ProcedureOp(self, e: ProcedureOp):
@@ -200,12 +190,6 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.args)
 
     def visit_ExtractSlice(self, e: ExtractSlice):
-        self.visit(e.args)
-
-    def visit_LoadShared(self, e: LoadShared):
-        self.visit(e.args)
-
-    def visit_StoreShared(self, e: StoreShared):
         self.visit(e.args)
 
     def visit_ProcedureOp(self, e: ProcedureOp):
@@ -356,20 +340,6 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e.reforward(args)
 
     def visit_ExtractSlice(self, e: ExtractSlice):
-        args = self.visit(e.args)
-        if args is e.args:
-            return e
-        else:
-            return e.reforward(args)
-
-    def visit_LoadShared(self, e: LoadShared):
-        args = self.visit(e.args)
-        if args is e.args:
-            return e
-        else:
-            return e.reforward(args)
-
-    def visit_StoreShared(self, e: StoreShared):
         args = self.visit(e.args)
         if args is e.args:
             return e

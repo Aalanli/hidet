@@ -7,12 +7,13 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRVisitor, IRRewriter
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
-from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
-from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, StoreShared
+from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile import annotations
+from hidet.transforms.tile.cuda.lower_ops.registry import get_tile_op_impl
 from hidet.utils import prod
 
 """
@@ -44,31 +45,50 @@ Solution:
 """
 
 
+def alloc_nbytes(alloc: TileOp) -> int:
+    impl_cls = get_tile_op_impl(alloc)
+    impl = impl_cls()
+    return impl.request_smem_nbytes(alloc)
+
+
 class AssociateVisitor(IRVisitor):
     def __init__(self):
         super().__init__()
         self.type_infer = TypeInfer()
-        self.var2alloc: Dict[Var, AllocTensor] = {}
-        self.alloc2var: Dict[AllocTensor, List[Var]] = defaultdict(list)
 
-    def is_alloc_tensor(self, e):
-        return isinstance(e, CallTileOp) and isinstance(e.op, AllocTensor)
+        # all tile operators that require shared memory will be recorded in allocation list
+        # include the AllocTensor op that allocates the shared memory, or operator like ConvertLayout op that
+        # need shared memory as the temporary buffer
+        self.allocations: List[TileOp] = []
 
-    def as_alloc_tensor(self, e) -> AllocTensor:
-        assert isinstance(e, CallTileOp) and isinstance(e.op, AllocTensor)
-        return e.op
+        # if an operator will return the allocated shared memory, we also should track all the variables that
+        # will hold the shared memory. With this information, we can know whether it is possible to allocate
+        # the same space for two operators that require shared memory. Currently, we only consider the case
+        # that each operator only holds the reference for at most a single operator's requested shared memory.
+        self.var2alloc: Dict[Var, TileOp] = {}
+        self.alloc2var: Dict[TileOp, List[Var]] = defaultdict(list)
 
-    def associate(self, var: Var, alloc: AllocTensor):
-        self.var2alloc[var] = alloc
-        self.alloc2var[alloc].append(var)
+    def associate(self, var: Var, op: TileOp):
+        self.var2alloc[var] = op
+        self.alloc2var[op].append(var)
 
     def visit_LetStmt(self, stmt: LetStmt):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             assert isinstance(bind_var, Var)
+
+            if not isinstance(bind_value, CallTileOp):
+                continue
+
+            op: TileOp = bind_value.op
+            if alloc_nbytes(op) > 0:
+                # this tile operator requires shared memory allocation
+                self.allocations.append(op)
+
             if not (isinstance(bind_var.type, TileType) and bind_var.type.scope.is_shared()):
                 continue
-            assert isinstance(bind_value, CallTileOp)
-            op = bind_value.op
+
+            # for all operators that manipulate the shared memory, we need to associate the variables with the
+            # original tile operator that allocates the memory
             if isinstance(op, AllocTensor):
                 self.associate(bind_var, op)
             elif isinstance(op, InsertSliceAsync):
@@ -80,10 +100,7 @@ class AssociateVisitor(IRVisitor):
             elif isinstance(op, ConvertLayout):
                 assert isinstance(op.x, Var)
                 # op.x must be a shared tensor, otherwise this op will be resolved in ResolveConvertLayoutPass
-                self.associate(bind_var, self.var2alloc[op.x])
-            elif isinstance(op, StoreShared):
-                assert isinstance(op.dst, Var)
-                self.associate(bind_var, self.var2alloc[op.dst])
+                self.associate(bind_var, op)
             else:
                 raise NotImplementedError(op.__class__.__name__)
         self.visit(stmt.body)
@@ -134,6 +151,7 @@ class LifeSpanAnalyzer(IRVisitor):
     def __init__(self):
         super().__init__()
         self.var2lifespan: Dict[Var, LifeSpan] = {}
+        self.op2lifespan: Dict[TileOp, LifeSpan] = {}
         self.clock: int = 0
 
     def visit(self, node):
@@ -151,6 +169,10 @@ class LifeSpanAnalyzer(IRVisitor):
             self.var2lifespan[v] = LifeSpan(self.clock, self.clock)
         else:
             self.var2lifespan[v].expand(self.clock)
+
+    def visit_CallTileOp(self, call: CallTileOp):
+        self.op2lifespan[call.op] = LifeSpan(self.clock, self.clock)
+        super().visit_CallTileOp(call)
 
     def visit_LetStmt(self, stmt: LetStmt):
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
@@ -175,9 +197,9 @@ class LifeSpanAnalyzer(IRVisitor):
 
 
 class ApplyPlanRewriter(IRRewriter):
-    def __init__(self, alloc2offset: Dict[AllocTensor, int], dynamic_smem_nbytes: int):
+    def __init__(self, alloc2offset: Dict[TileOp, int], dynamic_smem_nbytes: int):
         super().__init__()
-        self.alloc2offset: Dict[AllocTensor, int] = alloc2offset
+        self.alloc2offset: Dict[TileOp, int] = alloc2offset
         self.dynamic_smem_nbytes: int = dynamic_smem_nbytes
 
     def visit_Function(self, func: Function):
@@ -186,15 +208,18 @@ class ApplyPlanRewriter(IRRewriter):
             func.attrs['cuda.dynamic_smem_bytes'] = self.dynamic_smem_nbytes
         return func
 
-    def visit_AllocTensor(self, e: AllocTensor):
-        assert e in self.alloc2offset
-        ret = AllocTensor(e.dtype, e.shape, e.layout)
-        ret.annotations[annotations.global_offset] = self.alloc2offset[e]
-        return ret
+    def visit_CallTileOp(self, call: CallTileOp):
+        op = call.op
+
+        if alloc_nbytes(op) > 0:
+            if op not in self.alloc2offset:
+                raise RuntimeError('Tile operator {} has requested shared memory but not allocated.'.format(op))
+            op = op.reforward(args=op.args, annotations_update={annotations.global_offset: self.alloc2offset[op]})
+        return CallTileOp(op)
 
 
-Edges = Dict[AllocTensor, List[AllocTensor]]
-Plan = Tuple[Dict[AllocTensor, int], int]
+Edges = Dict[TileOp, List[TileOp]]
+Plan = Tuple[Dict[TileOp, int], int]  # {op: offset}, allocated
 
 
 class PlanSharedMemoryPass(TileFunctionPass):
@@ -206,17 +231,19 @@ class PlanSharedMemoryPass(TileFunctionPass):
 
     def analyze_alloc_edges(
         self,
-        allocations: List[AllocTensor],
-        alloc2var: Dict[AllocTensor, List[Var]],
-        var2lifespan: Dict[Var, LifeSpan]
-    ) -> Dict[AllocTensor, List[AllocTensor]]:
+        allocations: List[TileOp],
+        alloc2var: Dict[TileOp, List[Var]],
+        var2lifespan: Dict[Var, LifeSpan],
+        op2lifespan: Dict[TileOp, LifeSpan],
+    ) -> Dict[TileOp, List[TileOp]]:
         # if (u, v) in edges, then u and v have overlap
         edges: Edges = defaultdict(list)
         for u in allocations:
             for v in allocations:
                 if u is v:
                     continue
-                u_span, v_span = LifeSpan(), LifeSpan()
+                u_span = op2lifespan[u]
+                v_span = op2lifespan[v]
                 for u_var in alloc2var[u]:
                     u_span.merge(var2lifespan[u_var])
                 for v_var in alloc2var[v]:
@@ -226,21 +253,15 @@ class PlanSharedMemoryPass(TileFunctionPass):
                     edges[v].append(u)
         return edges
 
-    def plan(self, allocations: List[AllocTensor], edges: Edges, max_nbytes: int, alignment=16) -> Plan:
-        def alloc_nbytes(alloc: AllocTensor) -> int:
-            local_shape: List[int] = alloc.layout.local_shape()
-            return prod(local_shape) * sizeof(alloc.dtype)
-
-        allocations: List[AllocTensor] = list(sorted(allocations, key=alloc_nbytes, reverse=True))
-        plan: Dict[AllocTensor, int] = {}
+    def plan(self, allocations: List[TileOp], edges: Edges, max_nbytes: int, alignment=16) -> Plan:
+        allocations: List[TileOp] = list(sorted(allocations, key=alloc_nbytes, reverse=True))
+        plan: Dict[TileOp, int] = {}
         allocated: int = 0
 
         for u in allocations:
             # event: (offset, delta)
             events: List[Tuple[int, int]] = []
             for v in edges[u]:
-                assert isinstance(u, AllocTensor)
-                assert isinstance(v, AllocTensor)
                 if v in plan:
                     aligned_nbytes = (alloc_nbytes(v) + alignment - 1) // alignment * alignment
                     events.append((plan[v], 1))
@@ -271,10 +292,11 @@ class PlanSharedMemoryPass(TileFunctionPass):
         lifespan_analyzer.visit(func)
 
         # step 3
-        alloc2var: Dict[AllocTensor, List[Var]] = associate_visitor.alloc2var
+        alloc2var: Dict[TileOp, List[Var]] = associate_visitor.alloc2var
         var2lifespan: Dict[Var, LifeSpan] = lifespan_analyzer.var2lifespan
-        allocations: List[AllocTensor] = list(associate_visitor.alloc2var.keys())
-        edges: Edges = self.analyze_alloc_edges(allocations, alloc2var, var2lifespan)
+        op2lifetime: Dict[TileOp, LifeSpan] = lifespan_analyzer.op2lifespan
+        allocations: List[TileOp] = associate_visitor.allocations
+        edges: Edges = self.analyze_alloc_edges(allocations, alloc2var, var2lifespan, op2lifetime)
 
         # step 4
         plan: Dict[AllocTensor, int]

@@ -4,7 +4,7 @@ from hidet.ir.stmt import LetStmt, Stmt, EvaluateStmt
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.tile.ops.convert_layout import ConvertLayout, convert_layout
-from hidet.ir.tile.ops.smem import AllocTensor, StoreShared, LoadShared
+from hidet.ir.tile.ops.smem import AllocTensor
 from hidet.ir.tile.ops.sync import SyncThreads
 from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tile.expr import CallTileOp
@@ -69,13 +69,7 @@ class ResolveConvertLayoutRewriter(IRRewriter):
 class ResolveConvertLayoutPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
         return self.apply_transforms(
-            func,
-            [
-                ResolveConvertLayoutRewriter(),
-                ConvertTileExprToLetRewriter(),
-                LetExprExpander()
-            ]
-
+            func, [ResolveConvertLayoutRewriter(), ConvertTileExprToLetRewriter(), LetExprExpander()]
         )
 
 

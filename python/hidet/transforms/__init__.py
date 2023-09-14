@@ -50,7 +50,6 @@ from .tile.cuda.coalesce_memory_access import coalesce_memory_access_pass
 from .tile.cuda.remove_layout_convert import remove_layout_convert_pass
 from .tile.cuda.software_pipeline import software_pipeline_pass
 from .tile.cuda.split_dot_k import split_dot_k_pass
-from .tile.cuda.resolve_convert_layout import resolve_convert_layout_pass
 from .tile.cuda.plan_shared_memory import plan_shared_memory_pass
 from .tile.cuda.lower_tile_dialect import lower_tile_dialect_pass
 

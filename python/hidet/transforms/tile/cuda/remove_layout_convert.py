@@ -132,7 +132,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
         self.usages: Dict[Var, VarUsage] = dict()
 
     def anchor_priority(self, op: Type[TileOp]):
-        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, DebugPrint]
+        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, BinaryTileOp, ConvertLayout, DebugPrint]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):
                 return len(order) - idx
@@ -155,6 +155,22 @@ class ChangeForArgLayoutRewriter(IRRewriter):
             updated_func = canonicalize_to_ssa(updated_func)
         return updated_func
 
+    def get_usage_priority(self, usage: VarUsage):
+        ret = -1
+        for let_usage in usage.call_op_let_usages():
+            p = self.anchor_priority(type(let_usage.op))
+            ret = max(ret, p)
+        for stmt_usage in usage.stmt_usages:
+            s = stmt_usage.stmt
+            if isinstance(s, EvaluateStmt):
+                if isinstance(s.expr, CallTileOp):
+                    ret = max(ret, self.anchor_priority(type(s.expr.op)))
+                else:
+                    raise NotImplementedError()
+            else:
+                ret = max(ret, self.stmt_priority(type(s)))
+        return ret
+
     def visit_PureForStmt(self, stmt: PureForStmt):
         arg2layout: Dict[Var, TileLayout] = {}
         for arg in stmt.args:
@@ -171,21 +187,11 @@ class ChangeForArgLayoutRewriter(IRRewriter):
                 op = let_usage.op
                 if isinstance(op, ConvertLayout):
                     bind_var = let_usage.bind_var
-                    for cvt_usage in self.usages[bind_var].call_op_let_usages():
-                        p = self.anchor_priority(type(cvt_usage.op))
-                        layout2priority[op.layout] = max(layout2priority[op.layout], p)
-                else:
-                    layout2priority[layout] = max(layout2priority[layout], self.anchor_priority(type(op)))
-            for stmt_usage in usage.stmt_usages:
-                s = stmt_usage.stmt
-                if isinstance(s, EvaluateStmt):
-                    if isinstance(s.expr, CallTileOp):
-                        layout2priority[layout] = max(layout2priority[layout], self.anchor_priority(type(s.expr.op)))
-                    else:
-                        raise NotImplementedError()
-                else:
-                    layout2priority[layout] = self.stmt_priority(type(s))
-                    raise NotImplementedError()
+                    layout2priority[op.layout] = max(
+                        layout2priority[op.layout],
+                        self.get_usage_priority(self.usages[bind_var])
+                    )
+            layout2priority[layout] = max(layout2priority[layout], self.get_usage_priority(usage))
 
             # find the layout that has the anchor with the highest priority
             best_layout = max(layout2priority.keys(), key=lambda l: layout2priority[l])

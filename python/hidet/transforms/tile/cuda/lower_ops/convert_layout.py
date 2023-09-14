@@ -53,6 +53,8 @@ class ConvertLayoutImpl(TileOpImpl):
                 smem_ptr = cast(self.get_smem_ptr(op, prod(smem_shape) * sizeof(src.dtype)), ~src.dtype)
                 smem = self.make_shared_buffer(src.dtype, smem_shape, 'cvt_smem', ptr=smem_ptr)
 
+                self.sync_threads()
+
                 # src to smem
                 def f_apply(local_indices, global_indices, not_duplicated):
                     with self.if_then(not_duplicated):

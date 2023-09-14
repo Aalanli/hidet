@@ -4,13 +4,14 @@ import vllm.model_executor.parallel_utils
 from hidet.ir.dtypes import float16, float32
 from hidet.transforms import lower, PassContext, instruments
 from hidet.utils.ncu_utils import ncu_run
+from hidet import ops
 import numpy as np
 
 hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-hidet.utils.clear_cache_dir()
+# hidet.utils.clear_cache_dir()
 
 import numpy
 
@@ -147,7 +148,7 @@ def demo_type_infer():
     print(infer_type(diff))
 
 
-def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
+def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
     import torch
     import torch.distributed
     import vllm.worker.worker
@@ -176,8 +177,8 @@ def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
     h_size = hidden_size
 
     block_s = (seq + 15) // 16 * 16
-    block_m = 8
-    block_h = 16
+    block_m = 64
+    block_h = 64
 
     assert m_size % block_m == 0
     assert h_size % block_h == 0
@@ -191,22 +192,21 @@ def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
 
             pid = ti.program_id()
 
-            # x_ptrs = x_ptr + ti.grid(shape=[block_s, block_h], starts=[0, 0], strides=[h_size, 1])
-            # w1_ptrs = w1_ptr + ti.grid(shape=[block_h, block_m], starts=[0, pid * block_m], strides=[2 * m_size, 1])
-            # y1_lhs = ti.zeros([block_s, block_m], dtype=f16)
-            # y1_rhs = ti.zeros([block_s, block_m], dtype=f16)
-            #
-            # for k in range(h_size // block_h):
-            #     x = ti.load(x_ptrs)  # [block_s, block_h]
-            #     w1_lhs = ti.load(w1_ptrs)  # [block_h, block_m]
-            #     w1_rhs = ti.load(w1_ptrs + m_size)
-            #     y1_lhs += ti.dot(x, w1_lhs)
-            #     y1_rhs += ti.dot(x, w1_rhs)
-            #     x_ptrs += block_h
-            #     w1_ptrs += 2 * m_size * block_h
+            x_ptrs = x_ptr + ti.grid(shape=[block_s, block_h], starts=[0, 0], strides=[h_size, 1])
+            w1_ptrs = w1_ptr + ti.grid(shape=[block_h, block_m], starts=[0, pid * block_m], strides=[2 * m_size, 1])
+            y1_lhs = ti.zeros([block_s, block_m], dtype=f16)
+            y1_rhs = ti.zeros([block_s, block_m], dtype=f16)
 
-            # y1 = ti.silu(y1_lhs) * y1_rhs  # [block_s, block_m]
-            y1 = ti.zeros([block_s, block_m], dtype=f16)
+            for k in range(h_size // block_h):
+                x = ti.load(x_ptrs)  # [block_s, block_h]
+                w1_lhs = ti.load(w1_ptrs)  # [block_h, block_m]
+                w1_rhs = ti.load(w1_ptrs + m_size)
+                y1_lhs += ti.dot(x, w1_lhs)
+                y1_rhs += ti.dot(x, w1_rhs)
+                x_ptrs += block_h
+                w1_ptrs += 2 * m_size * block_h
+
+            y1 = ti.silu(y1_lhs) * y1_rhs  # [block_s, block_m]
 
             w2_ptrs = w2_ptr + ti.grid(shape=[block_m, block_h], starts=[pid * block_m, 0], strides=[h_size, 1])
             y_ptrs = y_ptr + ti.grid(shape=[block_s, block_h], starts=[pid * seq, 0], strides=[h_size, 1])
@@ -255,42 +255,47 @@ def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
                 mask=ti.expand_dims(ti.arange(0, reduce_block_s), axis=1) < seq
             )
 
-    # func2 = script_module.build()
+    func2 = script_module.build()
 
     torch_ffn = hllm.models.llama.LlamaMLP(h_size, m_size, hidden_act='silu').eval().half()
-    use_torch_weight = False
-    if use_torch_weight:
-        w1 = torch_ffn.gate_up_proj.weight.T.contiguous()
-        w2 = torch_ffn.down_proj.weight.T.contiguous()
-        assert w1.is_contiguous() and w2.is_contiguous()
-    else:
-        w1 = hidet.randn([h_size, 2 * m_size], dtype='float16', stddev=0.1, device='cuda')
-        w2 = hidet.randn([m_size, h_size], dtype='float16', stddev=0.1, device='cuda')
+    torch.nn.init.normal_(torch_ffn.gate_up_proj.weight, mean=0, std=0.01)
+    torch.nn.init.normal_(torch_ffn.down_proj.weight, mean=0, std=0.01)
+    w1 = hidet.from_torch(torch_ffn.gate_up_proj.weight.T.contiguous())
+    w2 = hidet.from_torch(torch_ffn.down_proj.weight.T.contiguous())
 
     def hidet_func(x):
         y1 = torch.empty([seq * (m_size // block_m), h_size], dtype=torch.float16, device='cuda')
         y2 = torch.empty([seq, h_size], dtype=torch.float16, device='cuda')
         func1(x, w1, w2, y1)
-        hidet.cuda.synchronize()
-        expected_y1 = hidet.zeros([seq * (m_size // block_m), h_size], dtype='float16', device='cuda')
-        hidet.utils.assert_close(actual=y1, expected=expected_y1)
-        # func2(y1, y2)
-        # hidet.cuda.synchronize()
+        func2(y1, y2)
         return y2
 
     def torch_func(x):
         return torch_ffn(x)
 
+    def hidet_origin_func(x):
+        x = hidet.from_torch(x)
+        y1 = x @ w1
+        y1 = ops.silu(y1[:, :m_size]) * y1[:, m_size:]
+        y2 = y1 @ w2
+        return y2
+
     x = torch.randn([seq, h_size], dtype=torch.float16, device='cuda')
     y1 = hidet_func(x)
     y2 = torch_func(x)
+    y3 = hidet_origin_func(x)
 
-    hidet.utils.assert_close(y1, y2, atol=1e-2, rtol=1e-2)
+    hidet.utils.assert_close(y2, y3, atol=5e-2, rtol=5e-2)
+    hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
+
+    print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))
+    print(' hidet-origin: {:.3f}'.format(hidet.utils.benchmark_func(lambda: hidet_origin_func(x), repeat=100)))
+    print('   hidet-tile: {:.3f}'.format(hidet.utils.benchmark_func(lambda: hidet_func(x), repeat=100)))
 
 
 def main():
-    # demo_type_infer()
-    demo_llama_ffn()
+    # demo_matmul()
+    demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
 
 
 if __name__ == '__main__':

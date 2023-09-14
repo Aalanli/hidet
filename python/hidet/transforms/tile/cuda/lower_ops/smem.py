@@ -1,16 +1,15 @@
 from typing import List, Union, Optional
 
-from hidet.ir.expr import Expr, if_then_else, logical_and, cast
-from hidet.ir.tile.expr import TileOp
-from hidet.ir.mapping import repeat_map
-from hidet.ir.tile.layout import DistributedLayout, BlockLayout
+from hidet.ir.dtypes import int32
+from hidet.ir.expr import Expr, if_then_else
+from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async_wait_group
+from hidet.ir.primitives.cuda.sync import syncthreads
+from hidet.ir.tile.layout import BlockLayout
 from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, AsyncCommitGroup, AsyncWait, ExtractSlice
 from hidet.ir.tile.ops.smem import StoreShared, LoadShared
-from hidet.ir.type import PointerType, DataType, void_p, sizeof, BaseType
-from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async, cp_async_wait_group
-from hidet.ir.primitives.cuda.sync import syncthreads
-from hidet.ir.dtypes import uint8, uint16, uint32, uint64, int32
-from hidet.utils import prod, is_power_of_two
+from hidet.ir.type import DataType, void_p
+from hidet.transforms.tile import annotations
+from hidet.utils import is_power_of_two
 from .registry import TileOpImpl, Buffer, register_impl
 from .utils import get_type_erased_dtype
 
@@ -19,7 +18,9 @@ from .utils import get_type_erased_dtype
 class AllocTensorImpl(TileOpImpl):
     def implement(self, op: AllocTensor, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
-        self.assign(output.var, dynamic_shared_memory(op.global_offset, void_p))
+        if annotations.global_offset not in op.annotations:
+            op.annotations[annotations.global_offset] = 0
+        self.assign(output.var, dynamic_shared_memory(op.annotations[annotations.global_offset], void_p))
 
 
 @register_impl(InsertSliceAsync)

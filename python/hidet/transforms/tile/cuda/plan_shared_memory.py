@@ -12,6 +12,7 @@ from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, StoreShared
 from hidet.transforms.base import TileFunctionPass
+from hidet.transforms.tile import annotations
 from hidet.utils import prod
 
 """
@@ -187,7 +188,9 @@ class ApplyPlanRewriter(IRRewriter):
 
     def visit_AllocTensor(self, e: AllocTensor):
         assert e in self.alloc2offset
-        return AllocTensor(e.dtype, e.shape, e.layout, self.alloc2offset[e])
+        ret = AllocTensor(e.dtype, e.shape, e.layout)
+        ret.annotations[annotations.global_offset] = self.alloc2offset[e]
+        return ret
 
 
 Edges = Dict[AllocTensor, List[AllocTensor]]

@@ -20,18 +20,12 @@ class AllocTensor(TileOp):
         self,
         dtype: Union[DataType, PointerType],
         shape: List[int],
-        layout: Optional[TileLayout] = None,
-        global_offset: Optional[int] = None
+        layout: Optional[TileLayout] = None
     ):
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
         self.layout: TileLayout = layout if layout else SharedLayout(shape)
-        self.global_offset: Optional[int] = global_offset
-        super().__init__(
-            args=[], attrs={
-                "dtype": dtype, "shape": shape, "layout": self.layout, "global_offset": global_offset
-            }
-        )
+        super().__init__(args=[], attrs={"dtype": dtype, "shape": shape, "layout": self.layout})
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         assert len(arg_types) == 0

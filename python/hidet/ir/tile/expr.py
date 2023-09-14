@@ -40,11 +40,21 @@ class TileOp(Node):
     def var_name_hint(self):
         return self.name
 
-    def reforward(self, args: List[Expr] = None, attr_update: Dict[str, CConst] = None):
+    def reforward(
+        self,
+        args: List[Expr],
+        attr_update: Dict[str, CConst] = None,
+        annotations_update: Dict[str, CConst] = None
+    ):
         attrs = self.attrs.copy()
+        annotations = self.annotations.copy()
         if attr_update is not None:
             attrs.update(attr_update)
-        return self.__class__(*args, **attrs)
+        if annotations_update is not None:
+            annotations.update(annotations_update)
+        ret = self.__class__(*args, **attrs)
+        ret.annotations = annotations
+        return ret
 
     def make_call(self):
         return CallTileOp(self)

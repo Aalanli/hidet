@@ -9,7 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union
+from typing import Union, Optional
 
 from hidet.ir.expr import Expr, Call, cast
 from hidet.ir.expr import Var
@@ -24,10 +24,12 @@ from hidet.utils import initialize
 def register_functions():
     from hidet.lang import script, attrs, cast
 
-    for dtype in ['int8', 'uint8', 'uint32', 'int32', 'float16', 'float32', 'bool', 'void_p']:
+    for dtype in ['void', 'int8', 'uint8', 'uint32', 'int32', 'float16', 'float32', 'bool', 'void_p']:
         func_name = f'cuda_dynamic_shared_memory_{dtype}'
-        if dtype == 'void_p':
+        if dtype == 'void':
             ret_type = void_p
+        elif dtype == 'void_p':
+            ret_type = ~void_p
         else:
             ret_type = ~data_type(dtype)
 
@@ -42,13 +44,20 @@ def register_functions():
         register_primitive_function(cuda_dynamic_shared_memory.name, cuda_dynamic_shared_memory)
 
 
-def dynamic_shared_memory(byte_offset: Union[Expr, int], dtype: Union[DataType, PointerType, str]) -> Call:
-    if isinstance(dtype, PointerType):
+def dynamic_shared_memory(
+    byte_offset: Union[Expr, int],
+    dtype: Optional[Union[DataType, PointerType, str]] = None
+) -> Call:
+    if dtype is None:
+        suffix = 'void'
+    elif isinstance(dtype, PointerType):
         suffix = 'void_p'
     else:
         suffix: str = data_type(dtype).name
     func_name = f'cuda_dynamic_shared_memory_{suffix}'
-    if isinstance(dtype, PointerType):
+    if dtype is None:
+        return cast(call_primitive_func(func_name, [byte_offset]), void_p)
+    elif isinstance(dtype, PointerType):
         return cast(call_primitive_func(func_name, [byte_offset]), ~dtype)
     else:
         return call_primitive_func(func_name, [byte_offset])

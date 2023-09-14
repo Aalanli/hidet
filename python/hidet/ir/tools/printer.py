@@ -11,6 +11,7 @@
 # limitations under the License.
 from typing import Optional, List, Union, Dict, Tuple
 import contextlib
+import itertools
 
 import hidet.utils.structure
 from hidet.ir.node import Node
@@ -655,7 +656,7 @@ class IRPrinter(IRFunctor):
     def visit_TileOp(self, op: TileOp):
         args_doc = [self(v) for v in op.args]
         attrs_doc = []
-        for k, v in op.attrs.items():
+        for k, v in itertools.chain(op.attrs.items(), op.annotations.items()):
             if v is None:
                 # skip None attrs
                 continue

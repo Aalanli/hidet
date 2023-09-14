@@ -38,7 +38,7 @@ class ResolveConvertLayoutRewriter(IRRewriter):
                 elif x_scope.is_shared() and y_scope.is_shared():
                     seq.append(LetStmt([bind_var], [bind_value]))
                 elif x_scope.is_register() and y_scope.is_register():
-                    buf = AllocTensor(x_type.type, shape=x_type.shape, global_offset=None).make_call()
+                    buf = AllocTensor(x_type.type, shape=x_type.shape).make_call()
                     buf_var = Var('buf', type=self.type_infer(buf))
                     updated_buf = StoreShared(x, buf_var).make_call()
                     updated_buf_var = Var('updated_buf', type=self.type_infer(updated_buf))
@@ -48,7 +48,7 @@ class ResolveConvertLayoutRewriter(IRRewriter):
                     seq.append(LetStmt([bind_var], [regs_buf]))
                     seq.append(EvaluateStmt(SyncThreads().make_call()))
                 elif x_scope.is_register() and y_scope.is_shared():
-                    buf = AllocTensor(x_type.type, shape=x_type.shape, layout=op.layout, global_offset=None).make_call()
+                    buf = AllocTensor(x_type.type, shape=x_type.shape, layout=op.layout).make_call()
                     buf_var = Var('buf', type=self.type_infer(buf))
                     updated_smem = StoreShared(x, buf_var).make_call()
                     seq.append(LetStmt([buf_var, bind_var], [buf, updated_smem]))

@@ -12,6 +12,7 @@ from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
 from hidet.ir.builders import StmtBuilder
 from hidet.transforms.tile.analyzers.value_analyzer import TensorInfo
+from hidet.transforms.tile import annotations
 from hidet.utils import prod
 
 
@@ -123,12 +124,21 @@ class TileOpImpl(StmtBuilder):
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 
     def get_smem_ptr(self, op: TileOp) -> Expr:
-        raise NotImplementedError()
+        from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
+
+        requested: int = self.request_smem_nbytes(op)
+        if requested == 0:
+            raise RuntimeError('Please implement the "request_smem_nbytes" method to return a positive integer before'
+                               ' accessing the requested shared memory.')
+        if annotations.global_offset not in op.annotations:
+            raise RuntimeError('No shared memory offset found. Did you forget to run the PlanSharedMemory pass?')
+
+        return dynamic_shared_memory(op.annotations[annotations.global_offset])
 
     # --------------------------------------------------
     # virtual methods to be implemented for each tile op
     # --------------------------------------------------
-    def requested_smem_nbytes(self, op: TileOp) -> int:
+    def request_smem_nbytes(self, op: TileOp) -> int:
         return 0
 
     def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):

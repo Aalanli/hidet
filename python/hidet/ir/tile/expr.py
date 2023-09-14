@@ -17,6 +17,13 @@ class TileOp(Node):
     def __init__(self, args: List[Expr] = None, attrs: Dict[str, CConst] = None):
         self.args: List[Expr] = args if args is not None else []
         self.attrs: Dict[str, CConst] = attrs if attrs is not None else {}
+        self.annotations: Dict[str, CConst] = {}
+
+        # annotations are different from attrs:
+        #        attrs: attrs will determine the semantics of the operator
+        #  annotations: annotations are used to pass information between passes
+        # we introduce annotations to avoid polluting the attrs with information that is only used in passes
+        # we will also show the annotations when we print the IR
 
     @classmethod
     def op_name(cls):

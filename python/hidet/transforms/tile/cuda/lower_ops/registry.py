@@ -122,6 +122,15 @@ class TileOpImpl(StmtBuilder):
 
         self.iterate_dist_buffer_and_apply(buf, f_apply)
 
+    def get_smem_ptr(self, op: TileOp) -> Expr:
+        raise NotImplementedError()
+
+    # --------------------------------------------------
+    # virtual methods to be implemented for each tile op
+    # --------------------------------------------------
+    def requested_smem_nbytes(self, op: TileOp) -> int:
+        return 0
+
     def implement(self, op: TileOp, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
         raise NotImplementedError()
 

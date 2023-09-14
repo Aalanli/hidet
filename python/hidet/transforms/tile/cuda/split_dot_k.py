@@ -13,9 +13,9 @@ from hidet.ir.tile.layout import TileLayout, SharedLayout, DotOperandLayout
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
-from hidet.transforms.tile_cuda.remove_layout_convert import FoldConvertLayoutTransform, IdentityConvertLayoutTransform
-from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
+from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
+from hidet.transforms.tile.generic.dead_code_elimination import DeadCodeEliminationRewriter
+from hidet.transforms.tile.cuda.remove_layout_convert import FoldConvertLayoutTransform, IdentityConvertLayoutTransform
 
 """
 d = dot(a, b, c)    # a: [m, ks], b: [ks, n], c: [m, n] where ks = s * k

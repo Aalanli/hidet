@@ -1,4 +1,5 @@
 from typing import Dict, List
+from hidet.ir.stmt import Stmt, LetStmt, SeqStmt
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.functors import IRVisitor
 
@@ -19,3 +20,17 @@ def collect_yield_stmts(node):
     collector = YieldStmtCollector()
     collector.visit(node)
     return collector.for2yield
+
+
+def glue_let_chain(seq: List[Stmt]) -> Stmt:
+    assert len(seq) > 0
+    body = seq[-1]
+    for stmt in reversed(seq[:-1]):
+        if isinstance(stmt, LetStmt):
+            if isinstance(body, LetStmt):
+                body = LetStmt(stmt.bind_vars + body.bind_vars, stmt.bind_values + body.bind_values, body.body)
+            else:
+                body = LetStmt(stmt.bind_vars, stmt.bind_values, body)
+        else:
+            body = SeqStmt([stmt, body])
+    return body

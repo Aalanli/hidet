@@ -6,12 +6,12 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
-from hidet.ir.tile.ops import Construct, Assign, convert_layout
+from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
+from hidet.ir.tile.ops import Create, Assign, convert_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
+from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.utils import same_list
 
 
@@ -92,28 +92,13 @@ class InstantiateLayoutRewriter(IRRewriter):
                 updated_values.append(yie)
         return YieldStmt(updated_values)
 
-    def visit_Arange(self, e: Arange):
-        if e.layout:
-            layout = e.layout
-        else:
-            layout = BlockLayout.from_shape([e.end - e.begin], self.num_warps)
-        return Arange(e.begin, e.end, layout)
-
-    def visit_Full(self, e: Full):
+    def visit_Create(self, e: Create):
         if e.layout:
             layout = e.layout
         else:
             layout = BlockLayout.from_shape(e.shape, self.num_warps)
         value = self.visit(e.value)
-        return Full(value, e.shape, layout)
-
-    def visit_Construct(self, e: Construct):
-        if e.layout:
-            layout = e.layout
-        else:
-            layout = BlockLayout.from_shape(e.shape, self.num_warps)
-        value = self.visit(e.value)
-        return Construct(value, e.shape, e.axes, layout)
+        return Create(value, e.shape, e.axes, layout)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         x = self.visit(e.x)

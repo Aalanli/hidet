@@ -4,7 +4,7 @@ from hidet.ir.stmt import LetStmt
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.tile.expr import CallTileOp
-from hidet.ir.tile.ops import Full, Arange, Construct, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp
+from hidet.ir.tile.ops import Create, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
@@ -17,13 +17,13 @@ class SimplifyTileCreationRewriter(IRRewriter):
     def __init__(self):
         super().__init__()
         self.type_infer = TypeInfer()
-        self.var2construct: Dict[Var, Construct] = {}
+        self.var2construct: Dict[Var, Create] = {}
 
     def visit_LetStmt(self, stmt):
         bind_values: List[Expr] = []
         for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
             bind_value = self.visit(bind_value)
-            if isinstance(bind_value, CallTileOp) and isinstance(bind_value.op, Construct):
+            if isinstance(bind_value, CallTileOp) and isinstance(bind_value.op, Create):
                 self.var2construct[bind_var] = bind_value.op
             elif isinstance(bind_value, Var) and bind_value in self.var2construct:
                 self.var2construct[bind_var] = self.var2construct[bind_value]
@@ -34,16 +34,10 @@ class SimplifyTileCreationRewriter(IRRewriter):
         else:
             return LetStmt(stmt.bind_vars, bind_values, body)
 
-    def visit_Full(self, e: Full):
-        return Construct.from_compute(e.shape, f_compute=lambda indices: e.value)
-
-    def visit_Arange(self, e: Arange):
-        return Construct.from_compute([e.end - e.begin], f_compute=lambda indices: e.begin + indices[0])
-
     def visit_Broadcast(self, e: Broadcast):
         if e.x in self.var2construct:
             assert isinstance(e.x, Var)
-            x: Construct = self.var2construct[e.x]
+            x: Create = self.var2construct[e.x]
 
             def f_compute(indices: List[Var]) -> Expr:
                 assert len(indices) == len(x.shape)
@@ -55,14 +49,14 @@ class SimplifyTileCreationRewriter(IRRewriter):
                         x_indices.append(indices[idx])
                 return x[x_indices]
 
-            return Construct.from_compute(shape=e.shape, f_compute=f_compute)
+            return Create.from_compute(shape=e.shape, f_compute=f_compute)
         else:
             return super().visit_Broadcast(e)
 
     def visit_ExpandDims(self, e: ExpandDims):
         if e.x in self.var2construct:
             assert isinstance(e.x, Var)
-            x: Construct = self.var2construct[e.x]
+            x: Create = self.var2construct[e.x]
             y_type: TileType = self.type_infer(e.make_call())
 
             def f_compute(indices: List[Var]) -> Expr:
@@ -70,17 +64,17 @@ class SimplifyTileCreationRewriter(IRRewriter):
                 x_indices = indices[: e.axis] + indices[e.axis + 1 :]
                 return x[x_indices]
 
-            return Construct.from_compute(shape=y_type.shape, f_compute=f_compute)
+            return Create.from_compute(shape=y_type.shape, f_compute=f_compute)
         else:
             return super().visit_ExpandDims(e)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         if e.x in self.var2construct and e.y in self.var2construct:
             assert isinstance(e.x, Var) and isinstance(e.y, Var)
-            x: Construct = self.var2construct[e.x]
-            y: Construct = self.var2construct[e.y]
+            x: Create = self.var2construct[e.x]
+            y: Create = self.var2construct[e.y]
             shape = x.shape
-            return Construct.from_compute(shape=shape, f_compute=lambda indices: e.apply_scalar(x[indices], y[indices]))
+            return Create.from_compute(shape=shape, f_compute=lambda indices: e.apply_scalar(x[indices], y[indices]))
         else:
             return super().visit_BinaryTileOp(e)
 

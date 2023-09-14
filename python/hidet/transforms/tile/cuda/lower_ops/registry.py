@@ -11,7 +11,7 @@ from hidet.ir.primitives.cuda import syncthreads, threadIdx
 from hidet.ir.layout import row_major
 from hidet.ir.stmt import Stmt
 from hidet.ir.builders import StmtBuilder
-from hidet.transforms.tile_generic.analyzers.value_analyzer import TensorInfo
+from hidet.transforms.tile.analyzers.value_analyzer import TensorInfo
 from hidet.utils import prod
 
 

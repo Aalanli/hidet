@@ -4,7 +4,7 @@ from hidet.ir.expr import Expr
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops.creation import Arange, Full, Construct
+from hidet.ir.tile.ops.creation import Create
 from hidet.ir.tile.ops.memory import Load, Store
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims, CastOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
@@ -13,7 +13,7 @@ from hidet.ir.tile.ops.reduce import ReduceOp
 from hidet.ir.tile.ops.debug import DebugPrint
 from hidet.ir.tile.ops.dot import Dot
 from hidet.ir.tile.ops.assign import Assign
-from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, ProcedureOp
+from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice, ProcedureOp, LoadShared, StoreShared
 from .base_functor import BaseFunctor, BaseVisitor, BaseRewriter
 from hidet.utils import same_list
 
@@ -36,18 +36,14 @@ class TileFunctor(BaseFunctor):
             return self.visit_UnaryTileOp(node)
         elif isinstance(node, BinaryTileOp):
             return self.visit_BinaryTileOp(node)
-        elif isinstance(node, Arange):
-            return self.visit_Arange(node)
         elif isinstance(node, Load):
             return self.visit_Load(node)
         elif isinstance(node, Store):
             return self.visit_Store(node)
         elif isinstance(node, Broadcast):
             return self.visit_Broadcast(node)
-        elif isinstance(node, Full):
-            return self.visit_Full(node)
-        elif isinstance(node, Construct):
-            return self.visit_Construct(node)
+        elif isinstance(node, Create):
+            return self.visit_Create(node)
         elif isinstance(node, ConvertLayout):
             return self.visit_ConvertLayout(node)
         elif isinstance(node, ExpandDims):
@@ -68,6 +64,10 @@ class TileFunctor(BaseFunctor):
             return self.visit_InsertSliceAsync(node)
         elif isinstance(node, ExtractSlice):
             return self.visit_ExtractSlice(node)
+        elif isinstance(node, LoadShared):
+            return self.visit_LoadShared(node)
+        elif isinstance(node, StoreShared):
+            return self.visit_StoreShared(node)
         elif isinstance(node, ProcedureOp):
             return self.visit_ProcedureOp(node)
         elif isinstance(node, TileOp):
@@ -89,10 +89,7 @@ class TileFunctor(BaseFunctor):
     def visit_BinaryTileOp(self, e: BinaryTileOp):
         raise NotImplementedError()
 
-    def visit_Arange(self, e: Arange):
-        raise NotImplementedError()
-
-    def visit_Construct(self, e: Construct):
+    def visit_Create(self, e: Create):
         raise NotImplementedError()
 
     def visit_Load(self, e: Load):
@@ -108,9 +105,6 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_CastOp(self, e: CastOp):
-        raise NotImplementedError()
-
-    def visit_Full(self, e: Full):
         raise NotImplementedError()
 
     def visit_ConvertLayout(self, e: ConvertLayout):
@@ -132,6 +126,12 @@ class TileFunctor(BaseFunctor):
         raise NotImplementedError()
 
     def visit_ExtractSlice(self, e: ExtractSlice):
+        raise NotImplementedError()
+
+    def visit_LoadShared(self, e: LoadShared):
+        raise NotImplementedError()
+
+    def visit_StoreShared(self, e: StoreShared):
         raise NotImplementedError()
 
     def visit_ProcedureOp(self, e: ProcedureOp):
@@ -155,26 +155,19 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(call.op)
 
     def visit_UnaryTileOp(self, e: UnaryTileOp):
-        self.visit(e.x)
+        self.visit(e.args)
 
     def visit_BinaryTileOp(self, e: BinaryTileOp):
-        self.visit(e.x)
-        self.visit(e.y)
+        self.visit(e.args)
 
-    def visit_Arange(self, e: Arange):
-        pass
-
-    def visit_Construct(self, e: Construct):
-        self.visit(e.value)
+    def visit_Create(self, e: Create):
+        self.visit(e.args)
 
     def visit_Load(self, e: Load):
-        self.visit(e.ptr)
-        self.visit(e.mask)
+        self.visit(e.args)
 
     def visit_Store(self, e: Store):
-        self.visit(e.ptr)
-        self.visit(e.mask)
-        self.visit(e.value)
+        self.visit(e.args)
 
     def visit_Broadcast(self, e: Broadcast):
         self.visit(e.x)
@@ -185,9 +178,6 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_CastOp(self, e: CastOp):
         self.visit(e.x)
 
-    def visit_Full(self, e: Full):
-        self.visit(e.value)
-
     def visit_ConvertLayout(self, e: ConvertLayout):
         self.visit(e.x)
 
@@ -195,13 +185,10 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.x)
 
     def visit_Dot(self, e: Dot):
-        self.visit(e.a)
-        self.visit(e.b)
-        self.visit(e.c)
+        self.visit(e.args)
 
     def visit_Assign(self, e: Assign):
-        self.visit(e.src)
-        self.visit(e.dst)
+        self.visit(e.args)
 
     def visit_DebugPrint(self, e: DebugPrint):
         self.visit(e.x)
@@ -213,6 +200,12 @@ class TileVisitor(TileFunctor, BaseVisitor):
         self.visit(e.args)
 
     def visit_ExtractSlice(self, e: ExtractSlice):
+        self.visit(e.args)
+
+    def visit_LoadShared(self, e: LoadShared):
+        self.visit(e.args)
+
+    def visit_StoreShared(self, e: StoreShared):
         self.visit(e.args)
 
     def visit_ProcedureOp(self, e: ProcedureOp):
@@ -268,10 +261,7 @@ class TileRewriter(TileFunctor, BaseRewriter):
         else:
             return e.reforward([x, y])
 
-    def visit_Arange(self, e: Arange):
-        return e
-
-    def visit_Construct(self, e: Construct):
+    def visit_Create(self, e: Create):
         value = self.visit(e.value)
         if value is e.value:
             return e
@@ -316,13 +306,6 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e
         else:
             return e.reforward([x])
-
-    def visit_Full(self, e: Full):
-        value = self.visit(e.value)
-        if value is e.value:
-            return e
-        else:
-            return e.reforward([value])
 
     def visit_ConvertLayout(self, e: ConvertLayout):
         x = self.visit(e.x)
@@ -373,6 +356,20 @@ class TileRewriter(TileFunctor, BaseRewriter):
             return e.reforward(args)
 
     def visit_ExtractSlice(self, e: ExtractSlice):
+        args = self.visit(e.args)
+        if args is e.args:
+            return e
+        else:
+            return e.reforward(args)
+
+    def visit_LoadShared(self, e: LoadShared):
+        args = self.visit(e.args)
+        if args is e.args:
+            return e
+        else:
+            return e.reforward(args)
+
+    def visit_StoreShared(self, e: StoreShared):
         args = self.visit(e.args)
         if args is e.args:
             return e

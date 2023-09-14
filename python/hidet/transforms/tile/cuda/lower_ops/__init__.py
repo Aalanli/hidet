@@ -10,3 +10,4 @@ from . import debug
 from . import assign
 from . import dot
 from . import smem
+from . import sync

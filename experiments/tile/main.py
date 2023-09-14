@@ -216,10 +216,6 @@ def demo_llama_ffn(seq=16, hidden_size=32, intermediate_size=8):
             for k in range(h_size // block_h):
                 w2 = ti.load(w2_ptrs)  # [block_m, block_h]
                 y = ti.dot(y1, w2)  # [block_s, block_h]
-                # ti.debug_print(w2)
-                # ti.debug_print(w2_ptrs)
-                # ti.debug_print(w2)
-                # ti.debug_print(w2_ptrs)
                 ti.store(ptr=y_ptrs, value=y, mask=mask)
                 w2_ptrs += block_h
                 y_ptrs += block_h

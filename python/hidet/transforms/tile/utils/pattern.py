@@ -8,7 +8,7 @@ from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp, CallTileOp
 from hidet.ir.tile.stmt import PureForStmt
-from hidet.ir.tile.ops import Full, Construct, Arange, BinaryTileOp, Dot, ConvertLayout, CastOp
+from hidet.ir.tile.ops import Create, BinaryTileOp, Dot, ConvertLayout, CastOp
 from hidet.ir.tile.ops.arthimatic import Add, Multiply, Equal, NotEqual
 from hidet.utils import same_list
 
@@ -45,18 +45,10 @@ class PatternBuilder:
         return TilePlaceholder()
 
     @staticmethod
-    def full():
-        return TileOpPattern(Full)
-
-    @staticmethod
-    def arange():
-        return TileOpPattern(Arange)
-
-    @staticmethod
     def construct(value=None):
         if value is None:
             value = PatternBuilder.any_scalar_expr()
-        return TileOpPattern(Construct, value)
+        return TileOpPattern(Create, value)
 
     @staticmethod
     def binary(x: TilePattern, y: TilePattern):
@@ -83,9 +75,7 @@ class PatternBuilder:
         if isinstance(e, Var) and e in var2call:
             e = var2call[e]
         if isinstance(e, CallTileOp):
-            if isinstance(e.op, Full):
-                v = e.op.value
-            elif isinstance(e.op, Construct):
+            if isinstance(e.op, Create):
                 if isinstance(e.op.value, Constant):
                     v = e.op.value
                 else:

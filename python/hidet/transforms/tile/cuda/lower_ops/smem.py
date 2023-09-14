@@ -5,6 +5,7 @@ from hidet.ir.tile.expr import TileOp
 from hidet.ir.mapping import repeat_map
 from hidet.ir.tile.layout import DistributedLayout, BlockLayout
 from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, AsyncCommitGroup, AsyncWait, ExtractSlice
+from hidet.ir.tile.ops.smem import StoreShared, LoadShared
 from hidet.ir.type import PointerType, DataType, void_p, sizeof, BaseType
 from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async, cp_async_wait_group
 from hidet.ir.primitives.cuda.sync import syncthreads
@@ -17,10 +18,8 @@ from .utils import get_type_erased_dtype
 @register_impl(AllocTensor)
 class AllocTensorImpl(TileOpImpl):
     def implement(self, op: AllocTensor, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
-        from hidet.ir.primitives.cuda.tile import alloc_shared
-
-        nbytes: int = prod(op.shape) * sizeof(op.dtype)
-        self.assign(output.var, alloc_shared(nbytes=nbytes))
+        from hidet.ir.primitives.cuda.smem import dynamic_shared_memory
+        self.assign(output.var, dynamic_shared_memory(op.global_offset, void_p))
 
 
 @register_impl(InsertSliceAsync)
@@ -142,3 +141,31 @@ class ExtractSliceImpl(TileOpImpl):
             indices: List[Expr] = [int32(0) for _ in range(len(output.shape))]
             indices[op.axis] = index
         self.assign(output.var, ~src[indices])
+
+
+@register_impl(LoadShared)
+class LoadSharedImpl(TileOpImpl):
+    def implement(self, op: LoadShared, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
+        src: Buffer = args[0]
+        assert src.scope.is_shared() and output.scope.is_register()
+
+        def f_compute(local_indices, global_indices, not_duplicated):
+            return src[global_indices]
+
+        self.iterate_dist_buffer_and_compute(output, f_compute)
+
+
+@register_impl(StoreShared)
+class StoreSharedImpl(TileOpImpl):
+    def implement(self, op: StoreShared, args: List[Union[Buffer, Expr]], output: Optional[Buffer]):
+        src: Buffer = args[0]
+        dst: Buffer = args[1]
+
+        assert src.scope.is_register() and dst.scope.is_shared()
+
+        def f_apply(local_indices, global_indices, not_duplicated):
+            with self.if_then(not_duplicated):
+                self.buffer_store(dst, global_indices, src[local_indices])
+
+        self.iterate_dist_buffer_and_apply(src, f_apply)
+        self.assign(output.var, dst.var)

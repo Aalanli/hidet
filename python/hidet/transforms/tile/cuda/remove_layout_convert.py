@@ -8,16 +8,16 @@ from hidet.ir.tile.type import TileLayout
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
-from hidet.ir.tile.ops import Construct, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint
+from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
+from hidet.ir.tile.ops import Create, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
-from hidet.transforms.tile_generic.dead_code_elimination import DeadCodeEliminationRewriter
-from hidet.transforms.tile_generic.analyzers import VarUsage, UsageAnalyzer
-from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
+from hidet.transforms.tile.analyzers import VarUsage, UsageAnalyzer
+from hidet.transforms.tile.generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
+from hidet.transforms.tile.generic.dead_code_elimination import DeadCodeEliminationRewriter
+from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.utils import same_list
 
 
@@ -74,10 +74,10 @@ class ConvertConstructLayoutTransform(PatternTransform):
         return self.cvt
 
     def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
-        cst: Construct = self.get_tile_op(self.cst, matched, var2call)
+        cst: Create = self.get_tile_op(self.cst, matched, var2call)
         cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
 
-        updated_cst = Construct(value=cst.value, shape=cst.shape, axes=cst.axes, layout=cvt.layout)
+        updated_cst = Create(value=cst.value, shape=cst.shape, axes=cst.axes, layout=cvt.layout)
         return updated_cst.make_call()
 
 
@@ -133,7 +133,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
 
     def anchor_priority(self, op: Type[TileOp]):
         order = [
-            Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, Arange, Full, DebugPrint
+            Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, ConvertLayout, BinaryTileOp, DebugPrint
         ]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):

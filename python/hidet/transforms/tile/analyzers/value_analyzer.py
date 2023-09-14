@@ -10,7 +10,7 @@ from hidet.ir.func import Function
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops import Construct, BinaryTileOp
+from hidet.ir.tile.ops import Create, BinaryTileOp
 from hidet.ir.functors import IRVisitor
 from hidet.utils import gcd, same_list
 from hidet.transforms.base import TileFunctionPass
@@ -436,7 +436,7 @@ class ValueAnalyzer(IRVisitor):
 
     # tile operators
 
-    def visit_Construct(self, e: Construct):
+    def visit_Create(self, e: Create):
         for dim, axis in enumerate(e.axes):
             self.memo[axis] = TensorInfo.from_axis(shape=e.shape, dim=dim)
         info: Optional[ValueInfo] = self.visit(e.value)

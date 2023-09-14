@@ -13,15 +13,15 @@ from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.layout import SharedLayout
 from hidet.ir.tile.ops import AllocTensor, Load, InsertSliceAsync, AsyncCommitGroup, ExtractSlice, AsyncWait
 from hidet.ir.tile.ops.arthimatic import LogicalAnd
-from hidet.ir.tile.ops import ConvertLayout, Construct
+from hidet.ir.tile.ops import ConvertLayout, Create
 from hidet.ir.tile.ops import construct
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.type import TileType, TileScope
 from hidet.ir.tools import TypeInfer, rewrite
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_cuda.remove_layout_convert import FoldConvertLayoutTransform, DeadCodeEliminationRewriter
-from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
-from hidet.transforms.tile_generic.analyzers import DefinitionAnalyzer, VarDefinition, LetDefinition, DependencyAnalyzer
+from hidet.transforms.tile.analyzers import DefinitionAnalyzer, VarDefinition, LetDefinition, DependencyAnalyzer
+from hidet.transforms.tile.cuda.remove_layout_convert import FoldConvertLayoutTransform, DeadCodeEliminationRewriter
+from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 
 logger = logging.getLogger(__name__)
 
@@ -497,7 +497,7 @@ class SoftwarePipelineRewriter(IRRewriter):
             mask = load_arg_map[load.mask] if load.mask is not None else None
             other = load_arg_map[load.other] if load.other is not None else None
             assert isinstance(ptr.type, TileType)
-            extra_mask = Construct.from_compute(
+            extra_mask = Create.from_compute(
                 shape=ptr.type.shape,
                 f_compute=lambda *indices: less_than(self.loop.loop_var + self.num_stages - 1, self.loop.extent),
                 layout=ptr.type.layout,

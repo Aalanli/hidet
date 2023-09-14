@@ -7,8 +7,8 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt, SeqStmt
 from hidet.ir.module import IRModule
-from hidet.ir.tile.ops import Arange, Full, Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
-from hidet.ir.tile.ops import Construct, convert_layout
+from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
+from hidet.ir.tile.ops import Create, convert_layout
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.primitives import lookup_primitive_function
 from hidet.ir.primitives.cuda.smem import dynamic_shared_memory

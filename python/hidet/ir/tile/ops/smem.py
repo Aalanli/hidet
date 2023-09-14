@@ -16,11 +16,22 @@ class ProcedureOp(TileOp):
 
 
 class AllocTensor(TileOp):
-    def __init__(self, dtype: Union[DataType, PointerType], shape: List[int], layout: Optional[TileLayout] = None):
-        super().__init__(args=[], attrs={"dtype": dtype, "shape": shape})
+    def __init__(
+        self,
+        dtype: Union[DataType, PointerType],
+        shape: List[int],
+        layout: Optional[TileLayout] = None,
+        global_offset: Optional[int] = None
+    ):
         self.dtype: Union[PointerType, DataType] = dtype
         self.shape: List[int] = shape
         self.layout: TileLayout = layout if layout else SharedLayout(shape)
+        self.global_offset: Optional[int] = global_offset
+        super().__init__(
+            args=[], attrs={
+                "dtype": dtype, "shape": shape, "layout": self.layout, "global_offset": global_offset
+            }
+        )
 
     def infer_type(self, arg_types: List[BaseType]) -> BaseType:
         assert len(arg_types) == 0
@@ -70,6 +81,7 @@ class AsyncWait(ProcedureOp):
 class ExtractSlice(TileOp):
     def __init__(self, src: Expr, start: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):
         super().__init__(args=[src, start], attrs={"axis": axis, "extent": extent, "layout": layout})
+        self.src: Expr = src
         self.axis: int = axis
         self.extent: int = extent
         self.layout: Optional[TileLayout] = layout
@@ -83,10 +95,32 @@ class ExtractSlice(TileOp):
         assert isinstance(src_type, TileType)
         src_shape: List[int] = src_type.shape
         if self.extent == 1:
-            shape = src_shape[: self.axis] + src_shape[self.axis + 1 :]
+            shape = src_shape[: self.axis] + src_shape[self.axis + 1:]
         else:
-            shape = src_shape[: self.axis] + [self.extent] + src_shape[self.axis + 1 :]
+            shape = src_shape[: self.axis] + [self.extent] + src_shape[self.axis + 1:]
         return tile_type(elem_type=src_type.type, shape=shape, scope=TileScope.Shared, layout=self.layout)
+
+
+class LoadShared(TileOp):
+    def __init__(self, src: Expr, layout: TileLayout):
+        super().__init__(args=[src], attrs={"layout": layout})
+        self.src: Expr = src
+        self.layout: TileLayout = layout
+
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        src_type = arg_types[0]
+        assert isinstance(src_type, TileType)
+        return TileType(elem_type=src_type.type, shape=src_type.shape, scope=TileScope.Register, layout=self.layout)
+
+
+class StoreShared(TileOp):
+    def __init__(self, src: Expr, dst: Expr):
+        super().__init__(args=[src, dst])
+        self.src: Expr = src
+        self.dst: Expr = dst
+
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        return arg_types[1]
 
 
 def extract_slice(src: Expr, start_index: Expr, axis: int, extent: int, layout: Optional[TileLayout] = None):

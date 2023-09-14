@@ -38,22 +38,24 @@ from .check_launch_configuration import check_launch_configuration_pass
 from .lower_special_cast import lower_special_cast_pass
 from .annotate_header_and_libs import annotate_header_and_libs_pass
 
-from .tile_generic.canonicalize_to_ssa import canonicalize_to_ssa_pass
-from .tile_generic.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
-from .tile_generic.canonicalize_expressions import canonicalize_expressions_pass
-from .tile_generic.fold_constant import fold_constant_pass
-from .tile_generic.pattern_transform import pattern_transform_pass
+from .tile.generic.canonicalize_to_ssa import canonicalize_to_ssa_pass
+from .tile.generic.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
+from .tile.generic.canonicalize_expressions import canonicalize_expressions_pass
+from .tile.generic.fold_constant import fold_constant_pass
+from .tile.generic.pattern_transform import pattern_transform_pass
 
-from .tile_cuda.resolve_dot import resolve_dot_pass
-from .tile_cuda.instantiate_layout import instantiate_layout_pass
-from .tile_cuda.coalesce_memory_access import coalesce_memory_access_pass
-from .tile_cuda.remove_layout_convert import remove_layout_convert_pass
-from .tile_cuda.software_pipeline import software_pipeline_pass
-from .tile_cuda.split_dot_k import split_dot_k_pass
-from .tile_cuda.lower_tile_dialect import lower_tile_dialect_pass
-from .tile_cuda.plan_shared_memory import plan_shared_memory_pass
+from .tile.cuda.resolve_dot import resolve_dot_pass
+from .tile.cuda.instantiate_layout import instantiate_layout_pass
+from .tile.cuda.coalesce_memory_access import coalesce_memory_access_pass
+from .tile.cuda.remove_layout_convert import remove_layout_convert_pass
+from .tile.cuda.software_pipeline import software_pipeline_pass
+from .tile.cuda.split_dot_k import split_dot_k_pass
+from .tile.cuda.resolve_convert_layout import resolve_convert_layout_pass
+from .tile.cuda.plan_shared_memory import plan_shared_memory_pass
+from .tile.cuda.lower_tile_dialect import lower_tile_dialect_pass
+from .tile.cuda._plan_shared_memory import plan_shared_memory_pass as _plan_shared_memory_pass
 
-from .tile_generic.analyzers.value_analyzer import value_analyze_pass
+from .tile.analyzers.value_analyzer import value_analyze_pass
 
 
 def lower_with(ir_module: IRModule, transforms: Sequence[Pass]) -> IRModule:
@@ -85,9 +87,11 @@ def lower(ir_module: IRModule) -> IRModule:
         remove_layout_convert_pass(),
         # value_analyze_pass(),
         software_pipeline_pass(),
-        # split_dot_k_pass(),
-        lower_tile_dialect_pass(),
+        split_dot_k_pass(),
+        resolve_convert_layout_pass(),
         plan_shared_memory_pass(),
+        lower_tile_dialect_pass(),
+        # _plan_shared_memory_pass(),
     ]
 
     transforms = [

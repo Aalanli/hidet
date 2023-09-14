@@ -8,15 +8,15 @@ from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.tools import collect
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops import Full, Arange, Construct, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp, DebugPrint
+from hidet.ir.tile.ops import Create, Broadcast, ExpandDims, UnaryTileOp, BinaryTileOp, DebugPrint
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
 from hidet.ir.type import DataType
 from hidet.utils import same_list
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import repeat_until_converge
-from hidet.transforms.tile_generic.analyzers import DependencyAnalyzer
-from hidet.transforms.tile_generic.utils import collect_yield_stmts
+from hidet.transforms.tile.analyzers import DependencyAnalyzer
+from hidet.transforms.tile.utils import collect_yield_stmts
 
 
 """

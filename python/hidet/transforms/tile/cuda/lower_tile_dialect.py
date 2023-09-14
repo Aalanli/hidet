@@ -1,7 +1,5 @@
 from typing import List, Dict, Union, Optional
 
-import hidet.ir.tools
-from hidet.ir.type import sizeof
 from hidet.ir.expr import Var, Expr, tensor_var, tensor_pointer_var
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter, IRVisitor
@@ -16,9 +14,9 @@ from hidet.ir.type import BaseType
 from hidet.ir.type import DataType, PointerType
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.declare_to_let import DeclareToLetRewriter, UpliftLetBodyRewriter
-from hidet.transforms.tile_cuda.lower_ops.assign import AssignImpl
+from hidet.transforms.tile.analyzers import UsageAnalyzer, VarUsage, TensorInfo, ValueInfo, analyze_value
+from hidet.transforms.tile.cuda.lower_ops.assign import AssignImpl
 from .lower_ops import Buffer, implement_tile_op
-from hidet.transforms.tile_generic.analyzers import UsageAnalyzer, VarUsage, TensorInfo, ValueInfo, analyze_value
 
 
 class LowerTileDialectRewriter(IRRewriter):

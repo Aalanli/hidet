@@ -9,8 +9,8 @@ from hidet.ir.tile.ops import Store, Load
 from hidet.ir.tile.type import TileType
 from hidet.ir.type import PointerType, sizeof
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile_generic.analyzers.value_analyzer import analyze_value, TensorInfo, ValueInfo
-from hidet.transforms.tile_generic.canonicalize_to_ssa import canonicalize_to_ssa
+from hidet.transforms.tile.analyzers.value_analyzer import analyze_value, TensorInfo, ValueInfo
+from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 
 
 class CoalesceMemoryAccessRewriter(IRRewriter):

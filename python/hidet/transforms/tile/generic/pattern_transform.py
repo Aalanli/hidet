@@ -3,11 +3,11 @@ import functools
 
 from hidet.ir.expr import Expr, Var, Constant
 from hidet.ir.tile.expr import CallTileOp
-from hidet.ir.tile.ops import Full, Construct, Dot, dot
+from hidet.ir.tile.ops import Create, Dot, dot
 from hidet.ir.func import Function
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import repeat_until_converge
-from .utils.pattern import PatternTransform, Pattern, TilePattern, apply_transforms
+from hidet.transforms.tile.utils.pattern import PatternTransform, Pattern, TilePattern, apply_transforms
 from .dead_code_elimination import DeadCodeEliminationRewriter
 
 

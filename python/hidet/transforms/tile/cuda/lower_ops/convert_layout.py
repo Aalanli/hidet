@@ -3,6 +3,7 @@ from typing import List, Union
 from hidet.ir.type import sizeof
 from hidet.ir.expr import Expr, Var, cast
 from hidet.ir.tile.type import TileType
+from hidet.ir.tile.layout import BlockLayout, SharedLayout
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.ir.tools import infer_type
@@ -84,11 +85,14 @@ class ConvertLayoutImpl(TileOpImpl):
             self.iterate_dist_buffer_and_apply(src, f_apply)
             self.sync_threads()
         elif src.scope.is_shared() and dst.scope.is_register():
+            if isinstance(src.layout, BlockLayout) and isinstance(dst.layout, SharedLayout):
+                layout: BlockLayout = src.layout
+                axis = len(layout.shape) - 1
+            else:
+                def f_compute(local_indices, global_indices, not_duplicated):
+                    return src[global_indices]
 
-            def f_compute(local_indices, global_indices, not_duplicated):
-                return src[global_indices]
-
-            self.iterate_dist_buffer_and_compute(dst, f_compute)
+                self.iterate_dist_buffer_and_compute(dst, f_compute)
         elif src.scope.is_shared() and dst.scope.is_shared():
             raise NotImplementedError()
         else:

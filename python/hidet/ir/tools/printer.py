@@ -667,7 +667,7 @@ class IRPrinter(IRFunctor):
             elif isinstance(v, TileLayout):
                 attrs_doc.append(self(k) + '=' + self.visit_TileLayout(v))
             elif not isinstance(v, Node):
-                attrs_doc.append(self(k) + '=' + repr(v))
+                attrs_doc.append(self(k) + '=' + str(v))
             else:
                 attrs_doc.append(self(k) + '=' + self(v))
         return op.name + '(' + doc_join(args_doc + attrs_doc, ', ') + ')'

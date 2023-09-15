@@ -154,7 +154,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
     import vllm.worker.worker
     import vllm.config
 
-    hidet.option.search_space(2)
+    hidet.option.search_space(0)
 
     vllm.worker.worker._init_distributed_environment(
         parallel_config=vllm.config.ParallelConfig(

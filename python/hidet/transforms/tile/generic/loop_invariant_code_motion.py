@@ -127,7 +127,8 @@ class ApplyMovementRewriter(IRRewriter):
 
 
 class LoopInvariantCodeMotionPass(TileFunctionPass):
-    def process_tile_func(self, func: Function) -> Function:
+
+    def run_once(self, func: Function) -> Function:
         # step 1
         analyzer = VarToLoopAnalyzer()
         analyzer.visit(func)
@@ -172,8 +173,19 @@ class LoopInvariantCodeMotionPass(TileFunctionPass):
             moving_vars.add(var)
 
         # step 3
-        rewriter = ApplyMovementRewriter(moving_vars, loop2queue)
+        if all(len(queue) == 0 for queue in loop2queue.values()):
+            # no variable can be moved out of any loop
+            return func
+        else:
+            rewriter = ApplyMovementRewriter(moving_vars, loop2queue)
         return rewriter.visit(func)
+
+    def process_tile_func(self, func: Function) -> Function:
+        def print_func(f):
+            print(f)
+            return f
+
+        return self.apply_transforms(func, [self.run_once, print_func], repeat_limit=-1)
 
 
 def loop_invariant_code_motion_pass() -> TileFunctionPass:

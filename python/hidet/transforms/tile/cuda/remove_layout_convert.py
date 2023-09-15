@@ -9,7 +9,7 @@ from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
-from hidet.ir.tile.ops import Create, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint
+from hidet.ir.tile.ops import Create, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint, UnaryTileOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tools import TypeInfer
@@ -79,6 +79,26 @@ class ConvertConstructLayoutTransform(PatternTransform):
 
         updated_cst = Create(value=cst.value, shape=cst.shape, axes=cst.axes, layout=cvt.layout)
         return updated_cst.make_call()
+
+
+class PushConvertLayoutForUnaryOpTransform(PatternTransform):
+    """
+    convert_layout(op(x), layout) -> op(convert_layout(x, layout))
+    """
+
+    def __init__(self):
+        self.x = self.any_tile()
+        self.y = self.unary(self.x)
+        self.cvt = self.convert_layout(self.y)
+
+    def source(self) -> TilePattern:
+        return self.cvt
+
+    def target(self, matched: Dict[Pattern, Expr], var2call: Dict[Var, CallTileOp]) -> Optional[Expr]:
+        x = matched[self.x]
+        op: UnaryTileOp = self.get_tile_op(self.y, matched, var2call)
+        cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
+        return op.reforward(args=[convert_layout(x, cvt.layout)]).make_call()
 
 
 class PushConvertLayoutForBinaryOpTransform(PatternTransform):
@@ -260,6 +280,7 @@ class RemoveLayoutConvertPass(TileFunctionPass):
             IdentityConvertLayoutTransform(),
             ConvertConstructLayoutTransform(),
             FoldConvertLayoutTransform(),
+            PushConvertLayoutForUnaryOpTransform(),
             PushConvertLayoutForBinaryOpTransform(),
             FoldConvertLayoutBeforeAndAfterCast(),
             DeadCodeEliminationRewriter(),

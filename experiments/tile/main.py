@@ -1,3 +1,4 @@
+import numpy
 import hidet
 import hllm
 import vllm.model_executor.parallel_utils
@@ -11,9 +12,8 @@ hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-# hidet.utils.clear_cache_dir()
-
-import numpy
+hidet.utils.clear_cache_dir()
+# hidet.option.parallel_build(False)
 
 numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)
 
@@ -153,9 +153,8 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
     import torch.distributed
     import vllm.worker.worker
     import vllm.config
-    from hidet.lang import attrs
-    from hidet.lang.types import f16
-    from hidet.lang import tile as ti
+
+    hidet.option.search_space(2)
 
     vllm.worker.worker._init_distributed_environment(
         parallel_config=vllm.config.ParallelConfig(
@@ -165,13 +164,6 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
         distributed_init_method='tcp://localhost:4444',
     )
     torch.set_grad_enabled(False)
-
-    # x: [seq, h]
-    # w1: [h, 2m]
-    # w2: [m, h]
-    # y1 = x @ w1           # [seq, 2m]
-    # y2 = silu_and_mul(y1) # [seq, m]
-    # y3 = y2 @ w2          # [seq, h]
 
     m_size = intermediate_size
     h_size = hidden_size
@@ -202,9 +194,9 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
     x = torch.randn([seq, h_size], dtype=torch.float16, device='cuda')
     y1 = hidet_func(x)
     y2 = torch_func(x)
-    y3 = hidet_origin_func(x)
+    # y3 = hidet_origin_func(x)
 
-    hidet.utils.assert_close(y2, y3, atol=5e-2, rtol=5e-2)
+    # hidet.utils.assert_close(y2, y3, atol=5e-2, rtol=5e-2)
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
 
     print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))
@@ -213,6 +205,7 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
 
 def main():
     # demo_matmul()
+    # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288)
     demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
 
 

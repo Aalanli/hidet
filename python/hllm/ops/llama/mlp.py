@@ -34,8 +34,8 @@ class LlamaMLPOperator(Operator):
     @tune.space(
         2,
         block_s=[16],
-        block_m=[32, 64],
-        block_h=[32, 64],
+        block_m=[32, 64, 128],
+        block_h=[32, 64, 128],
     )
     def schedule(self, block_s=16, block_m=64, block_h=64) -> IRModule:
         from hidet.lang import attrs

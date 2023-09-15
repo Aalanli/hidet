@@ -15,6 +15,6 @@ from . import compiled_task
 from . import compiled_graph
 
 from .storage import Storage
-from .compiled_module import CompiledModule, CompiledFunction, load_compiled_module
+from .compiled_module import CompiledModule, CompiledFunction, load_compiled_module, compiled_module_exists
 from .compiled_task import CompiledTask
 from .compiled_graph import CompiledGraph, save_compiled_graph, load_compiled_graph

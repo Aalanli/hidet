@@ -38,6 +38,10 @@ def _wrapped_func(job_index):
 
 
 def parallel_imap(func: Callable, jobs: Sequence[Any], num_workers: Optional[int] = None) -> Iterable[Any]:
+    if num_workers == 1:
+        yield from map(func, jobs)
+        return
+
     global _job_queue
 
     if _job_queue is not None:

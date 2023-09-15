@@ -43,6 +43,7 @@ from .tile.generic.inject_explicit_transform_ops import inject_explicit_transfor
 from .tile.generic.canonicalize_expressions import canonicalize_expressions_pass
 from .tile.generic.fold_constant import fold_constant_pass
 from .tile.generic.pattern_transform import pattern_transform_pass
+from .tile.generic.loop_invariant_code_motion import loop_invariant_code_motion_pass
 
 from .tile.cuda.resolve_dot import resolve_dot_pass
 from .tile.cuda.instantiate_layout import instantiate_layout_pass
@@ -74,6 +75,7 @@ def lower(ir_module: IRModule) -> IRModule:
         canonicalize_to_ssa_pass(),
         fold_constant_pass(),
         pattern_transform_pass(),
+        loop_invariant_code_motion_pass(),
     ]
 
     tile_cuda_transforms = [
@@ -81,6 +83,7 @@ def lower(ir_module: IRModule) -> IRModule:
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
         remove_layout_convert_pass(),
+        loop_invariant_code_motion_pass(),
         software_pipeline_pass(),
         split_dot_k_pass(),
         plan_shared_memory_pass(),

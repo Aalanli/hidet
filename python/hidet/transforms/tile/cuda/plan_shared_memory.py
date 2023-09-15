@@ -14,7 +14,7 @@ from hidet.ir.tile.ops.smem import AllocTensor, InsertSliceAsync, ExtractSlice
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile import annotations
 from hidet.transforms.tile.cuda.lower_ops.registry import get_tile_op_impl
-from hidet.utils import prod
+from hidet.transforms.tile.exceptions import SharedMemoryPlanningError
 
 """
 Plan the shared memory allocation.
@@ -279,7 +279,7 @@ class PlanSharedMemoryPass(TileFunctionPass):
                         allocated = max(allocated, plan[u] + alloc_nbytes(u))
                         break
             else:
-                raise RuntimeError('Cannot find a valid shared memory allocation plan.')
+                raise SharedMemoryPlanningError('Cannot find a valid shared memory allocation plan.')
         return plan, allocated
 
     def process_tile_func(self, func: Function) -> Function:

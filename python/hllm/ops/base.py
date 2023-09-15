@@ -5,7 +5,7 @@ import hidet
 import torch
 from tabulate import tabulate
 from hidet.ir.module import IRModule
-from hidet.runtime import CompiledFunction, CompiledModule
+from hidet.runtime import CompiledFunction, CompiledModule, compiled_module_exists
 from hidet.drivers import build_ir_module
 from hidet.utils.multiprocess import parallel_imap
 
@@ -60,14 +60,23 @@ class Operator:
                 # set the arch to the current one, so that the sub-processes will not query the cuda runtime,
                 # which will trigger the cuda initialization error
                 hidet.option.cuda.arch(hidet.option.cuda.get_arch())
-                for _ in tqdm(
-                    parallel_imap(
-                        func=lambda job: build_ir_module(
+
+                def build_job(job: Tuple[int, IRModule]):
+                    from hidet.transforms.tile.exceptions import SharedMemoryPlanningError
+                    try:
+                        build_ir_module(
                             ir_module=job[1],
                             output_dir=os.path.join(candidates_dir, str(job[0])),
                             target='cuda'
-                        ),
-                        jobs=list(enumerate(ir_modules))
+                        )
+                    except SharedMemoryPlanningError:
+                        pass
+
+                for _ in tqdm(
+                    parallel_imap(
+                        func=build_job,
+                        jobs=list(enumerate(ir_modules)),
+                        num_workers=1 if not hidet.option.get_parallel_build() else None
                     ),
                     desc='Building operator: {}'.format(self),
                     total=len(ir_modules),
@@ -76,9 +85,13 @@ class Operator:
 
             for idx, ir_module in enumerate(ir_modules):
                 ir_module_dir = os.path.join(cache_dir, 'candidates', str(idx))
-                compiled_module = CompiledModule(ir_module_dir)
-                compiled_function: CompiledFunction = compiled_module['launch']
-                candidates.append((getattr(ir_module, '_tuning_kwargs', {}), compiled_function))
+                if compiled_module_exists(ir_module_dir):
+                    compiled_module = CompiledModule(ir_module_dir)
+                    compiled_function: CompiledFunction = compiled_module['launch']
+                    candidates.append((getattr(ir_module, '_tuning_kwargs', {}), compiled_function))
+
+            if len(candidates) == 0:
+                raise RuntimeError('No valid candidate for {}.'.format(self))
 
             # benchmark each compiled function
             latencies: List[float] = []

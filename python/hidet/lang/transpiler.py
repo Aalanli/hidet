@@ -948,9 +948,6 @@ class PythonToHidetTranslator(PythonAstFunctor):
 
         if isinstance(func, types.FunctionType):
             # call python function
-            if len(kwargs) > 0 and not isinstance(list(kwargs)[0], str):
-                print('Hi')
-
             return func(*args, **kwargs)
         elif isinstance(func, types.MethodType):
             # call python class method

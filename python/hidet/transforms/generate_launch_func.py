@@ -10,14 +10,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Dict, Tuple, Sequence, Union
+from hidet.ir.expr import Call
+from hidet.ir.stmt import EvaluateStmt
 from hidet.ir.func import Function
 from hidet.ir.module import IRModule
 from hidet.ir.dtypes import int32
 from hidet.ir.expr import Expr, Var
 from hidet.ir.stmt import LaunchKernelStmt
 from hidet.ir.tools import rewrite, simplify
+from hidet.ir.functors import IRRewriter
 from hidet.ir.builders import FunctionBuilder
 from hidet.transforms import Pass
+
+
+class CallToLaunchKernelRewriter(IRRewriter):
+    def __init__(self):
+        super().__init__()
+        self.name2func: Dict[str, Function] = {}
+
+    def visit_IRModule(self, module: IRModule):
+        self.name2func = module.functions.copy()
+        return IRRewriter.visit_IRModule(self, module)
+
+    def visit_EvaluateStmt(self, stmt: EvaluateStmt):
+        e = stmt.expr
+        if isinstance(e, Call):
+            if e.func_var.name in self.name2func:
+                func: Function = self.name2func[e.func_var.name]
+                if func.kind == 'cuda_kernel':
+                    return LaunchKernelStmt(
+                        e.func_var,
+                        e.args,
+                        grid_dim=_normalize_dim3(func.get_attr('cuda.grid_dim')),
+                        block_dim=_normalize_dim3(func.get_attr('cuda.block_dim')),
+                        shared_mem=simplify(func.get_attr('cuda.dynamic_smem_bytes', int32(0))),
+                    )
+        return IRRewriter.visit_EvaluateStmt(self, stmt)
 
 
 def _normalize_dim3(dim3: Union[int, Expr, Sequence[Union[int, Expr]]]) -> Tuple[Expr, Expr, Expr]:
@@ -73,6 +101,8 @@ def add_launch_func(ir_module: IRModule, kernel_func: Function):
 
 class GenerateLaunchFuncPass(Pass):
     def process_module(self, ir_module: IRModule) -> IRModule:
+        ir_module = CallToLaunchKernelRewriter().rewrite(ir_module)
+
         if any(func.name.startswith('launch') for func in ir_module.functions.values() if func.kind == 'public'):
             # the launch function has already existed
             return ir_module

@@ -12,7 +12,7 @@ hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-hidet.utils.clear_cache_dir()
+# hidet.utils.clear_cache_dir()
 # hidet.option.parallel_build(False)
 
 numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)

@@ -61,8 +61,6 @@ class TuningSpace:
     def add_sub_space(self, level: int, name_choice_dict: Dict[str, Sequence[Union[Choice, Sequence[Choice]]]]):
         if level in self.spaces:
             raise ValueError(f'Level {level} is already defined.')
-        if level == 0:
-            raise ValueError('Level 0 is reserved for the default space. Use the default arguments to define it.')
 
         self.spaces[level] = {}
         for names, choices in name_choice_dict.items():

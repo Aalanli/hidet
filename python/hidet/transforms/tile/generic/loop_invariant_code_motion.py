@@ -6,7 +6,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRVisitor, IRRewriter
 from hidet.ir.tools import collect
 from hidet.ir.tile.stmt import PureForStmt
-from hidet.ir.tile.expr import CallTileOp
+from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.ops import Create
 from hidet.transforms.base import TileFunctionPass
 
@@ -128,6 +128,21 @@ class ApplyMovementRewriter(IRRewriter):
 
 class LoopInvariantCodeMotionPass(TileFunctionPass):
 
+    def check_move(self, value: Expr) -> bool:
+        # sometimes, it is better to keep the variable in the loop body because it is cheap to compute.
+        # moving the variable out of the loop body may increase the lifetime of the variable and
+        # increase the register pressure.
+
+        if isinstance(value, CallTileOp):
+            op: TileOp = value.op
+            if isinstance(op, Create):
+                return False
+            else:
+                return True
+        else:
+            # scalar value will always be moved out of the loop body
+            return True
+
     def run_once(self, func: Function) -> Function:
         # step 1
         analyzer = VarToLoopAnalyzer()
@@ -145,6 +160,10 @@ class LoopInvariantCodeMotionPass(TileFunctionPass):
             loop = var2loop[var]
             if loop is analyzer.sentinel:
                 # it is defined outside any loop
+                continue
+
+            if not self.check_move(value):
+                # do not move the variable.
                 continue
 
             # find the maximum level of all used variables that are in the definition of the current variable
@@ -181,11 +200,7 @@ class LoopInvariantCodeMotionPass(TileFunctionPass):
         return rewriter.visit(func)
 
     def process_tile_func(self, func: Function) -> Function:
-        def print_func(f):
-            print(f)
-            return f
-
-        return self.apply_transforms(func, [self.run_once, print_func], repeat_limit=-1)
+        return self.apply_transforms(func, [self.run_once], repeat_limit=-1)
 
 
 def loop_invariant_code_motion_pass() -> TileFunctionPass:

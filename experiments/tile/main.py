@@ -1,6 +1,9 @@
 import numpy
 import hidet
 import hllm
+import torch
+import triton
+import triton.language as tl
 import vllm.model_executor.parallel_utils
 from hidet.ir.dtypes import float16, float32
 from hidet.transforms import lower, PassContext, instruments
@@ -12,8 +15,7 @@ hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
 # hidet.option.debug_show_var_id()
 
-# hidet.utils.clear_cache_dir()
-# hidet.option.parallel_build(False)
+hidet.utils.clear_cache_dir()
 
 numpy.set_printoptions(precision=2, edgeitems=64, linewidth=256)
 
@@ -148,8 +150,105 @@ def demo_type_infer():
     print(infer_type(diff))
 
 
+@triton.autotune(
+    configs=[
+        triton.Config({'block_s': 16, 'block_m': 32, 'block_h': 32}, num_stages=3, num_warps=8),
+    ],
+    key=['seq', 'h_size', 'm_size']
+)
+@triton.jit
+def triton_fused_ffn(
+    x_ptr,
+    w1_ptr,
+    w2_ptr,
+    y_ptr,
+    seq,
+    h_size,
+    m_size,
+    block_s: tl.constexpr,
+    block_m: tl.constexpr,
+    block_h: tl.constexpr
+):
+    pid = tl.program_id(0)
+
+    h_range = tl.arange(0, block_h)
+    m_range = tl.arange(0, block_m)
+    s_range = tl.arange(0, block_s)
+
+    x_ptrs = x_ptr + s_range[:, None] * h_size + h_range[None, :]
+    w1_ptrs = w1_ptr + h_range[:, None] * 2 * m_size + m_range[None, :] + pid * block_m
+    w2_ptrs = w1_ptrs + m_size
+    y1_lhs = tl.zeros((block_s, block_m), dtype=tl.float16)
+    y1_rhs = tl.zeros((block_s, block_m), dtype=tl.float16)
+
+    for k in range(tl.cdiv(h_size, block_h)):
+        x = tl.load(x_ptrs)
+        w1_lhs = tl.load(w1_ptrs)
+        y1_lhs += tl.dot(x, w1_lhs, out_dtype=tl.float16)
+        w1_rhs = tl.load(w2_ptrs)
+        y1_rhs += tl.dot(x, w1_rhs, out_dtype=tl.float16)
+        x_ptrs += block_h
+        w1_ptrs += 2 * m_size * block_h
+        w2_ptrs += 2 * m_size * block_h
+
+    y1 = tl.sigmoid(y1_lhs.to(tl.float32)).to(tl.float16) * y1_lhs * y1_rhs
+
+    h_range = tl.arange(0, block_h)
+    m_range = tl.arange(0, block_m)
+    s_range = tl.arange(0, block_s)
+
+    w2_ptrs = w2_ptr + (m_range[:, None] + pid * block_m) * h_size + h_range[None, :]
+    y_ptrs = y_ptr + (s_range[:, None] + pid * seq) * h_size + h_range[None, :]
+
+    mask = s_range[:, None] < seq
+
+    for k in range(tl.cdiv(h_size, block_h)):
+        w2 = tl.load(w2_ptrs)
+        y = tl.dot(y1, w2, out_dtype=tl.float16)
+        tl.store(y_ptrs, value=y, mask=mask)
+        w2_ptrs += block_h
+        y_ptrs += block_h
+
+
+def demo_triton():
+
+    def triton_llama_ffn(x, w1, w2):
+        seq = x.size(0)
+        h_size = w1.size(0)
+        m_size = w2.size(0)
+
+        y = torch.empty(seq, h_size, dtype=torch.float16, device='cuda')
+
+        grid = lambda META: (triton.cdiv(m_size, META['block_m']),)
+        triton_fused_ffn[grid](
+            x, w1, w2, y,
+            seq,
+            h_size,
+            m_size
+        )
+
+        return y
+
+    seq = 16
+    h_size = 4096
+    m_size = 12288
+
+    x = torch.randn(seq, h_size, dtype=torch.float16, device='cuda')
+    w1 = torch.randn(h_size, m_size * 2, dtype=torch.float16, device='cuda')
+    w2 = torch.randn(m_size, h_size, dtype=torch.float16, device='cuda')
+
+    y1 = triton_llama_ffn(x, w1, w2)
+
+    torch.cuda.synchronize()
+
+    x = x @ w1
+    x = torch.nn.functional.silu(x[:, :m_size]) * x[:, m_size:]
+    y2 = x @ w2
+
+    hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
+
+
 def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
-    import torch
     import torch.distributed
     import vllm.worker.worker
     import vllm.config
@@ -206,7 +305,8 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
 def main():
     # demo_matmul()
     # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288)
-    demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
+    # demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
+    demo_triton()
 
 
 if __name__ == '__main__':

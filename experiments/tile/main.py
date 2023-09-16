@@ -1,3 +1,4 @@
+# %%
 import hidet
 import hllm
 import vllm.model_executor.parallel_utils
@@ -120,6 +121,52 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
     hidet.utils.assert_close(c, tc, atol=atol, rtol=rtol)
 
 
+# demo_matmul()
+
+def test_broadcast(dtype='float32'):
+    from hidet.ir.type import data_type
+    from hidet.lang.types import f32, int32
+    from hidet.lang import attrs, cast
+    from hidet.lang import tile as ti
+
+    dtype = data_type(dtype)
+
+    with hidet.script_module() as script_module:
+        @hidet.script
+        def broadcast(a_ptr: ~dtype, b_ptr: ~dtype, c_ptr: ~dtype):
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.block_dim = 32
+            attrs.cuda.grid_dim = 1
+
+            pid = ti.program_id()
+            a_idx = ti.arange(0, 32)
+            a = ti.load(a_ptr + a_idx)
+            b_idx = ti.arange(0, 16)
+            b = ti.load(b_ptr + b_idx)
+            c = ti.expand_dims(a, 1) + ti.expand_dims(b, 0)
+            ti.store(c_ptr + ti.expand_dims(a_idx, 1) * 16 + ti.expand_dims(b_idx, 0), c)
+
+    func = script_module.build()
+
+    a = hidet.randn([32], dtype=dtype, stddev=0.1, device='cuda')
+    b = hidet.randn([16], dtype=dtype, stddev=0.1, device='cuda')
+    c = hidet.empty([32, 16], dtype=dtype, device='cuda')
+
+    import torch
+    ta, tb = a.torch(), b.torch()
+    tc = ta[:, None] + tb[None, :]
+
+    if dtype == float16:
+        atol, rtol = 5e-2, 5e-2
+    elif dtype == float32:
+        atol, rtol = 1e-4, 1e-4
+    else:
+        assert False
+    hidet.utils.assert_close(c, tc, atol=atol, rtol=rtol)
+
+test_broadcast()
+
+# %%
 def bench_matmul():
     for m_size, n_size, k_size in [
         # [32, 4096, 4096],

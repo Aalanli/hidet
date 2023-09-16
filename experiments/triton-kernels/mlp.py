@@ -2,10 +2,6 @@
 import torch
 
 import triton
-print(triton.__file__)
-import sys
-print(sys.path)
-exit(0)
 from triton import Config, autotune, cdiv, heuristics, jit
 from triton import language as tl
 
@@ -17,80 +13,77 @@ def init_to_zero(nargs):
 @autotune(
     configs=[
         # basic configs for compute-bound matmuls
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=5, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=3, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=2, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 1}, num_stages=5, num_warps=4,
-            pre_hook=init_to_zero
-        ),
+        # Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        # Config(
+        #     {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=5, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=3, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=2, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 1}, num_stages=5, num_warps=4,
+        #     pre_hook=init_to_zero
+        # ),
 
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=5, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=3, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=2, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 2}, num_stages=5, num_warps=4,
-            pre_hook=init_to_zero
-        ),
+        # Config(
+        #     {'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=5, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 2}, num_stages=3, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=4, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 2}, num_stages=2, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 2}, num_stages=5, num_warps=4,
+        #     pre_hook=init_to_zero
+        # ),
 
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8,
-            pre_hook=init_to_zero
-        ),
+        # Config(
+        #     {'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=5, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 3}, num_stages=3, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
         Config(
             {'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=4, num_warps=8,
             pre_hook=init_to_zero
         ),
-        Config(
-            {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8,
-            pre_hook=init_to_zero
-        ),
-        Config(
-            {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4,
-            pre_hook=init_to_zero
-        ),
+        # Config(
+        #     {'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_H': 3}, num_stages=2, num_warps=8,
+        #     pre_hook=init_to_zero
+        # ),
+        # Config(
+        #     {'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_H': 3}, num_stages=5, num_warps=4,
+        #     pre_hook=init_to_zero
+        # ),
     ],
     key=['D_UP', 'D', 'D_DOWN'],
 )
@@ -363,60 +356,82 @@ def two_triton(X, UP_PROJ, DOWN_PROJ):
 
 
 def demo_kernels(M, D):
-    a = torch.randn((M, D), device='cuda', dtype=torch.float16)
-    w1 = torch.randn((D, D * 4), device='cuda', dtype=torch.float16)
-    w2 = torch.randn((D * 4, D), device='cuda', dtype=torch.float16)
+    # a = torch.randn((M, D), device='cuda', dtype=torch.float16) / 100
+    # w1 = torch.randn((D, D * 4), device='cuda', dtype=torch.float16) / 100
+    # w2 = torch.randn((D * 4, D), device='cuda', dtype=torch.float16) / 100
+    a = torch.ones((M, D), device='cuda', dtype=torch.float16) / 100
+    w1 = torch.ones((D, D * 4), device='cuda', dtype=torch.float16) / 100
+    w2 = torch.ones((D * 4, D), device='cuda', dtype=torch.float16) / 100
 
     y3 = fused_mlp(a, w1, w2)
     y1 = fused_mlp_atomic(a, w1, w2)
+    # print(hidet.utils.benchmark_func(lambda: fused_mlp_atomic(a, w1, w2), repeat=20))
     y2 = fused_mlp_ref(a, w1, w2)
-    print((y1 - y2).abs().max())
-    print((y2 - y3).abs().max())
-    print(torch.allclose(y1, y2, atol=1e-1, rtol=1e-1))
+    import hidet
+    y4 = (hidet.ops.relu(hidet.from_torch(a) @ hidet.from_torch(w1)) @ hidet.from_torch(w2)).torch()
+
+    # print((y1 - y2).abs().max())
+    # print((y2 - y3).abs().max())
+    # print((y2 - y4).abs().max())
+    print(y1)
+    print(y2)
+    print(y3)
+    # print(y4)
+    # print(torch.allclose(y1, y2, atol=1e-1, rtol=1e-1))
 
 
-demo_kernels(1, 32)
-demo_kernels(1, 64)
+if __name__ == '__main__':
+    import hidet
+    from hidet.utils.ncu_utils import ncu_run
+    demo_kernels(1, 4096)
 
-# %%
+    # ncu_run(demo_kernels, 1, 4096).visualize()
 
-for M in [1, 2, 4, 8, 32]:
-    @triton.testing.perf_report(
-        triton.testing.Benchmark(
-            x_names=['D'],  # Argument names to use as an x-axis for the plot
-            x_vals=[
-                64, 128, 512, 1024, 4096
-            ],  # Different possible values for `x_name`
-            line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
-            # Possible values for `line_arg`
-            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
-            # Label name for the lines
-            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
-            # Line styles
-            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
-            ylabel="ms",  # Label name for the y-axis
-            plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
-            args={},
-        )
-    )
-    def benchmark(D, provider):
-        D, D_UP, D_DOWN = D, D * 4, D
-        a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-        w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-        w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+# demo_kernels(1, 4096)
+# exit(0)
 
-        quantiles = [0.5, 0.2, 0.8]
-        if provider == 'torch_naive':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
-        if provider == 'triton_fused':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
-        if provider == 'triton_fused_atomic':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
-        if provider == 'triton_default':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
-        # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
-        # return perf(ms), perf(max_ms), perf(min_ms)
-        return ms, max_ms, min_ms
-
-
-    benchmark.run(show_plots=True, print_data=True)
+# demo_kernels(1, 32)
+# demo_kernels(1, 64)
+#
+# # %%
+#
+# for M in [1]:
+#     @triton.testing.perf_report(
+#         triton.testing.Benchmark(
+#             x_names=['D'],  # Argument names to use as an x-axis for the plot
+#             x_vals=[
+#                 64, 128, 512, 1024, 4096
+#             ],  # Different possible values for `x_name`
+#             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
+#             # Possible values for `line_arg`
+#             line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
+#             # Label name for the lines
+#             line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
+#             # Line styles
+#             styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
+#             ylabel="ms",  # Label name for the y-axis
+#             plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
+#             args={},
+#         )
+#     )
+#     def benchmark(D, provider):
+#         D, D_UP, D_DOWN = D, D * 4, D
+#         a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#         w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
+#         w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
+#
+#         quantiles = [0.5, 0.2, 0.8]
+#         if provider == 'torch_naive':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
+#         if provider == 'triton_fused':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
+#         if provider == 'triton_fused_atomic':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+#         if provider == 'triton_default':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
+#         # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+#         # return perf(ms), perf(max_ms), perf(min_ms)
+#         return ms, max_ms, min_ms
+#
+#
+#     benchmark.run(show_plots=True, print_data=True)

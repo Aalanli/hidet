@@ -12,6 +12,7 @@ from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims
 from hidet.ir.tile.ops import Create, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint, UnaryTileOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
+from hidet.ir.tile.layout import BlockDotOperandLayout
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile.analyzers import VarUsage, UsageAnalyzer
@@ -98,6 +99,9 @@ class PushConvertLayoutForUnaryOpTransform(PatternTransform):
         x = matched[self.x]
         op: UnaryTileOp = self.get_tile_op(self.y, matched, var2call)
         cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
+        if isinstance(cvt.layout, BlockDotOperandLayout):
+            # do not push convert_layout for BlockDotOperandLayout because it consumes too many registers
+            return None
         return op.reforward(args=[convert_layout(x, cvt.layout)]).make_call()
 
 
@@ -120,6 +124,9 @@ class PushConvertLayoutForBinaryOpTransform(PatternTransform):
         y = matched[self.y]
         op: BinaryTileOp = self.get_tile_op(self.z, matched, var2call)
         cvt: ConvertLayout = self.get_tile_op(self.cvt, matched, var2call)
+        if isinstance(cvt.layout, BlockDotOperandLayout):
+            # do not push convert_layout for BlockDotOperandLayout because it consumes too many registers
+            return None
         return op.reforward(args=[convert_layout(x, cvt.layout), convert_layout(y, cvt.layout)]).make_call()
 
 
@@ -275,6 +282,13 @@ class ChangeForArgLayoutRewriter(IRRewriter):
 
 class RemoveLayoutConvertPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
+        def p(s):
+            def pp(f):
+                print(s)
+                print(f)
+                return f
+            return pp
+
         transforms = [
             ChangeForArgLayoutRewriter(),
             IdentityConvertLayoutTransform(),

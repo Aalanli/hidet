@@ -244,7 +244,7 @@ class CompiledGraph:
 
     def _run_fast_path(self, inputs, symbol_dims: Tuple[int, ...]):
         # create output tensors
-        outputs = self._create_outputs()
+        outputs = self._create_outputs(inputs)
 
         # prepare workspace
         self._prepare_workspace()

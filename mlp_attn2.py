@@ -114,6 +114,171 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
 @autotune(
     configs=[
         # basic configs for compute-bound matmuls
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 1}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 1}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 1}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 1}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_K': 1}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_K': 1}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
+
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 2}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 2}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 2}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 2}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_K': 2}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_K': 2}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
+
+        Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 3}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 3}, num_stages=5, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_K': 3}, num_stages=3, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_K': 3}, num_stages=4, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 256, 'BLOCK_K': 32, 'BLOCK_H': 64, 'SPLIT_K': 3}, num_stages=2, num_warps=8, pre_hook=init_to_zero),
+        Config({'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_H': 32, 'SPLIT_K': 3}, num_stages=5, num_warps=4, pre_hook=init_to_zero),
+    ],
+    # configs = list(gen_configs()),
+    key=['D_UP', 'D', 'D_DOWN'],
+)
+@jit
+def _mlp_fused_kernel_atomicv2(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
+                     M, D, D_UP, D_DOWN, # shapes
+                     BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr,
+                     SPLIT_K: tl.constexpr):
+    # mlp
+    # X[M, D] x UP_PROJ[D, D_UP] -> X0[M, D_UP]
+    # relu X0[M, D_UP] -> X1[M, D_UP]
+    # X1[M, D_UP] x DOWN_PROJ[D_UP, D_DOWN] -> Y[M, D_DOWN]
+    
+    pid_k = tl.program_id(1)
+    pid = tl.program_id(0)
+
+    rm = tl.arange(0, BLOCK_M)
+    rn = pid * BLOCK_N + tl.arange(0, BLOCK_N)
+
+    start_k = tl.cdiv(D, SPLIT_K) * pid_k
+    # rbn = tl.max_contiguous(tl.multiple_of(rn % D_UP, BLOCK_N), BLOCK_N)
+    rk = tl.arange(0, BLOCK_K) + start_k
+    # pointers
+    X = X + (rm[:, None] * D + rk[None, :])
+    UP_PROJ = UP_PROJ + ((rk[:, None]) * D_UP + rn[None, :])
+    
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+
+    for k in range(0, tl.cdiv(D, BLOCK_K * SPLIT_K)):
+        # if EVEN_K:
+        #     xs = tl.load(X)
+        # else:
+        k_remaining = D - k * BLOCK_K
+        xs = tl.load(X, mask=(rm[:, None] < M) & (rk[None, :] < k_remaining), other=0)
+        
+        # if EVEN_M and EVEN_K:
+        #     ds = tl.load(UP_PROJ)
+        # else:
+        ds = tl.load(UP_PROJ, mask=(rk[:, None] < k_remaining) & (rn[None, :] < D_UP), other=0)
+
+        acc += tl.dot(xs, ds)
+        X += BLOCK_K
+        UP_PROJ += BLOCK_K * D_UP
+    
+    acc = acc.to(Y.dtype.element_ty)
+    # relu
+    # acc = tl.where(acc < 0, 0, acc)
+    # rematerialize rm and rn to save registers
+
+    rm = tl.arange(0, BLOCK_M)
+    rk = pid * BLOCK_N + tl.arange(0, BLOCK_N)
+    rh = tl.arange(0, BLOCK_H)
+
+    DOWN_PROJ_ptr = DOWN_PROJ + (rk[:, None] * D_DOWN + rh[None, :])
+    Y_ptr = Y + (rm[:, None] * D_DOWN + rh[None, :])
+
+    for h in range(0, tl.cdiv(D_DOWN, BLOCK_H)):
+        h_remain = D_DOWN - h * BLOCK_H
+        hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
+
+        res = tl.dot(acc, hs).to(Y.dtype.element_ty)
+        tl.atomic_add(Y_ptr, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
+        DOWN_PROJ_ptr += BLOCK_H
+        Y_ptr += BLOCK_H
+
+
+def _mlp_fused_kernel_atomicv3(
+        X, UP_PROJ, DOWN_PROJ, Y,  # pointers
+        TEMP_Y, # f16[M, D * 4]
+        Y_COUNTER, # i32[D * 4 // BLOCK_N] (init zero)
+        M, D, D_UP, D_DOWN, # shapes
+        BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr, BLOCK_H: tl.constexpr):
+    # mlp
+    # X[M, D] x UP_PROJ[D, D_UP] -> X0[M, D_UP]
+    # relu X0[M, D_UP] -> X1[M, D_UP]
+    # X1[M, D_UP] x DOWN_PROJ[D_UP, D_DOWN] -> Y[M, D_DOWN]
+    
+    pid = tl.program_id(0)
+    grid_n = tl.cdiv(D_UP, BLOCK_N)
+    pid_n = pid % grid_n 
+
+    rm = tl.arange(0, BLOCK_M)
+    rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+
+    # rbn = tl.max_contiguous(tl.multiple_of(rn % D_UP, BLOCK_N), BLOCK_N)
+    rk = tl.arange(0, BLOCK_K)
+    # pointers
+    X = X + (rm[:, None] * D + rk[None, :])
+    UP_PROJ = UP_PROJ + (rk[:, None] * D_UP + rn[None, :])
+    
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+
+    for k in range(0, tl.cdiv(D, BLOCK_K)):
+        # if EVEN_K:
+        #     xs = tl.load(X)
+        # else:
+        k_remaining = D - k * BLOCK_K
+        xs = tl.load(X, mask=(rm[:, None] < M) & (rk[None, :] < k_remaining), other=0)
+        
+        # if EVEN_M and EVEN_K:
+        #     ds = tl.load(UP_PROJ)
+        # else:
+        ds = tl.load(UP_PROJ, mask=(rk[:, None] < k_remaining) & (rn[None, :] < D_UP), other=0)
+
+        acc += tl.dot(xs, ds)
+        X += BLOCK_K
+        UP_PROJ += BLOCK_K * D_UP
+    
+    acc = acc.to(tl.float16)
+    pid = tl.program_id(0)
+    
+    rm = tl.arange(0, BLOCK_M)
+    rn = pid * BLOCK_N + tl.arange(0, BLOCK_N)
+    res_ptr = TEMP_Y + (rm[:, None] * D_UP + rn[None, :])
+    tl.store(res_ptr, acc, mask=(rm[:, None] < M) & (rn[None, :] < D_UP), other=0)
+    tl.atomic_add(Y_COUNTER + pid, 1)
+    
+    num_blocks_n = tl.cdiv(D_UP, BLOCK_N) # actually this number of blocks
+    num_blocks_h = tl.cdiv(D_DOWN, BLOCK_H)
+    split_k = num_blocks_n / num_blocks_h # assume that num_blocks_h is a multiple of num_blocks_n
+    
+    blocks_per_group = (num_blocks_n // split_k)
+    group_k = pid // blocks_per_group
+    group_h = pid % blocks_per_group
+
+    acc1 = tl.zeros((BLOCK_M, BLOCK_H), dtype=tl.float32)
+    rh = tl.arange(0, BLOCK_H) + group_h * BLOCK_H
+    DOWN_PROJ_ptr = DOWN_PROJ + (rn[:, None] * D_DOWN + rh[None, :])
+    hs = tl.load(DOWN_PROJ_ptr, mask=(rn[:, None] < D_UP) & (rh[None, :] < D_DOWN), other=0)
+    acc1 += tl.dot(acc, hs)
+
+    rn = tl.arange(0, BLOCK_N) + group_k * BLOCK_N
+    DOWN_PROJ_ptr = DOWN_PROJ + (rn[:, None] * D_DOWN + rh[None, :])
+    
+
+    # relu
+    # acc = tl.where(acc < 0, 0, acc)
+    # rematerialize rm and rn to save registers
+
+
+
+@autotune(
+    configs=[
+        # basic configs for compute-bound matmuls
         Config({'BLOCK_N': 32, 'BLOCK_K': 64, 'BLOCK_H': 64, 'SPLIT_H': 1}, num_stages=4, num_warps=8),
         Config({'BLOCK_N': 32, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=5, num_warps=8),
         Config({'BLOCK_N': 64, 'BLOCK_K': 128, 'BLOCK_H': 128, 'SPLIT_H': 1}, num_stages=3, num_warps=8),
@@ -273,6 +438,25 @@ def fused_mlp_atomic(X, UP_PROJ, DOWN_PROJ):
     _mlp_fused_kernel_atomic[grid](X, UP_PROJ, DOWN_PROJ, Y, X.shape[0], D, D_UP, D_DOWN, BLOCK_M = MSIZE)
     return Y
 
+def fused_mlp_atomicv2(X, UP_PROJ, DOWN_PROJ):
+    Y = torch.empty((X.shape[0], DOWN_PROJ.shape[1]), device=X.device, dtype=X.dtype)
+    msize = X.shape[0]
+    if msize <= 16:
+        MSIZE = 16
+    elif msize <= 32:
+        MSIZE = 32
+    elif msize <= 64:
+        MSIZE = 64
+    else:
+        raise ValueError(f"MSIZE {msize} not supported")
+    
+    D = X.shape[1]
+    D_UP = UP_PROJ.shape[1]
+    D_DOWN = DOWN_PROJ.shape[1]
+    grid = lambda META: (cdiv(D_UP, META['BLOCK_N']), META['SPLIT_K'])
+    _mlp_fused_kernel_atomicv2[grid](X, UP_PROJ, DOWN_PROJ, Y, X.shape[0], D, D_UP, D_DOWN, BLOCK_M = MSIZE)
+    return Y
+
 def fused_mlp(X, UP_PROJ, DOWN_PROJ):
     msize = X.shape[0]
     if msize <= 16:
@@ -303,20 +487,24 @@ def two_triton(X, UP_PROJ, DOWN_PROJ):
     return matmul(x1, DOWN_PROJ)
 
 def test_kernels(M, D):
-    a = torch.ones((M, D), device='cuda', dtype=torch.float16) / 100
-    w1 = torch.ones((D, D * 4), device='cuda', dtype=torch.float16) / 100
-    w2 = torch.ones((D * 4, D), device='cuda', dtype=torch.float16) / 100
+    a  = torch.randn((M, D),     device='cuda', dtype=torch.float32) / 10
+    w1 = torch.randn((D, D * 4), device='cuda', dtype=torch.float32) / 10
+    w2 = torch.randn((D * 4, D), device='cuda', dtype=torch.float32) / 10
 
-    y3 = fused_mlp(a, w1, w2)
-    y1 = fused_mlp_atomic(a, w1, w2)
+    # y3 = fused_mlp(a, w1, w2)
+    # y1 = fused_mlp_atomic(a, w1, w2)
+    y4 = fused_mlp_atomicv2(a, w1, w2)
     y2 = fused_mlp_ref(a, w1, w2)
-    print(y3)
+    # print(y3)
+    # print(y2)
+    # print(y1)
+    # print((y1 - y2).abs().max())
+    print(y4)
     print(y2)
-    print(y1)
-    print((y1 - y2).abs().max())
-    print((y2 - y3).abs().max())
-    print(torch.allclose(y1, y2, atol=1e-1, rtol=1e-1))
-    return y3
+    print((y4 - y2).abs().max())
+    # print((y2 - y3).abs().max())
+    # print(torch.allclose(y1, y2, atol=1e-1, rtol=1e-1))
+    print(torch.allclose(y2, y4, atol=1e-1, rtol=1e-1))
 
 # test_kernels(1, 4096)
 
@@ -326,8 +514,8 @@ def test_kernels(M, D):
 # test_kernels(4, 128)
 # print(triton.__version__)
 test_kernels(1, 4096)
-test_kernels(4, 4096)
-test_kernels(8, 4096)
+# test_kernels(4, 4096)
+# test_kernels(8, 4096)
 
 # %%
 for M in [1, 2, 4, 8, 32]:
@@ -339,11 +527,11 @@ for M in [1, 2, 4, 8, 32]:
             ],  # Different possible values for `x_name`
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
-            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
+            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_fused_atomicv2', 'triton_default'],
             # Label name for the lines
-            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_default'],
+            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic', 'triton_fused_atomicv2', 'triton_default'],
             # Line styles
-            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
+            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-'), ('red', '-')],
             ylabel="ms",  # Label name for the y-axis
             plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
             args={},
@@ -370,6 +558,8 @@ for M in [1, 2, 4, 8, 32]:
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
         if provider == 'triton_fused_atomic':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+        if provider == 'triton_fused_atomicv2':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomicv2(a, w1, w2))
         if provider == 'triton_default':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
         
@@ -384,8 +574,11 @@ for M in [1, 2, 4, 8, 32]:
 # %%
 for k, v in _mlp_fused_kernel.cache.items():
     print(k, v)
-
+print('---')
 for k, v in _mlp_fused_kernel_atomic.cache.items():
+    print(k, v)
+print('---')
+for k, v in _mlp_fused_kernel_atomicv2.cache.items():
     print(k, v)
 
 

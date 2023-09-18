@@ -336,7 +336,7 @@ def ncu_kernels(M, D):
 # test_kernels(4, 4096)
 # test_kernels(8, 4096)
 
-# ncu_kernels(1, 4096)
+ncu_kernels(1, 4096)
 
 # %%
 for M in [1, 2, 4, 8, 16]:

@@ -324,10 +324,12 @@ def test_kernels(M, D):
 # test_kernels(1, 32)
 # test_kernels(2, 64)
 # test_kernels(4, 128)
-# print(triton.__version__)
+print(triton.__version__)
+# %%
 test_kernels(1, 4096)
 test_kernels(4, 4096)
 test_kernels(8, 4096)
+
 
 # %%
 for M in [1, 2, 4, 8, 32]:
@@ -388,58 +390,3 @@ for k, v in _mlp_fused_kernel.cache.items():
 for k, v in _mlp_fused_kernel_atomic.cache.items():
     print(k, v)
 
-
-# # %%
-# from hidet.utils.benchmark import Bench
-
-# benchmark.run(show_plots=True, print_data=True)
-
-# def torch_naive(C, **kwargs):
-#     M = kwargs['M']
-#     D, D_UP, D_DOWN = C, C * 4, C
-#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-#     return lambda: fused_mlp_ref(a, w1, w2)
-
-# def triton_fused(C, **kwargs):
-#     M = kwargs['M']
-#     D, D_UP, D_DOWN = C, C * 4, C
-#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-
-#     return lambda: fused_mlp_atomic(a, w1, w2, swizzle=False)
-
-# def triton_fused_swizzle(C, **kwargs):
-#     M = kwargs['M']
-#     D, D_UP, D_DOWN = C, C * 4, C
-#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-
-#     return lambda: fused_mlp_atomic(a, w1, w2, swizzle=True)
-
-# def triton_default(C, **kwargs):
-#     M = kwargs['M']
-#     D, D_UP, D_DOWN = C, C * 4, C
-#     a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-#     w1 = torch.randn([D, D_UP], dtype=torch.float16, device='cuda')
-#     w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
-
-#     return lambda: triton_max_autotune.forward(a, w1, w2)
-
-# for M in [1, 2, 4, 8]:
-#     bn = Bench(x_vals=[64, 128, 512, 1024, 4096], x_name='C', M=M)
-#     # bn.measure_flops(lambda C: C**2 * 2)
-#     bn.bench(torch_naive)
-#     bn.bench(triton_fused)
-#     # bn.bench(triton_fused_swizzle)
-#     bn.bench(triton_default)
-
-#     data = bn.run()
-#     data.show_plot(title=f'M={M}')
-
-
-
-# # %%

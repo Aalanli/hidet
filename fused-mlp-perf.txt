@@ -1,0 +1,64 @@
+mlp-performance-M=1:
+        D  torch_naive  triton_fused  triton_fused_atomic  triton_default
+0    32.0     0.007168      0.008192             0.007168        0.010240
+1    64.0     0.008192      0.008192             0.007168        0.010240
+2   128.0     0.009216      0.009216             0.008192        0.011264
+3   512.0     0.014336      0.015360             0.013312        0.016384
+4  1024.0     0.037888      0.033792             0.030720        0.031744
+5  2048.0     0.096256      0.092160             0.088064        0.090112
+6  4096.0     0.355328      0.325632             0.317440        0.316416
+
+mlp-performance-M=2:
+        D  torch_naive  triton_fused  triton_fused_atomic  triton_default
+0    32.0     0.008192      0.008192             0.007168        0.010240
+1    64.0     0.009216      0.008192             0.007168        0.010240
+2   128.0     0.011264      0.009216             0.008192        0.011264
+3   512.0     0.017408      0.015360             0.013312        0.016384
+4  1024.0     0.041984      0.033888             0.030720        0.032768
+5  2048.0     0.106496      0.093184             0.089088        0.090112
+6  4096.0     0.326656      0.328704             0.317440        0.316416
+
+mlp-performance-M=4:
+        D  torch_naive  triton_fused  triton_fused_atomic  triton_default
+0    32.0     0.008192      0.008192             0.007168        0.010240
+1    64.0     0.009216      0.008192             0.007168        0.010240
+2   128.0     0.011264      0.010112             0.008192        0.011264
+3   512.0     0.018432      0.015360             0.013312        0.016384
+4  1024.0     0.041984      0.034816             0.030720        0.032768
+5  2048.0     0.107392      0.093184             0.089088        0.091136
+6  4096.0     0.325632      0.332800             0.318464        0.316416
+
+mlp-performance-M=8:
+        D  torch_naive  triton_fused  triton_fused_atomic  triton_default
+0    32.0     0.008192      0.008192             0.007168        0.010240
+1    64.0     0.009216      0.009216             0.007168        0.010240
+2   128.0     0.011264      0.010240             0.008192        0.011264
+3   512.0     0.017472      0.015360             0.013312        0.015360
+4  1024.0     0.040064      0.035840             0.031744        0.031744
+5  2048.0     0.107520      0.095232             0.089088        0.091136
+6  4096.0     0.331776      0.344064             0.318464        0.317440
+
+mlp-performance-M=32:
+        D  torch_naive  triton_fused  triton_fused_atomic  triton_default
+0    32.0     0.008192      0.008192             0.007168        0.009216
+1    64.0     0.011264      0.009216             0.008128        0.009216
+2   128.0     0.011264      0.010240             0.008192        0.010144
+3   512.0     0.017408      0.017408             0.017408        0.017408
+4  1024.0     0.033792      0.048128             0.054272        0.035840
+5  2048.0     0.098304      0.108544             0.098304        0.093184
+6  4096.0     0.401408      0.406528             0.364544 
+
+(16384, 4096, 4096) BLOCK_N: 128, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(128, 32, 32) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(256, 64, 64) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(512, 128, 128) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 3, num_warps: 8, num_stages: 4
+(2048, 512, 512) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(4096, 1024, 1024) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(8192, 2048, 2048) BLOCK_N: 128, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(16384, 4096, 4096) BLOCK_N: 128, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(128, 32, 32) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(256, 64, 64) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 2, num_warps: 8, num_stages: 4
+(512, 128, 128) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 2, num_warps: 8, num_stages: 4
+(2048, 512, 512) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(4096, 1024, 1024) BLOCK_N: 32, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4
+(8192, 2048, 2048) BLOCK_N: 128, BLOCK_K: 64, BLOCK_H: 64, SPLIT_H: 1, num_warps: 8, num_stages: 4

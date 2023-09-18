@@ -9,12 +9,12 @@ def init_to_zero(nargs):
     nargs['Y'].zero_()
 
 def gen_configs(init=True):
-    for bn in [32, 64, 128, 256]:
-        for bk in [32, 64, 128, 256]:
-            for bh in [32, 64, 128, 256]:
-                for sh in [1, 2, 3, 4]:
-                    for ns in [1, 2, 3, 4, 5]:
-                        for nw in [1, 2, 4, 8, 16]:
+    for bn in [32, 64, 128]:
+        for bk in [32, 64, 128]:
+            for bh in [32, 64, 128]:
+                for sh in [1, 2, 3,]:
+                    for ns in [2, 3, 4, 5]:
+                        for nw in [4, 8, 16]:
                             if init:
                                 yield Config({'BLOCK_N': bn, 'BLOCK_K': bk, 'BLOCK_H': bh, 'SPLIT_H': sh}, num_stages=ns, num_warps=nw, pre_hook=init_to_zero)
                             else:
@@ -71,7 +71,7 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
     X = X + (rm[:, None] * D + rk[None, :])
     UP_PROJ = UP_PROJ + (rk[:, None] * D_UP + rn[None, :])
     
-    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float16)
 
     for k in range(0, tl.cdiv(D, BLOCK_K)):
         # if EVEN_K:
@@ -85,11 +85,11 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
         # else:
         ds = tl.load(UP_PROJ, mask=(rk[:, None] < k_remaining) & (rn[None, :] < D_UP), other=0)
 
-        acc += tl.dot(xs, ds)
+        acc += tl.dot(xs, ds, out_dtype=tl.float16)
         X += BLOCK_K
         UP_PROJ += BLOCK_K * D_UP
     
-    acc = acc.to(tl.float16)
+    # acc = acc.to(tl.float16)
     # relu
     # acc = tl.where(acc < 0, 0, acc)
     # rematerialize rm and rn to save registers
@@ -105,7 +105,7 @@ def _mlp_fused_kernel_atomic(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
         h_remain = D_DOWN - (pid_h * BLOCK_H + h * BLOCK_H * SPLIT_H)
         hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
 
-        res = tl.dot(acc, hs).to(tl.float16)
+        res = tl.dot(acc, hs, out_dtype=tl.float16)
         tl.atomic_add(Y_ptr, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
         DOWN_PROJ_ptr += BLOCK_H * SPLIT_H
         Y_ptr += BLOCK_H * SPLIT_H
@@ -162,7 +162,7 @@ def _mlp_fused_kernel(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
     X = X + (rm[:, None] * D + rk[None, :])
     UP_PROJ = UP_PROJ + (rk[:, None] * D_UP + rn[None, :])
     
-    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float16)
 
     for k in range(0, tl.cdiv(D, BLOCK_K)):
         # if EVEN_K:
@@ -176,11 +176,11 @@ def _mlp_fused_kernel(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
         # else:
         ds = tl.load(UP_PROJ, mask=(rk[:, None] < k_remaining) & (rn[None, :] < D_UP), other=0)
 
-        acc += tl.dot(xs, ds)
+        acc += tl.dot(xs, ds, out_dtype=tl.float16)
         X += BLOCK_K
         UP_PROJ += BLOCK_K * D_UP
     
-    acc = acc.to(tl.float16)
+    # acc = acc.to(tl.float16)
     # relu
     # acc = tl.where(acc < 0, 0, acc)
     # rematerialize rm and rn to save registers
@@ -196,7 +196,7 @@ def _mlp_fused_kernel(X, UP_PROJ, DOWN_PROJ, Y,  # pointers
         h_remain = D_DOWN - (pid_h * BLOCK_H + h * BLOCK_H * SPLIT_H)
         hs = tl.load(DOWN_PROJ_ptr, mask=(rk[:, None] < D_UP) & (rh[None, :] < h_remain), other=0)
 
-        res = tl.dot(acc, hs).to(tl.float16)
+        res = tl.dot(acc, hs, out_dtype=tl.float16)
         tl.store(Y_ptr, res, mask=(rm[:, None] < M) & (rh[None, :] < h_remain))
         DOWN_PROJ_ptr += BLOCK_H * SPLIT_H
         Y_ptr += BLOCK_H * SPLIT_H
@@ -318,21 +318,28 @@ def test_kernels(M, D):
     print(torch.allclose(y1, y2, atol=1e-1, rtol=1e-1))
     return y3
 
+def ncu_kernels(M, D):
+    a = torch.ones((M, D), device='cuda', dtype=torch.float16) / 100
+    w1 = torch.ones((D, D * 4), device='cuda', dtype=torch.float16) / 100
+    w2 = torch.ones((D * 4, D), device='cuda', dtype=torch.float16) / 100
+    fused_mlp(a, w1, w2)
+    fused_mlp_atomic(a, w1, w2)
+    fused_mlp_ref(a, w1, w2)
+    two_triton(a, w1, w2)
 # test_kernels(1, 4096)
 
 # # %%
 # test_kernels(1, 32)
 # test_kernels(2, 64)
 # test_kernels(4, 128)
-print(triton.__version__)
-# %%
-test_kernels(1, 4096)
-test_kernels(4, 4096)
-test_kernels(8, 4096)
+# test_kernels(1, 4096)
+# test_kernels(4, 4096)
+# test_kernels(8, 4096)
 
+# ncu_kernels(1, 4096)
 
 # %%
-for M in [1, 2, 4, 8, 32]:
+for M in [1, 2, 4, 8, 16]:
     @triton.testing.perf_report(
         triton.testing.Benchmark(
             x_names=['D'],  # Argument names to use as an x-axis for the plot
@@ -358,23 +365,14 @@ for M in [1, 2, 4, 8, 32]:
         w2 = torch.randn([D_UP, D_DOWN], dtype=torch.float16, device='cuda')
 
         quantiles = [0.5, 0.2, 0.8]
-        # if provider == 'torch_naive':
-        #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2), quantiles=quantiles)
-        # if provider == 'triton_fused':
-        #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2), quantiles=quantiles)
-        # if provider == 'triton_fused_atomic':
-        #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2), quantiles=quantiles)
-        # if provider == 'triton_default':
-        #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2), quantiles=quantiles)
         if provider == 'torch_naive':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_ref(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused_atomic':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2))
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: fused_mlp_atomic(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_default':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2))
-        
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2), quantiles=quantiles)        
         # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         # return perf(ms), perf(max_ms), perf(min_ms)
         return ms, max_ms, min_ms

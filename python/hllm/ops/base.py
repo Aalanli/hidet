@@ -92,26 +92,29 @@ class Operator:
 
             if len(candidates) == 0:
                 raise RuntimeError('No valid candidate for {}.'.format(self))
+            elif len(candidates) == 1:
+                best_idx = 0
+            else:
+                # benchmark each compiled function
+                latencies: List[float] = []
+                for kwargs, func in candidates:
+                    latencies.append(hidet.utils.benchmark_func(lambda: func(*params), warmup=3, repeat=5, number=20))
 
-            # benchmark each compiled function
-            latencies: List[float] = []
-            for kwargs, func in candidates:
-                latencies.append(hidet.utils.benchmark_func(lambda: func(*params), warmup=3, repeat=5, number=20))
+                # generate summary
+                table = []
+                headers = ['index'] + list(candidates[0][0].keys()) + ['latency']
+                for idx, (kwargs, func) in enumerate(candidates):
+                    table.append([str(idx)] + list(kwargs.values()) + ['{:.3f}'.format(latencies[idx])])
+                table = sorted(table, key=lambda x: float(x[-1]))
+                summary = tabulate(table, headers=headers)
+                with open(os.path.join(cache_dir, 'summary.txt'), 'w') as f:
+                    f.write(summary)
 
-            # generate summary
-            table = []
-            headers = ['index'] + list(candidates[0][0].keys()) + ['latency']
-            for idx, (kwargs, func) in enumerate(candidates):
-                table.append([str(idx)] + list(kwargs.values()) + ['{:.3f}'.format(latencies[idx])])
-            table = sorted(table, key=lambda x: float(x[-1]))
-            summary = tabulate(table, headers=headers)
-            with open(os.path.join(cache_dir, 'summary.txt'), 'w') as f:
-                f.write(summary)
+                # write the best
+                best_idx = table[0][0]
 
-            # write the best
-            best_idx = table[0][0]
             with open(os.path.join(cache_dir, 'best.txt'), 'w') as f:
-                f.write(table[0][0])
+                f.write(str(best_idx))
 
             func: CompiledFunction = candidates[int(best_idx)][1]
 

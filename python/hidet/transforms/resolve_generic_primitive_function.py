@@ -51,7 +51,7 @@ class ResolveGenericPrimitiveFuncRewriter(IRRewriter):
                 args = [self(arg) for arg in e.args]
                 arg_types = [infer_type(arg) for arg in args]
                 resolved_dtype: DataType = resolve_dtype(arg_types)
-                generic, func_name = entry.name.split('_')  # such as 'generic_exp'
+                generic, func_name = entry.name.split('_', maxsplit=1)  # such as 'generic_exp'
                 assert generic == 'generic'
                 dtype: str = resolved_dtype.name
                 key: Tuple[str, str] = (self.device, dtype)

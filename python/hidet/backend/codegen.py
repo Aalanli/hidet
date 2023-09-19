@@ -651,7 +651,7 @@ class Codegen(ModuleFunctor, StmtFunctor, ExprFunctor, TypeFunctor):
         self.require_complex = self.require_complex or t.name in ['complex64', 'complex128']
         self.require_immintrin = self.require_immintrin or t.name in ['float32x4', 'float32x8']
         self.require_bf16 = self.require_bf16 or t.name == 'bfloat16'
-        self.require_fp16 = self.require_fp16 or t.name == 'float16'
+        self.require_fp16 = self.require_fp16 or t.name == 'float16' or t.name == 'float16x2'
         self.require_tf32 = self.require_tf32 or t.name == 'tfloat32'
 
         return Text(scalar_type_map[t.name])

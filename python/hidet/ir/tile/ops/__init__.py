@@ -10,7 +10,7 @@ from .assign import assign
 
 from .creation import Create
 from .activations import Exp, Silu
-from .memory import Load, Store
+from .memory import Load, StoreBaseOp
 from .transform import Broadcast, ExpandDims, CastOp
 from .convert_layout import ConvertLayout
 from .arthimatic import UnaryTileOp, BinaryTileOp

@@ -5,7 +5,7 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.ops.creation import Create
-from hidet.ir.tile.ops.memory import Load, Store
+from hidet.ir.tile.ops.memory import Load, StoreBaseOp
 from hidet.ir.tile.ops.transform import Broadcast, ExpandDims, CastOp
 from hidet.ir.tile.ops.convert_layout import ConvertLayout
 from hidet.ir.tile.ops.arthimatic import UnaryTileOp, BinaryTileOp
@@ -38,8 +38,8 @@ class TileFunctor(BaseFunctor):
             return self.visit_BinaryTileOp(node)
         elif isinstance(node, Load):
             return self.visit_Load(node)
-        elif isinstance(node, Store):
-            return self.visit_Store(node)
+        elif isinstance(node, StoreBaseOp):
+            return self.visit_StoreBaseOp(node)
         elif isinstance(node, Broadcast):
             return self.visit_Broadcast(node)
         elif isinstance(node, Create):
@@ -91,7 +91,7 @@ class TileFunctor(BaseFunctor):
     def visit_Load(self, e: Load):
         raise NotImplementedError()
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         raise NotImplementedError()
 
     def visit_Broadcast(self, e: Broadcast):
@@ -156,7 +156,7 @@ class TileVisitor(TileFunctor, BaseVisitor):
     def visit_Load(self, e: Load):
         self.visit(e.args)
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         self.visit(e.args)
 
     def visit_Broadcast(self, e: Broadcast):
@@ -261,7 +261,7 @@ class TileRewriter(TileFunctor, BaseRewriter):
         else:
             return e.reforward([ptr, mask, other])
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         ptr = self.visit(e.ptr)
         value = self.visit(e.value)
         mask = self.visit(e.mask)

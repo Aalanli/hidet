@@ -44,29 +44,10 @@ class CUDAFloat16x2MathFunctionSet(MathFunctionSet):
                 codegen_name=codegen_name,
                 func_or_type=func_type([float16] * num_args, float16),
             )
-        register_primitive_function(
-            name='cuda_f16x2_from_2xf16',
-            func_or_type=func_type([float16, float16], float16x2),
-            codegen_name='__halves2half2',
-        )
 
     def call(self, name: str, *args) -> Expr:
         entry = primitive_func_pool.lookup_by_name(name)
         return entry.var(*args)
-
-    def make_vector(self, items: Union[List[Expr], Expr]) -> Expr:
-        if isinstance(items, Expr):
-            items = [items]
-        else:
-            if not isinstance(items, (list, tuple)):
-                raise ValueError('float16x2 requires a list of items')
-
-        if len(items) == 1:
-            return self.call('cuda_f16x2_from_f16', items[0])
-        elif len(items) == 2:
-            return self.call('cuda_f16x2_from_2xf16', items[0], items[1])
-        else:
-            raise ValueError('float16x2 requires 1 or 2 elements')
 
     def sin(self, a: Expr) -> Expr:
         return self.call('cuda_f16x2_sin', a)

@@ -29,7 +29,7 @@ from hidet.ir.stmt import BreakStmt, DeclareScope, LaunchKernelStmt, ContinueStm
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.type import TileType, TileLayout
-from hidet.ir.tile.ops import Create, Load, Store, Broadcast, ExpandDims, ConvertLayout
+from hidet.ir.tile.ops import Create, Load, StoreBaseOp, Broadcast, ExpandDims, ConvertLayout
 from hidet.ir.tile.ops import UnaryTileOp, BinaryTileOp, ReduceOp, Dot, DebugPrint, Assign
 from hidet.ir.tile.ops import AllocTensor, InsertSliceAsync, AsyncWait, AsyncCommitGroup, ExtractSlice
 from hidet.ir.layout import StridesLayout, ConcatLayout, LocalLayout, SwizzleLayout, ComposedLayout, RowMajorLayout
@@ -696,7 +696,7 @@ class IRPrinter(IRFunctor):
     def visit_Load(self, e: Load):
         return self.visit_TileOp(e)
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         return self.visit_TileOp(e)
 
     def visit_ReduceOp(self, e: ReduceOp):

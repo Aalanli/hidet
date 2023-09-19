@@ -8,7 +8,7 @@ from hidet.ir.tile.type import TileLayout
 from hidet.ir.tile.expr import CallTileOp, TileOp
 from hidet.ir.tile.stmt import PureForStmt
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
-from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store, Load
+from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, StoreBaseOp, Load
 from hidet.ir.tile.ops import Create, Assign, convert_layout, ConvertLayout, CastOp, DebugPrint, UnaryTileOp
 from hidet.ir.tile.type import TileType
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
@@ -159,7 +159,7 @@ class ChangeForArgLayoutRewriter(IRRewriter):
         self.usages: Dict[Var, VarUsage] = dict()
 
     def anchor_priority(self, op: Type[TileOp]):
-        order = [Dot, Load, Store, ReduceOp, Broadcast, ExpandDims, BinaryTileOp, ConvertLayout, DebugPrint]
+        order = [Dot, Load, StoreBaseOp, ReduceOp, Broadcast, ExpandDims, BinaryTileOp, ConvertLayout, DebugPrint]
         for idx, cls in enumerate(order):
             if issubclass(op, cls):
                 return len(order) - idx
@@ -282,13 +282,6 @@ class ChangeForArgLayoutRewriter(IRRewriter):
 
 class RemoveLayoutConvertPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        def p(s):
-            def pp(f):
-                print(s)
-                print(f)
-                return f
-            return pp
-
         transforms = [
             ChangeForArgLayoutRewriter(),
             IdentityConvertLayoutTransform(),

@@ -8,12 +8,12 @@ import vllm.model_executor.parallel_utils
 from hidet.ir.dtypes import float16, float32
 from hidet.transforms import lower, PassContext, instruments
 from hidet.utils.ncu_utils import ncu_run
+from hidet.utils.nsys_utils import nsys_run
 from hidet import ops
 import numpy as np
 
 hidet.option.cache_dir('./outs/cache')
 hidet.option.save_lower_ir()
-# hidet.option.debug_show_var_id()
 
 hidet.utils.clear_cache_dir()
 
@@ -248,12 +248,60 @@ def demo_triton():
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
 
 
-def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
+def demo_reduce_add():
+    from hidet.lang import attrs, f16, f32, f16x2
+    from hidet.ir.primitives.cuda.atomic import reduce_add
+
+    for dtype in [f16x2]:
+        with hidet.script_module() as script_module:
+
+            @hidet.script
+            def func_v1(a: ~dtype):
+                attrs.func_kind = 'cuda_kernel'
+                attrs.cuda.block_dim = 1
+                attrs.cuda.grid_dim = 1874
+
+                reduce_add(dtype, addr=a, src_values=[dtype.one])
+
+        op = script_module.build()
+        a = hidet.zeros([1], dtype=dtype, device='cuda')
+        op(a)
+        b = hidet.zeros([2], dtype=float16, device='cuda')
+        b._storage = a.storage
+        # assert a.item() == 1874.0
+        print(b)
+
+
+def demo_atomic_add():
+    from hidet.lang import attrs
+    from hidet.lang.types import f16, f32, f16x2
+    from hidet.lang import tile as ti
+
+    with hidet.script_module() as script_module:
+
+        @hidet.script
+        def func_v1(a_ptr: ~f16):
+            attrs.func_kind = 'cuda_tile'
+            attrs.cuda.block_dim = 32
+            attrs.cuda.grid_dim = 1874
+
+            a_ptrs = a_ptr + ti.arange(0, 2)
+            ti.atomic_add(a_ptrs, value=f16.one)
+
+    op = script_module.build()
+    a = hidet.zeros([2], dtype=f16, device='cuda')
+    op(a)
+    print(a)
+    # assert a.item() == 1874.0
+
+
+def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288, no_bench=False):
     import torch.distributed
     import vllm.worker.worker
     import vllm.config
 
     hidet.option.search_space(0)
+    hidet.option.runtime_check(False)
 
     vllm.worker.worker._init_distributed_environment(
         parallel_config=vllm.config.ParallelConfig(
@@ -283,30 +331,26 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288):
     def torch_func(x):
         return torch_ffn(x)
 
-    def hidet_origin_func(x):
-        x = hidet.from_torch(x)
-        y1 = x @ w1
-        y1 = ops.silu(y1[:, :m_size]) * y1[:, m_size:]
-        y2 = y1 @ w2
-        return y2
-
     x = torch.randn([seq, h_size], dtype=torch.float16, device='cuda')
     y1 = hidet_func(x)
     y2 = torch_func(x)
-    # y3 = hidet_origin_func(x)
 
-    # hidet.utils.assert_close(y2, y3, atol=5e-2, rtol=5e-2)
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
 
-    print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))
-    print('   hidet-tile: {:.3f}'.format(hidet.utils.benchmark_func(lambda: hidet_func(x), repeat=100)))
+    if not no_bench:
+        print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))
+        print('   hidet-tile: {:.3f}'.format(hidet.utils.benchmark_func(lambda: hidet_func(x), repeat=100)))
 
 
 def main():
     # demo_matmul()
-    # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288)
-    demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
+    # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
+    # nsys_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
+    # demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
     # demo_triton()
+
+    # demo_reduce_add()
+    demo_atomic_add()
 
 
 if __name__ == '__main__':

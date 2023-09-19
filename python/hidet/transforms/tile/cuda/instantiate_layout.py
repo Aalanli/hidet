@@ -6,7 +6,7 @@ from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt
 from hidet.ir.tile.expr import CallTileOp
 from hidet.ir.tile.layout import BlockLayout, FlattenBlockLayout, BlockDotOperandLayout
 from hidet.ir.tile.stmt import PureForStmt, YieldStmt
-from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, Store
+from hidet.ir.tile.ops import Broadcast, BinaryTileOp, ReduceOp, Dot, ExpandDims, SimtDot, StoreBaseOp
 from hidet.ir.tile.ops import Create, Assign, convert_layout
 from hidet.ir.tile.type import TileType
 from hidet.ir.tools import TypeInfer
@@ -170,6 +170,10 @@ class InstantiateLayoutRewriter(IRRewriter):
             num_threads = self.num_warps * 32
             if m >= 4 and n >= 4 and m * n >= num_threads * 16:
                 size_per_thread = [4, 4]
+            elif m >= 2 and n >= 4 and m * n >= num_threads * 8:
+                size_per_thread = [2, 4]
+            elif m >= 1 and n >= 4 and m * n >= num_threads * 4:
+                size_per_thread = [1, 4]
             elif m >= 2 and n >= 2 and m * n >= num_threads * 4:
                 size_per_thread = [2, 2]
             else:
@@ -185,7 +189,7 @@ class InstantiateLayoutRewriter(IRRewriter):
         else:
             raise NotImplementedError()
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         ptr = self.visit(e.ptr)
         value = self.visit(e.value)
         mask = self.visit(e.mask) if e.mask is not None else None
@@ -203,7 +207,7 @@ class InstantiateLayoutRewriter(IRRewriter):
         if mask is not None and mask_type.layout != layout:
             mask = convert_layout(mask, layout)
 
-        return Store(ptr, value, mask)
+        return e.reforward(args=[ptr, value, mask])
 
     def visit_Assign(self, e: Assign):
         dst = self.visit(e.dst)

@@ -62,12 +62,11 @@ class SplitDotKRewriter(IRRewriter):
             c = self.visit(e.c)
             a_type: TileType = self.type_infer(a)
             b_type: TileType = self.type_infer(b)
-            c_type: TileType = self.type_infer(c)
             m, n, ks = a_type.shape[0], b_type.shape[1], a_type.shape[1]
-            if ks <= 4:
+            k = 8
+            if ks <= k:
                 return super().visit_Dot(e)
-            s = ks // 4
-            k = 4
+            s = ks // k
 
             a_layout = a_type.layout
             b_layout = b_type.layout

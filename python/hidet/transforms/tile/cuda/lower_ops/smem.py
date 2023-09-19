@@ -1,7 +1,7 @@
 from typing import List, Union, Optional
 
 from hidet.ir.dtypes import int32
-from hidet.ir.type import sizeof
+from hidet.ir.type import sizeof, PointerType
 from hidet.ir.expr import Expr, if_then_else, cast
 from hidet.ir.primitives.cuda.cp_async import cp_async_commit_group, cp_async_wait_group
 from hidet.ir.primitives.cuda.sync import syncthreads
@@ -42,7 +42,7 @@ class InsertSliceAsyncImpl(TileOpImpl):
         insert_axis: int = op.axis
         layout = ptr.layout
 
-        dtype: DataType = get_type_erased_dtype(ptr.dtype)
+        dtype: DataType = get_type_erased_dtype(ptr.dtype.base_type)
 
         if isinstance(layout, BlockLayout) and other is None:
             axis: int = len(layout.shape) - 1  # the last axis is the innermost axis

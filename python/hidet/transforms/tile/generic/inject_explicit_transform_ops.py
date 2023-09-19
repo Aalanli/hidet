@@ -10,7 +10,7 @@ from hidet.ir.tile.type import TileType
 from hidet.ir.tile.expr import TileOp
 from hidet.ir.tools import TypeInfer
 from hidet.ir.tile.ops import broadcast, full, expand_dims
-from hidet.ir.tile.ops import Load, Store
+from hidet.ir.tile.ops import Load, StoreBaseOp
 from hidet.ir.utils.broadcast_utils import broadcast_shape
 from hidet.transforms.base import TileFunctionPass
 from hidet.utils import same_list
@@ -75,7 +75,7 @@ class InjectExplicitTransformOpsRewriter(IRRewriter):
         else:
             return e.reforward([ptr, mask, other])
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         ptr = self.visit(e.ptr)
         mask = self.visit(e.mask)
         value = self.visit(e.value)

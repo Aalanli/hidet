@@ -229,7 +229,7 @@ class LoopArgs:
 
 
 class SoftwarePipelineRewriter(IRRewriter):
-    def __init__(self, loop, yield_stmt, loads, dependency_graph, num_stages=3):
+    def __init__(self, loop, yield_stmt, loads, dependency_graph, num_stages=4):
         super().__init__()
         self.loop: PureForStmt = loop
         self.yield_stmt: YieldStmt = yield_stmt
@@ -375,7 +375,7 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # insert_index and extract_index
         extra_indices: List[Var] = [Var('insert_index', type=int32), Var('extract_index', type=int32)]
-        values = [int32(self.num_stages - 1), int32(self.num_stages - 2)]
+        values = [int32(self.num_stages - 1), 1]
         arg2value.update({arg: value for arg, value in zip(extra_indices, values)})
 
         # extracted slices

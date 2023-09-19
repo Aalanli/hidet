@@ -41,7 +41,7 @@ class Load(TileOp):
             assert False
 
 
-class Store(TileOp):
+class StoreBaseOp(TileOp):
     def __init__(self, ptr: Expr, value: Expr, mask: Optional[Expr] = None):
         super().__init__()
         self.ptr: Expr = ptr
@@ -71,9 +71,21 @@ class Store(TileOp):
         return void
 
 
+class Store(StoreBaseOp):
+    pass
+
+
+class AtomicAdd(StoreBaseOp):
+    pass
+
+
 def load(ptr: Expr, mask: Optional[Union[Expr, bool]] = None):
     return Load(ptr, mask).make_call()
 
 
 def store(ptr: Expr, value: Expr, mask: Optional[Union[Expr, bool]] = None):
     return Store(ptr, value, mask).make_call()
+
+
+def atomic_add(ptr: Expr, value: Expr, mask: Optional[Union[Expr, bool]] = None):
+    return AtomicAdd(ptr, value, mask).make_call()

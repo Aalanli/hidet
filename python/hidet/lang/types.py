@@ -13,6 +13,7 @@
 from hidet.ir.dtypes import i8, i16, i32, i64, u8, u16, u32, u64, f16, f32, f64, bf16, tf32
 from hidet.ir.dtypes import int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64
 from hidet.ir.dtypes import bfloat16, tfloat32
+from hidet.ir.dtypes import f16x2, float16x2
 
 from hidet.ir.type import void_p, void, byte_p
 

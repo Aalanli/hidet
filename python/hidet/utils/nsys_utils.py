@@ -3,46 +3,32 @@ import pickle
 import argparse
 import sys
 import subprocess
+import multiprocessing
 
-_nsys_path: str = '/usr/local/cuda/bin/ncu'
-_ncu_ui_path: str = '/usr/local/cuda/bin/ncu-ui'
-_ncu_ui_template = "{ncu_ui_path} {report_path}"
-_ncu_template = """
-{ncu_path}
---export {report_path}
---force-overwrite
---set full
---rule CPIStall 
---rule FPInstructions 
---rule HighPipeUtilization 
---rule IssueSlotUtilization 
---rule LaunchConfiguration 
---rule Occupancy 
---rule PCSamplingData 
---rule SOLBottleneck 
---rule SOLFPRoofline 
---rule SharedMemoryConflicts 
---rule SlowPipeLimiter 
---rule ThreadDivergence 
---rule UncoalescedGlobalAccess
---rule UncoalescedSharedAccess 
---import-source yes
---check-exit-code yes
+_nsys_path: str = '/usr/local/cuda/bin/nsys'
+_nsys_ui_path: str = '/usr/local/cuda/bin/nsys-ui'
+_nsys_ui_template = "{nsys_ui_path} {report_path}"
+_nsys_template = """
+{nsys_path}
+profile
+-o {report_path}
 {python_executable} {python_script} {args}
 """.replace(
     '\n', ' '
 ).strip()
 
 
-class NsightComputeReport:
+class NsightSystemReport:
     def __init__(self, report_path: str):
         self.report_path: str = report_path
 
     def visualize(self):
-        subprocess.run(_ncu_ui_template.format(ncu_ui_path=_ncu_ui_path, report_path=self.report_path), shell=True)
+        # subprocess.run(_nsys_ui_template.format(nsys_ui_path=_nsys_ui_path, report_path=self.report_path), shell=True)
+        # use subprocess to run a command asynchronously
+        subprocess.Popen(_nsys_ui_template.format(nsys_ui_path=_nsys_ui_path, report_path=self.report_path), shell=True)
 
 
-def _ncu_run_func(script_path, func_name, args_pickled_path):
+def _nsys_run_func(script_path, func_name, args_pickled_path):
     with open(args_pickled_path, 'rb') as f:
         args, kwargs = pickle.load(f)
 
@@ -63,12 +49,12 @@ def _ncu_run_func(script_path, func_name, args_pickled_path):
         raise RuntimeError('Error when running the function "{}"'.format(func_name)) from e
 
 
-def ncu_set_path(ncu_path: str):
+def nsys_set_path(nsys_path: str):
     global _nsys_path
-    _ncu_path = ncu_path
+    _nsys_path = nsys_path
 
 
-def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
+def nsys_run(func, *args, **kwargs) -> NsightSystemReport:
     import inspect
     import tempfile
 
@@ -77,10 +63,10 @@ def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
     func_name: str = func.__name__
 
     # report path
-    report_path: str = os.path.join(os.path.dirname(script_path), 'report.ncu-rep')
+    report_path: str = os.path.join(os.path.dirname(script_path), 'report.nsys-rep')
     idx = 0
     while os.path.exists(report_path):
-        report_path = os.path.join(os.path.dirname(script_path), 'report{}.ncu-rep'.format(idx))
+        report_path = os.path.join(os.path.dirname(script_path), 'report{}.nsys-rep'.format(idx))
         idx += 1
 
     # dump args
@@ -89,8 +75,8 @@ def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
         pickle.dump((args, kwargs), f)
 
     subprocess.run(
-        _ncu_template.format(
-            ncu_path=_nsys_path,
+        _nsys_template.format(
+            nsys_path=_nsys_path,
             report_path=report_path,
             python_executable=sys.executable,
             python_script=__file__,
@@ -99,7 +85,7 @@ def ncu_run(func, *args, **kwargs) -> NsightComputeReport:
         shell=True,
     )
 
-    return NsightComputeReport(report_path)
+    return NsightSystemReport(report_path)
 
 
 if __name__ == '__main__':
@@ -108,4 +94,4 @@ if __name__ == '__main__':
     parser.add_argument('func', type=str)
     parser.add_argument('args', type=str)
     args = parser.parse_args()
-    _ncu_run_func(args.script_path, args.func, args.args)
+    _nsys_run_func(args.script_path, args.func, args.args)

@@ -238,6 +238,9 @@ class MathFunctionSetGeneric(MathFunctionSet):
 
     @staticmethod
     def call(name, *args) -> Expr:
+        for arg in args:
+            if not isinstance(arg, (int, float, Expr)):
+                raise ValueError(f"Invalid argument type: {type(arg)}")
         entry = lookup_primitive_function(f'generic_{name}')
         return entry.var(*args)
 

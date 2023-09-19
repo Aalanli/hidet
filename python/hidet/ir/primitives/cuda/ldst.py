@@ -125,7 +125,7 @@ def register_functions():
 
                             register_primitive_function(name=cuda_load.name, func_or_type=cuda_load)
 
-    for space in ['generic']:
+    for space in ['generic', 'global']:
         for sync in ['release', None]:
             for dtype_ in [uint8, uint16, uint32, uint64]:
                 for vec in [1, 2, 4]:

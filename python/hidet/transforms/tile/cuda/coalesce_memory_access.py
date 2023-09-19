@@ -5,7 +5,7 @@ from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
 from hidet.ir.tile.layout import TileLayout, BlockLayout, spatial, repeat
 from hidet.ir.tile.ops import ConvertLayout, convert_layout
-from hidet.ir.tile.ops import Store, Load
+from hidet.ir.tile.ops import StoreBaseOp, Load
 from hidet.ir.tile.type import TileType
 from hidet.ir.type import PointerType, sizeof
 from hidet.transforms.base import TileFunctionPass
@@ -68,16 +68,16 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
             other: Optional[Expr] = convert_layout(self.visit(e.other), new_layout) if e.other is not None else None
             return ConvertLayout(Load(ptr=ptr, mask=mask, other=other).make_call(), orig_layout)
 
-    def visit_Store(self, e: Store):
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
         ptr = self.visit(e.ptr)
         new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr)
         if new_layout is None:
-            return super().visit_Store(e)
+            return super().visit_StoreBaseOp(e)
         else:
             ptr = convert_layout(ptr, new_layout)
             value: Expr = convert_layout(self.visit(e.value), new_layout) if e.value is not None else None
             mask: Optional[Expr] = convert_layout(self.visit(e.mask), new_layout) if e.mask is not None else None
-            return Store(ptr=ptr, value=value, mask=mask)
+            return e.reforward(args=[ptr, value, mask])
 
 
 class CoalesceMemoryAccessPass(TileFunctionPass):

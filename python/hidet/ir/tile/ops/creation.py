@@ -1,4 +1,4 @@
-from typing import Optional, List, Union, Sequence, Callable
+from typing import Optional, List, Union, Sequence, Callable, List
 from hidet.ir.dtypes import int32
 from hidet.ir.type import BaseType, DataType, data_type
 from hidet.ir.expr import Var, convert, index_vars
@@ -40,14 +40,18 @@ def full(value: Union[Expr, int, bool, float], shape: Sequence[int]):
     return Create.from_compute(shape=list(shape), f_compute=lambda axes: convert(value)).make_call()
 
 
-def grid(shape: List[int], starts: List[Union[Expr, int]], strides: List[Union[Expr, int]]):
+def grid(shape: List[int], starts: List[Union[Expr, int]], strides: List[Union[Expr, int]], offset=0):
     from hidet.ir.expr import convert
 
     starts = [convert(start) for start in starts]
     strides = [convert(stride) for stride in strides]
     return Create.from_compute(
-        shape=shape, f_compute=lambda axes: sum((axes[i] + starts[i]) * strides[i] for i in range(len(shape)))
+        shape=shape, f_compute=lambda axes: offset + sum((axes[i] + starts[i]) * strides[i] for i in range(len(shape)))
     ).make_call()
+
+
+def compute(shape: List[int], f_compute: Callable[[List[Var]], Expr]):
+    return Create.from_compute(shape=shape, f_compute=lambda axes: f_compute(*axes)).make_call()
 
 
 def zeros(shape: List[int], dtype: Union[DataType, str] = 'float32'):

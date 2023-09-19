@@ -323,7 +323,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         # rematerialize the load args and loop args
         arg2init: Dict[Var, Var] = {arg: value for arg, value in zip(self.loop.args, self.loop.values)}
         current_for_args: List[Var] = [arg2init[arg] for arg in self.load_dependent_args]
-        for i in range(self.num_stages - 1):
+        for i in range(self.num_stages):
             # rematerialize the load arguments computations
             bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
                 current_for_args, extra_remap={self.loop.loop_var: int32(i)}
@@ -353,7 +353,7 @@ class SoftwarePipelineRewriter(IRRewriter):
                 stmts.append(LetStmt(bind_vars, bind_values))
 
         # extract the first stage
-        stmts.append(AsyncWait(self.num_stages - 2))
+        stmts.append(AsyncWait(self.num_stages - 1))
         tile_vars: List[Var] = []
         for idx, buf_var in enumerate(buffer_vars):
             shape = load_types[idx].shape
@@ -375,7 +375,7 @@ class SoftwarePipelineRewriter(IRRewriter):
 
         # insert_index and extract_index
         extra_indices: List[Var] = [Var('insert_index', type=int32), Var('extract_index', type=int32)]
-        values = [int32(self.num_stages - 1), int32(1)]
+        values = [int32(0), int32(1)]
         arg2value.update({arg: value for arg, value in zip(extra_indices, values)})
 
         # extracted slices
@@ -484,11 +484,14 @@ class SoftwarePipelineRewriter(IRRewriter):
         # rematerialize the load arguments
         bind_vars, bind_values, remat_load_args = self.load_args_remat.rematerialize(
             self.updated_args.load_dependent_args,
-            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages - 1},
+            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages},
         )
         load_arg_map: Dict[Expr, Var] = {a: b for a, b in zip(self.load_args, remat_load_args)}
         if len(bind_vars) > 0:
             stmts.append(LetStmt(bind_vars, bind_values))
+        
+
+        stmts.append(AsyncWait(self.num_stages - 2).make_call())
 
         # load the next tile asynchronously for each load
         for idx, load in enumerate(self.loads):
@@ -499,7 +502,7 @@ class SoftwarePipelineRewriter(IRRewriter):
             assert isinstance(ptr.type, TileType)
             extra_mask = Create.from_compute(
                 shape=ptr.type.shape,
-                f_compute=lambda *indices: less_than(self.loop.loop_var + self.num_stages - 1, self.loop.extent),
+                f_compute=lambda *indices: less_than(self.loop.loop_var + self.num_stages, self.loop.extent),
                 layout=ptr.type.layout,
             ).make_call()
             if mask is None:
@@ -518,14 +521,13 @@ class SoftwarePipelineRewriter(IRRewriter):
         # rematerialize the load dependent for-loop arguments
         bind_vars, bind_values, remat_load_dependent_args = self.load_dependent_args_remat.rematerialize(
             self.updated_args.load_dependent_args,
-            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages - 1},
+            extra_remap={self.loop.loop_var: self.loop.loop_var + self.num_stages},
         )
         if len(bind_vars) > 0:
             stmts.append(LetStmt(bind_vars, bind_values))
         arg2yield.update({a: b for a, b in zip(self.updated_args.load_dependent_args, remat_load_dependent_args)})
 
         # sync and extract the next tile for each load
-        stmts.append(AsyncWait(self.num_stages - 2).make_call())
         for idx, tile in enumerate(self.updated_args.loaded_tiles):
             buf_var = arg2yield[self.updated_args.buffers[idx]]
             new_tile = Var(tile.hint, type=tile.type)
@@ -545,6 +547,7 @@ class SoftwarePipelineRewriter(IRRewriter):
         stmts.append(YieldStmt(yield_values))
 
         return self.concat_stmts(stmts)
+
 
 
 class SoftwarePipelinePass(TileFunctionPass):

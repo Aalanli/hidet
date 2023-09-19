@@ -1,0 +1,151 @@
+#layout: block(shape=[16, 64], size_per_thread=[2, 2], thread_per_warp=[1, 32], warps_per_block=[8, 1])
+#layout1: block(shape=[16, 64], size_per_thread=[1, 8], thread_per_warp=[4, 8], warps_per_block=[4, 2])
+#layout2: block(shape=[64, 64], size_per_thread=[1, 8], thread_per_warp=[4, 8], warps_per_block=[8, 1])
+#layout3: block(shape=[16, 64], size_per_thread=[1, 1], thread_per_warp=[1, 32], warps_per_block=[4, 2])
+#layout4: block(shape=[16, 32], size_per_thread=[1, 1], thread_per_warp=[1, 32], warps_per_block=[8, 1])
+#layout5: block(shape=[16, 32], size_per_thread=[1, 8], thread_per_warp=[8, 4], warps_per_block=[2, 4])
+
+def llama_ffn(
+    x_ptr: float16*,
+    w1_ptr: float16*,
+    w2_ptr: float16*,
+    y_ptr: float16*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 256
+    # cuda.grid_dim: 192
+    let cvt: float16[16, 64, #layout] = create(half(0.0), shape=[16, 64], axes=[i, j], layout=#layout)
+    let cvt_0: float16[16, 64, #layout] = create(half(0.0), shape=[16, 64], axes=[i_0, j_0], layout=#layout)
+    let cvt_1: float16*[16, 64, #layout1] = create((x_ptr + ((i_1 * 4096) + j_1)), shape=[16, 64], axes=[i_1, j_1], layout=#layout1)
+    let cvt_2: float16*[64, 64, #layout2] = create((w1_ptr + ((i_2 * 24576) + (j_2 + (blockIdx.x * 64)))), shape=[64, 64], axes=[i_2, j_2], layout=#layout2)
+    let smem: float16[2, 16, 64, shared(2, 16, 64)] = alloc_tensor(dtype=float16, shape=[2, 16, 64], layout=shared(2, 16, 64))
+    let smem_0: float16[2, 64, 64, shared(2, 64, 64)] = alloc_tensor(dtype=float16, shape=[2, 64, 64], layout=shared(2, 64, 64))
+    let smem_1: float16[2, 64, 64, shared(2, 64, 64)] = alloc_tensor(dtype=float16, shape=[2, 64, 64], layout=shared(2, 64, 64))
+    let cvt_3: int32[64, 64, #layout2] = create(12288, shape=[64, 64], axes=[i_3, j_3], layout=#layout2)
+    let cvt_4: float16*[64, 64, #layout2] = add(cvt_2, cvt_3)
+    let smem_2: float16[2, 16, 64, shared(2, 16, 64)] = insert_slice_async(cvt_1, smem, 0, axis=0)
+    let smem_3: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_2, smem_0, 0, axis=0)
+    let smem_4: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_4, smem_1, 0, axis=0)
+    async_commit_group()
+    let cvt_5: int32[64, 64, #layout2] = create(1572864, shape=[64, 64], axes=[i_4, j_4], layout=#layout2)
+    let cvt_6: int32[16, 64, #layout1] = create(64, shape=[16, 64], axes=[i_5, j_5], layout=#layout1)
+    let cvt_7: float16*[64, 64, #layout2] = add(cvt_2, cvt_5)
+    let cvt_8: float16*[16, 64, #layout1] = add(cvt_1, cvt_6)
+    async_wait(n=0)
+    let ext_slice: float16[16, 64, shared(16, 64)] = extract_slice(smem_2, 0, axis=0, extent=1, layout=shared(16, 64))
+    let ext_slice_0: float16[64, 64, shared(64, 64)] = extract_slice(smem_3, 0, axis=0, extent=1, layout=shared(64, 64))
+    let ext_slice_1: float16[64, 64, shared(64, 64)] = extract_slice(smem_4, 0, axis=0, extent=1, layout=shared(64, 64))
+    for k in range(64) with y1_lhs: float16[16, 64, #layout] = cvt, y1_rhs: float16[16, 64, #layout] = cvt_0, insert_index: int32 = 1, extract_index: int32 = 0, ext_slice_2: float16[16, 64, shared(16, 64)] = ext_slice, ext_slice_3: float16[64, 64, shared(64, 64)] = ext_slice_0, ext_slice_4: float16[64, 64, shared(64, 64)] = ext_slice_1, smem_5: float16[2, 16, 64, shared(2, 16, 64)] = smem_2, smem_6: float16[2, 64, 64, shared(2, 64, 64)] = smem_3, smem_7: float16[2, 64, 64, shared(2, 64, 64)] = smem_4, cvt_9: float16*[16, 64, #layout1] = cvt_8, cvt_10: float16*[64, 64, #layout2] = cvt_7:
+        let cvt_11: float16[16, 64, dot_operand(parent=#layout, id=0)] = convert_layout(ext_slice_2, layout=dot_operand(parent=#layout, id=0), scope=register)
+        let cvt_12: float16[64, 64, dot_operand(parent=#layout, id=1)] = convert_layout(ext_slice_3, layout=dot_operand(parent=#layout, id=1), scope=register)
+        let y1_lhs_0: float16[16, 64, #layout] = simt_dot(cvt_11, cvt_12, y1_lhs)
+        let cvt_13: float16[16, 64, dot_operand(parent=#layout, id=0)] = convert_layout(ext_slice_2, layout=dot_operand(parent=#layout, id=0), scope=register)
+        let cvt_14: float16[64, 64, dot_operand(parent=#layout, id=1)] = convert_layout(ext_slice_4, layout=dot_operand(parent=#layout, id=1), scope=register)
+        let y1_rhs_0: float16[16, 64, #layout] = simt_dot(cvt_13, cvt_14, y1_rhs)
+        let cvt_15: int32[64, 64, #layout2] = create(12288, shape=[64, 64], axes=[i_3, j_3], layout=#layout2)
+        let cvt_16: float16*[64, 64, #layout2] = add(cvt_10, cvt_15)
+        let create: bool[16, 64, #layout1] = create((((k + 2) - 1) < 64), shape=[16, 64], axes=[i_6, j_6], layout=#layout1)
+        let smem_8: float16[2, 16, 64, shared(2, 16, 64)] = insert_slice_async(cvt_9, smem_5, insert_index, create, axis=0)
+        let create_0: bool[64, 64, #layout2] = create((((k + 2) - 1) < 64), shape=[64, 64], axes=[i_7, j_7], layout=#layout2)
+        let smem_9: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_10, smem_6, insert_index, create_0, axis=0)
+        let create_1: bool[64, 64, #layout2] = create((((k + 2) - 1) < 64), shape=[64, 64], axes=[i_8, j_8], layout=#layout2)
+        let smem_10: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_16, smem_7, insert_index, create_1, axis=0)
+        async_commit_group()
+        let cvt_17: int32[64, 64, #layout2] = create(1572864, shape=[64, 64], axes=[i_4, j_4], layout=#layout2)
+        let cvt_18: int32[16, 64, #layout1] = create(64, shape=[16, 64], axes=[i_5, j_5], layout=#layout1)
+        let cvt_19: float16*[64, 64, #layout2] = add(cvt_10, cvt_17)
+        let cvt_20: float16*[16, 64, #layout1] = add(cvt_9, cvt_18)
+        async_wait(n=0)
+        let ext_slice_5: float16[16, 64, shared(16, 64)] = extract_slice(smem_8, extract_index, axis=0, extent=1, layout=shared(16, 64))
+        let ext_slice_6: float16[64, 64, shared(64, 64)] = extract_slice(smem_9, extract_index, axis=0, extent=1, layout=shared(64, 64))
+        let ext_slice_7: float16[64, 64, shared(64, 64)] = extract_slice(smem_10, extract_index, axis=0, extent=1, layout=shared(64, 64))
+        let insert_index_0: int32 = ((insert_index + 1) % 2)
+        let extract_index_0: int32 = ((extract_index + 1) % 2)
+        yield y1_lhs_0, y1_rhs_0, insert_index_0, extract_index_0, ext_slice_5, ext_slice_6, ext_slice_7, smem_8, smem_9, smem_10, cvt_20, cvt_19
+    get y1_lhs_1, y1_rhs_1, insert_index_1, extract_index_1, ext_slice_8, ext_slice_9, ext_slice_10, smem_11, smem_12, smem_13, cvt_21, cvt_22:
+        async_wait(n=0)
+        let cvt_23: float16[16, 64, #layout3] = convert_layout(y1_lhs_1, layout=#layout3)
+        let silu: float16[16, 64, #layout3] = silu(cvt_23)
+        let cvt_24: float16[16, 64, #layout3] = convert_layout(y1_rhs_1, layout=#layout3)
+        let y1: float16[16, 64, #layout3] = multiply(silu, cvt_24)
+        let cvt_25: float16*[64, 64, #layout2] = create((w2_ptr + (((i_9 + (blockIdx.x * 64)) * 4096) + j_9)), shape=[64, 64], axes=[i_9, j_9], layout=#layout2)
+        let cvt_26: float16*[16, 64, #layout] = create((y_ptr + (((i_10 + (blockIdx.x * 16)) * 4096) + j_10)), shape=[16, 64], axes=[i_10, j_10], layout=#layout)
+        let cvt_27: float16[16, 64, dot_operand(parent=#layout, id=0)] = convert_layout(y1, layout=dot_operand(parent=#layout, id=0))
+        let smem_14: float16[2, 64, 64, shared(2, 64, 64)] = alloc_tensor(dtype=float16, shape=[2, 64, 64], layout=shared(2, 64, 64))
+        let smem_15: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_25, smem_14, 0, axis=0)
+        async_commit_group()
+        let cvt_28: int32[64, 64, #layout2] = create(64, shape=[64, 64], axes=[i_11, j_11], layout=#layout2)
+        let cvt_29: float16*[64, 64, #layout2] = add(cvt_25, cvt_28)
+        async_wait(n=0)
+        let ext_slice_11: float16[64, 64, shared(64, 64)] = extract_slice(smem_15, 0, axis=0, extent=1, layout=shared(64, 64))
+        for k_0 in range(64) with y_ptrs: float16*[16, 64, #layout] = cvt_26, insert_index_2: int32 = 1, extract_index_2: int32 = 0, ext_slice_12: float16[64, 64, shared(64, 64)] = ext_slice_11, smem_16: float16[2, 64, 64, shared(2, 64, 64)] = smem_15, cvt_30: float16*[64, 64, #layout2] = cvt_29:
+            let cvt_31: float16[64, 64, dot_operand(parent=#layout, id=1)] = convert_layout(ext_slice_12, layout=dot_operand(parent=#layout, id=1), scope=register)
+            let cvt_32: float16[16, 64, #layout] = create(half(0.0), shape=[16, 64], axes=[i_12, j_12], layout=#layout)
+            let y: float16[16, 64, #layout] = simt_dot(cvt_27, cvt_31, cvt_32)
+            let cvt_33: bool[16, 64, #layout] = create((i_13 < 16), shape=[16, 64], axes=[i_13, j_13], layout=#layout)
+            store(y_ptrs, y, cvt_33)
+            let cvt_34: int32[16, 64, #layout] = create(64, shape=[16, 64], axes=[i_14, j_14], layout=#layout)
+            let cvt_35: float16*[16, 64, #layout] = add(y_ptrs, cvt_34)
+            let create_2: bool[64, 64, #layout2] = create((((k_0 + 2) - 1) < 64), shape=[64, 64], axes=[i_15, j_15], layout=#layout2)
+            let smem_17: float16[2, 64, 64, shared(2, 64, 64)] = insert_slice_async(cvt_30, smem_16, insert_index_2, create_2, axis=0)
+            async_commit_group()
+            let cvt_36: int32[64, 64, #layout2] = create(64, shape=[64, 64], axes=[i_11, j_11], layout=#layout2)
+            let cvt_37: float16*[64, 64, #layout2] = add(cvt_30, cvt_36)
+            async_wait(n=0)
+            let ext_slice_13: float16[64, 64, shared(64, 64)] = extract_slice(smem_17, extract_index_2, axis=0, extent=1, layout=shared(64, 64))
+            let insert_index_3: int32 = ((insert_index_2 + 1) % 2)
+            let extract_index_3: int32 = ((extract_index_2 + 1) % 2)
+            yield cvt_35, insert_index_3, extract_index_3, ext_slice_13, smem_17, cvt_37
+        get y_ptrs_0, insert_index_4, extract_index_4, ext_slice_14, smem_18, cvt_38:
+            async_wait(n=0)
+
+def reduce(
+    x_ptr_0: float16*,
+    y_ptr_0: float16*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 256
+    # cuda.grid_dim: 128
+    let acc: float16[16, 32, #layout4] = create(half(0.0), shape=[16, 32], axes=[i_16, j_16], layout=#layout4)
+    let cvt_39: float16*[16, 32, #layout5] = create(((x_ptr_0 + (i_17 * 4096)) + ((blockIdx.x_0 * 32) + j_17)), shape=[16, 32], axes=[i_17, j_17], layout=#layout5)
+    let smem_19: float16[2, 16, 32, shared(2, 16, 32)] = alloc_tensor(dtype=float16, shape=[2, 16, 32], layout=shared(2, 16, 32))
+    let cvt_40: bool[16, 32, #layout5] = create((i_18 < 3072), shape=[16, 32], axes=[i_18, j_18], layout=#layout5)
+    let smem_20: float16[2, 16, 32, shared(2, 16, 32)] = insert_slice_async(cvt_39, smem_19, 0, cvt_40, axis=0)
+    async_commit_group()
+    let cvt_41: int32[16, 32, #layout5] = create(65536, shape=[16, 32], axes=[i_19, j_19], layout=#layout5)
+    let cvt_42: float16*[16, 32, #layout5] = add(cvt_39, cvt_41)
+    async_wait(n=0)
+    let ext_slice_15: float16[16, 32, shared(16, 32)] = extract_slice(smem_20, 0, axis=0, extent=1, layout=shared(16, 32))
+    for k_1 in range(192) with acc_0: float16[16, 32, #layout4] = acc, insert_index_5: int32 = 1, extract_index_5: int32 = 0, ext_slice_16: float16[16, 32, shared(16, 32)] = ext_slice_15, smem_21: float16[2, 16, 32, shared(2, 16, 32)] = smem_20, cvt_43: float16*[16, 32, #layout5] = cvt_42:
+        let load: float16[16, 32, #layout4] = convert_layout(ext_slice_16, layout=#layout4, scope=register)
+        let acc_1: float16[16, 32, #layout4] = add(acc_0, load)
+        let cvt_44: bool[16, 32, #layout5] = create((i_18 < (3072 - (((k_1 + 2) - 1) * 16))), shape=[16, 32], axes=[i_18, j_18], layout=#layout5)
+        let create_3: bool[16, 32, #layout5] = create((((k_1 + 2) - 1) < 192), shape=[16, 32], axes=[i_20, j_20], layout=#layout5)
+        let logical_and: bool[16, 32, #layout5] = logical_and(cvt_44, create_3)
+        let smem_22: float16[2, 16, 32, shared(2, 16, 32)] = insert_slice_async(cvt_43, smem_21, insert_index_5, logical_and, axis=0)
+        async_commit_group()
+        let cvt_45: int32[16, 32, #layout5] = create(65536, shape=[16, 32], axes=[i_19, j_19], layout=#layout5)
+        let cvt_46: float16*[16, 32, #layout5] = add(cvt_43, cvt_45)
+        async_wait(n=0)
+        let ext_slice_17: float16[16, 32, shared(16, 32)] = extract_slice(smem_22, extract_index_5, axis=0, extent=1, layout=shared(16, 32))
+        let insert_index_6: int32 = ((insert_index_5 + 1) % 2)
+        let extract_index_6: int32 = ((extract_index_5 + 1) % 2)
+        yield acc_1, insert_index_6, extract_index_6, ext_slice_17, smem_22, cvt_46
+    get acc_2, insert_index_7, extract_index_7, ext_slice_18, smem_23, cvt_47:
+        async_wait(n=0)
+        let cvt_48: float16*[16, 32, #layout5] = create(((y_ptr_0 + (i_21 * 4096)) + ((blockIdx.x_0 * 32) + j_21)), shape=[16, 32], axes=[i_21, j_21], layout=#layout5)
+        let cvt_49: float16[16, 32, #layout5] = convert_layout(acc_2, layout=#layout5)
+        let cvt_50: bool[16, 32, #layout5] = create((i_22 < 16), shape=[16, 32], axes=[i_22, j_22], layout=#layout5)
+        store(cvt_48, cvt_49, cvt_50)
+
+def launch(
+    x_ptr_1: float16*,
+    w1_ptr_0: float16*,
+    w2_ptr_0: float16*,
+    y_ptr_1: float16*
+)
+    # kind: public
+    declare y1_ptr: float16* = cast(float16*, request_cuda_workspace(25165824, false))
+    llama_ffn(x_ptr_1, w1_ptr_0, w2_ptr_0, y1_ptr)
+    reduce(y1_ptr, y_ptr_1)
+

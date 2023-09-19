@@ -75,7 +75,6 @@ def build_ir_module(ir_module: IRModule, output_dir: str, *, target: str, output
     else:
         raise ValueError(f'Invalid output kind: {output_kind}')
     lib_path = os.path.join(output_dir, lib_name)
-
     if (
         os.path.exists(lib_path)
         and os.path.getsize(lib_path) > 0

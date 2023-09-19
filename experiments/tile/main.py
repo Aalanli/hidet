@@ -1,3 +1,4 @@
+# %%
 import numpy
 import hidet
 import hllm
@@ -96,10 +97,22 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
             ti.store(c_ptrs, ti.cast(c, dtype), mask=c_mask)
 
     func = script_module.build()
+    import torch
 
-    a = hidet.randn([m_size, k_size], dtype=dtype, stddev=0.1, device='cuda')
-    b = hidet.randn([k_size, n_size], dtype=dtype, stddev=0.1, device='cuda')
-    c = hidet.empty([m_size, n_size], dtype=dtype, device='cuda')
+    # def create_zero_patch(m, n):
+    #     ar = torch.randn(512, 512, device='cuda')
+    #     a = torch.zeros(m_size, k_size, device='cuda')
+    #     a[:512, :512] = ar
+    #     a = hidet.from_torch(a)
+    #     return a
+    
+    # a = create_zero_patch(m_size, k_size)
+    # b = create_zero_patch(k_size, n_size)
+
+
+    a = hidet.randn([m_size, k_size], dtype=dtype, device='cuda')
+    b = hidet.randn([k_size, n_size], dtype=dtype, device='cuda')
+    c = hidet.zeros([m_size, n_size], dtype=dtype, device='cuda')
 
     if bench:
         print('{} x {} x {}'.format(m_size, n_size, k_size))
@@ -108,7 +121,7 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
     if bench:
         print('  tile: {:.3f} ms'.format(hidet.utils.benchmark_func(lambda: func(a, b, c), repeat=20)))
 
-    import torch
+    
     ta, tb, tc = a.torch(), b.torch(), c.torch().clone()
     torch.matmul(ta, tb, out=tc)
     if bench:
@@ -120,9 +133,20 @@ def demo_matmul(m_size=1024, n_size=1024, k_size=1024, dtype='float32', bench=Fa
         atol, rtol = 1e-4, 1e-4
     else:
         assert False
-    hidet.utils.assert_close(c, tc, atol=atol, rtol=rtol)
+    # hidet.utils.assert_close(c, tc, atol=atol, rtol=rtol)
+    return c, tc
 
+c, tc = demo_matmul()
+c = c.torch()
 
+err = (c - tc).abs()
+print(err.max())
+
+from matplotlib import pyplot as plt
+
+plt.imshow(err.cpu().numpy())
+
+# %%
 def bench_matmul():
     for m_size, n_size, k_size in [
         # [32, 4096, 4096],

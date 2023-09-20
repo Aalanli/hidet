@@ -152,7 +152,7 @@ def demo_type_infer():
 
 @triton.autotune(
     configs=[
-        triton.Config({'block_s': 16, 'block_m': 32, 'block_h': 32}, num_stages=3, num_warps=8),
+        triton.Config({'block_s': 16, 'block_m': 64, 'block_h': 64}, num_stages=3, num_warps=8),
     ],
     key=['seq', 'h_size', 'm_size']
 )
@@ -217,7 +217,9 @@ def demo_triton():
         h_size = w1.size(0)
         m_size = w2.size(0)
 
-        y = torch.empty(seq, h_size, dtype=torch.float16, device='cuda')
+        block_m = 64
+
+        y = torch.empty(m_size // block_m, seq, h_size, dtype=torch.float16, device='cuda')
 
         grid = lambda META: (triton.cdiv(m_size, META['block_m']),)
         triton_fused_ffn[grid](
@@ -227,15 +229,15 @@ def demo_triton():
             m_size
         )
 
-        return y
+        return y.sum(0)
 
     seq = 16
     h_size = 4096
     m_size = 12288
 
-    x = torch.randn(seq, h_size, dtype=torch.float16, device='cuda')
-    w1 = torch.randn(h_size, m_size * 2, dtype=torch.float16, device='cuda')
-    w2 = torch.randn(m_size, h_size, dtype=torch.float16, device='cuda')
+    x = torch.randn(seq, h_size, dtype=torch.float16, device='cuda') / 10
+    w1 = torch.randn(h_size, m_size * 2, dtype=torch.float16, device='cuda') / 10
+    w2 = torch.randn(m_size, h_size, dtype=torch.float16, device='cuda') / 10
 
     y1 = triton_llama_ffn(x, w1, w2)
 
@@ -244,6 +246,9 @@ def demo_triton():
     x = x @ w1
     x = torch.nn.functional.silu(x[:, :m_size]) * x[:, m_size:]
     y2 = x @ w2
+
+    print(y1)
+    print(y2)
 
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
 
@@ -318,8 +323,12 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288, no_bench=F
     torch_ffn = hllm.models.llama.LlamaMLP(h_size, m_size, hidden_act='silu').eval().half()
     torch.nn.init.normal_(torch_ffn.gate_up_proj.weight, mean=0, std=0.01)
     torch.nn.init.normal_(torch_ffn.down_proj.weight, mean=0, std=0.01)
-    w1 = hidet.from_torch(torch_ffn.gate_up_proj.weight.T.contiguous())
-    w2 = hidet.from_torch(torch_ffn.down_proj.weight.T.contiguous())
+    w1_torch = torch_ffn.gate_up_proj.weight.T.contiguous()
+    w2_torch = torch_ffn.down_proj.weight.T.contiguous()
+    # w1_torch = torch.ones(h_size, m_size * 2, dtype=torch.float16, device='cuda') / 200
+    # w2_torch = torch.ones(m_size, h_size, dtype=torch.float16, device='cuda') / 200
+    w1 = hidet.from_torch(w1_torch)
+    w2 = hidet.from_torch(w2_torch)
 
     op = hllm.ops.llama.mlp.LlamaMLPOperator(seq, h_size, m_size)
 
@@ -331,14 +340,36 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288, no_bench=F
     def torch_func(x):
         return torch_ffn(x)
 
-    x = torch.randn([seq, h_size], dtype=torch.float16, device='cuda')
+    def triton_func(x):
+        block_m = 64
+        y = torch.empty(m_size // block_m, seq, h_size, dtype=torch.float16, device='cuda')
+
+        grid = lambda META: (triton.cdiv(m_size, META['block_m']),)
+        triton_fused_ffn[grid](
+            x, w1_torch, w2_torch, y,
+            seq,
+            h_size,
+            m_size
+        )
+
+        return y.sum(0)
+
+    # x = torch.randn([seq, h_size], dtype=torch.float16, device='cuda')
+    x = torch.ones([seq, h_size], dtype=torch.float16, device='cuda')
     y1 = hidet_func(x)
     y2 = torch_func(x)
+    y3 = triton_func(x)
+    print(y1)
+    print(y2)
+    print(y3)
+    # exit(0)
 
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
+    hidet.utils.assert_close(y1, y3, atol=5e-2, rtol=5e-2)
 
     if not no_bench:
         print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))
+        print('       triton: {:.3f}'.format(hidet.utils.benchmark_func(lambda: triton_func(x), repeat=100)))
         print('   hidet-tile: {:.3f}'.format(hidet.utils.benchmark_func(lambda: hidet_func(x), repeat=100)))
 
 
@@ -346,11 +377,11 @@ def main():
     # demo_matmul()
     # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
     # nsys_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
-    # demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
+    demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
     # demo_triton()
 
     # demo_reduce_add()
-    demo_atomic_add()
+    # demo_atomic_add()
 
 
 if __name__ == '__main__':

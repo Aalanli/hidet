@@ -29,7 +29,8 @@ class LlamaMLPOperator(Operator):
         ]
 
     def implement(self) -> List[IRModule]:
-        return tune.extract_ir_modules(self.schedule)
+        # return tune.extract_ir_modules(self.schedule_reduce)
+        return tune.extract_ir_modules(self.schedule_atomic)
 
     @tune.space(
         2,
@@ -43,7 +44,80 @@ class LlamaMLPOperator(Operator):
         block_m=[64],
         block_h=[64],
     )
-    def schedule(self, block_s: int, block_m: int, block_h: int) -> IRModule:
+    def schedule_atomic(self, block_s: int, block_m: int, block_h: int) -> IRModule:
+        from hidet.lang import attrs
+        from hidet.lang import tile as ti
+        from hidet.ir.primitives.cuda.runtime import memset_async
+
+        m_size = self.intermediate_size
+        h_size = self.hidden_size
+
+        reduce_block_h = 32
+
+        tune.check(self.seq <= block_s)
+        tune.check(m_size % block_m == 0)
+        tune.check(h_size % block_h == 0)
+        tune.check(h_size % reduce_block_h == 0)
+
+        with hidet.script_module() as script_module:
+            @hidet.script
+            def llama_ffn(x_ptr: ~f16, w1_ptr: ~f16, w2_ptr: ~f16, y_ptr: ~f16):
+                attrs.func_kind = 'cuda_tile'
+                attrs.cuda.block_dim = 256
+                attrs.cuda.grid_dim = m_size // block_m
+
+                pid = ti.program_id()
+
+                x_ptrs = x_ptr + ti.grid(shape=[block_s, block_h], starts=[0, 0], strides=[h_size, 1])
+                w1_ptrs = w1_ptr + ti.grid(shape=[block_h, block_m], starts=[0, pid * block_m], strides=[2 * m_size, 1])
+                y1_lhs = ti.zeros([block_s, block_m], dtype=f16)
+                y1_rhs = ti.zeros([block_s, block_m], dtype=f16)
+
+                for k in range(h_size // block_h):
+                    x = ti.load(x_ptrs)  # [block_s, block_h]
+                    w1_lhs = ti.load(w1_ptrs)  # [block_h, block_m]
+                    w1_rhs = ti.load(w1_ptrs + m_size)
+                    y1_lhs += ti.dot(x, w1_lhs)
+                    y1_rhs += ti.dot(x, w1_rhs)
+                    x_ptrs += block_h
+                    w1_ptrs += 2 * m_size * block_h
+
+                y1 = ti.silu(y1_lhs) * y1_rhs  # [block_s, block_m]
+
+                w2_ptrs = w2_ptr + ti.grid(shape=[block_m, block_h], starts=[pid * block_m, 0], strides=[h_size, 1])
+                y_ptrs = y_ptr + ti.grid(shape=[block_s, block_h], starts=[0, 0], strides=[h_size, 1])
+
+                mask = ti.grid(shape=[block_s, 1], starts=[0, 0], strides=[1, 0]) < self.seq
+
+                for k in range(h_size // block_h):
+                    w2 = ti.load(w2_ptrs)  # [block_m, block_h]
+                    y = ti.dot(y1, w2)  # [block_s, block_h]
+                    ti.atomic_add(ptr=y_ptrs, value=y, mask=mask)
+                    w2_ptrs += block_h
+                    y_ptrs += block_h
+
+            @hidet.script
+            def launch(x_ptr: ~f16, w1_ptr: ~f16, w2_ptr: ~f16, y_ptr: ~f16):
+                attrs.func_kind = 'public'
+
+                memset_async(y_ptr, 0, self.seq * h_size * f16.nbytes)
+                llama_ffn(x_ptr, w1_ptr, w2_ptr, y_ptr)
+
+        return script_module.ir_module()
+
+    @tune.space(
+        2,
+        block_s=[16],
+        block_m=[32, 64, 128],
+        block_h=[32, 64, 128],
+    )
+    @tune.space(
+        0,
+        block_s=[16],
+        block_m=[64],
+        block_h=[64],
+    )
+    def schedule_reduce(self, block_s: int, block_m: int, block_h: int) -> IRModule:
         from hidet.lang import attrs
         from hidet.lang import tile as ti
 

@@ -1,11 +1,14 @@
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Union
 
+import hidet.option
+from hidet.ir.type import DataType
 from hidet.ir.expr import Var, Expr
 from hidet.ir.func import Function
 from hidet.ir.functors import IRRewriter
+from hidet.ir.dtypes import float16
 from hidet.ir.tile.layout import TileLayout, BlockLayout, spatial, repeat
 from hidet.ir.tile.ops import ConvertLayout, convert_layout
-from hidet.ir.tile.ops import StoreBaseOp, Load
+from hidet.ir.tile.ops.memory import StoreBaseOp, Load, AtomicAdd
 from hidet.ir.tile.type import TileType
 from hidet.ir.type import PointerType, sizeof
 from hidet.transforms.base import TileFunctionPass
@@ -18,7 +21,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
         super().__init__()
         self.var2info: Dict[Var, ValueInfo] = {}
 
-    def try_to_get_vectorized_layout(self, ptr: Expr) -> Optional[TileLayout]:
+    def try_to_get_vectorized_layout(self, ptr: Expr, op: Union[Load, StoreBaseOp]) -> Optional[TileLayout]:
         ptr = self.visit(ptr)
         assert isinstance(ptr, Var)
 
@@ -37,11 +40,16 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
 
         # calculate the largest number of valid vectorized elements
         # in cuda, we can load at most 16 bytes per thread
-        elem_type: PointerType = ptr.type.as_tile_type().type.base_type
+        elem_type: Union[PointerType, DataType] = ptr.type.as_tile_type().type.base_type
         dtype_bytes: int = sizeof(elem_type)
         vector_elements: int = min(min(tv.divisibility[-1], tv.continuity[-1]) * dtype_bytes, 16) // dtype_bytes
         if vector_elements == 1:
             return None
+
+        if isinstance(op, AtomicAdd):
+            if hidet.option.cuda.get_arch_pair() < (9, 0) and elem_type == float16:
+                # red instruction only supports f16x2 without vectorization for sm < 90
+                vector_elements = 2
 
         ttype: TileType = ptr.type.as_tile_type()
         orig_layout = ttype.layout
@@ -58,7 +66,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
 
     def visit_Load(self, e: Load):
         ptr = self.visit(e.ptr)
-        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr)
+        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr, e)
         if new_layout is None:
             return super().visit_Load(e)
         else:
@@ -70,7 +78,7 @@ class CoalesceMemoryAccessRewriter(IRRewriter):
 
     def visit_StoreBaseOp(self, e: StoreBaseOp):
         ptr = self.visit(e.ptr)
-        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr)
+        new_layout: Optional[BlockLayout] = self.try_to_get_vectorized_layout(ptr, e)
         if new_layout is None:
             return super().visit_StoreBaseOp(e)
         else:

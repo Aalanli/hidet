@@ -1,6 +1,7 @@
 from typing import Sequence
 
 from hidet.ir.tile.ops.creation import arange, full, ones, zeros, grid, compute
+from hidet.ir.tile.ops.arthimatic import maximum
 from hidet.ir.tile.ops.activations import silu, exp
 from hidet.ir.tile.ops.memory import load, store, atomic_add
 from hidet.ir.tile.ops.system import num_programs, program_id

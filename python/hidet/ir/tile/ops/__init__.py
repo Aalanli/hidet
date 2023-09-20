@@ -13,7 +13,7 @@ from .activations import Exp, Silu
 from .memory import Load, StoreBaseOp
 from .transform import Broadcast, ExpandDims, CastOp
 from .convert_layout import ConvertLayout
-from .arthimatic import UnaryTileOp, BinaryTileOp
+from .arthimatic import UnaryTileOp, BinaryTileOp, maximum
 from .reduce import ReduceOp
 from .dot import Dot, SimtDot
 from .debug import DebugPrint

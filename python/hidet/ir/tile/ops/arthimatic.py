@@ -138,3 +138,31 @@ class LogicalAnd(BinaryTileOp):
 
 class LogicalOr(BinaryTileOp):
     pass
+
+
+class Maximum(BinaryTileOp):
+    def apply_scalar(self, x: Expr, y: Expr) -> Expr:
+        from hidet.ir.primitives import math
+        return math.max(x, y)
+    
+    def infer_type(self, arg_types: List[BaseType]) -> BaseType:
+        a_type = arg_types[0]
+        b_type = arg_types[1]
+        assert isinstance(a_type, TileType) and isinstance(b_type, TileType)
+        assert a_type.layout == b_type.layout and a_type.scope == b_type.scope
+
+        shape: List[int] = a_type.shape
+        scope: TileScope = a_type.scope
+        layout: TileLayout = a_type.layout
+
+        a_dtype: DataType = a_type.type
+        assert isinstance(a_dtype, DataType)
+        b_dtype: DataType = b_type.type
+        assert isinstance(b_dtype, DataType)
+        assert a_dtype == b_dtype, 'Type mismatch, cannot compare {} and {}'.format(a_dtype, b_dtype)
+
+        return tile_type(elem_type=a_dtype, shape=shape, scope=scope, layout=layout)
+
+
+def maximum(x: Expr, y: Expr) -> Expr:
+    return Maximum(x, y).make_call()

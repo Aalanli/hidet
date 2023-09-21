@@ -30,7 +30,7 @@ def generate_configs(zero=False):
 
 @triton.autotune(
     configs=list(generate_configs()),
-    key=['seq', 'h_size', 'm_size'],
+    key=['m_size', 'h_size', 'h_size'],
 )
 @triton.jit
 def triton_fused_ffn(
@@ -96,6 +96,85 @@ def triton_fused_ffn(
         y_ptrs += block_h * split_h
 
 
+@triton.autotune(
+    configs=list(generate_configs()),
+    key=['m_size', 'h_size', 'h_size'],
+)
+@triton.jit
+def triton_fused_ffn_loop_split(
+    x_ptr,
+    w1_ptr,
+    w2_ptr,
+    y_ptr,
+    seq,
+    h_size,
+    m_size,
+    block_s: tl.constexpr,
+    block_m: tl.constexpr,
+    block_h: tl.constexpr,
+    split_h: tl.constexpr
+):
+    pid = tl.program_id(0) // split_h
+    pid_h = tl.program_id(0) % split_h
+
+    h_range = tl.arange(0, block_h)
+    m_range = tl.arange(0, block_m)
+    s_range = tl.arange(0, block_s)
+
+    x_ptrs = x_ptr + s_range[:, None] * h_size + h_range[None, :]
+    w1_ptrs = w1_ptr + h_range[:, None] * 2 * m_size + m_range[None, :] + pid * block_m
+    y1_lhs = tl.zeros((block_s, block_m), dtype=tl.float16)
+    s_mask = s_range[:, None] < seq
+
+    m_mask = m_range[None, :] + pid * block_m < m_size
+    for k in range(tl.cdiv(h_size, block_h)):
+        h_remaining = h_size - k * block_h
+        h_mask = h_range < h_remaining
+        mask = h_mask[:, None] & m_mask
+        x = tl.load(x_ptrs, mask=s_mask & h_mask[None, :], other=0)
+        w1_lhs = tl.load(w1_ptrs, mask=mask, other=0)
+        y1_lhs += tl.dot(x, w1_lhs, out_dtype=tl.float16)
+        x_ptrs += block_h
+        w1_ptrs += 2 * m_size * block_h
+    
+    h_range = tl.arange(0, block_h)
+    m_range = tl.arange(0, block_m)
+    s_range = tl.arange(0, block_s)
+    x_ptrs = x_ptr + s_range[:, None] * h_size + h_range[None, :]
+    w2_ptrs = w1_ptr + h_range[:, None] * 2 * m_size + m_range[None, :] + pid * block_m + m_size
+    y1_rhs = tl.zeros((block_s, block_m), dtype=tl.float16)
+    s_mask = s_range[:, None] < seq
+    for k in range(tl.cdiv(h_size, block_h)):
+        h_remaining = h_size - k * block_h
+        h_mask = h_range < h_remaining
+        mask = h_mask[:, None] & m_mask
+        x = tl.load(x_ptrs, mask=s_mask & h_mask[None, :], other=0)
+        w1_rhs = tl.load(w2_ptrs, mask=mask, other=0)
+        y1_rhs += tl.dot(x, w1_rhs, out_dtype=tl.float16)
+        x_ptrs += block_h
+        w2_ptrs += 2 * m_size * block_h
+
+    y1 = tl.sigmoid(y1_lhs.to(tl.float32)).to(tl.float16) * y1_lhs * y1_rhs
+
+    h_range = tl.arange(0, block_h)
+    m_range = tl.arange(0, block_m)
+    s_range = tl.arange(0, block_s)
+
+    w2_ptrs = w2_ptr + (m_range[:, None] + pid * block_m) * h_size + h_range[None, :] + pid_h * block_h
+    y_ptrs = y_ptr + (s_range[:, None] + pid * seq) * h_size + h_range[None, :] + pid_h * block_h
+
+    s_mask = s_range[:, None] < seq
+    m_mask = m_range[:, None] + pid * block_m < m_size
+
+    for k in range(tl.cdiv(h_size, block_h * split_h)):
+        h_remaining = h_size - (k * block_h * split_h + pid_h * block_h)
+        h_mask = h_range[None, :] < h_remaining
+        w2 = tl.load(w2_ptrs, mask=h_mask & m_mask, other=0)
+        y = tl.dot(y1, w2, out_dtype=tl.float16)
+        tl.store(y_ptrs, y, mask=s_mask & h_mask)
+        w2_ptrs += block_h * split_h
+        y_ptrs += block_h * split_h
+
 # monkey patch to get dynamic buffer
 import time, builtins
 def cdiv(a, b):
@@ -143,6 +222,7 @@ def run(self, *args, **kwargs):
     return Y
 
 triton_fused_ffn.run = lambda *args, **kwargs: run(triton_fused_ffn, *args, **kwargs)
+triton_fused_ffn_loop_split.run = lambda *args, **kwargs: run(triton_fused_ffn, *args, **kwargs)
 
 
 @triton.autotune(
@@ -228,6 +308,22 @@ def triton_llama_ffn(x, w1, w2):
 
     return y.sum(0)
 
+def triton_llama_ffn_loop_split(x, w1, w2):
+    seq = x.size(0)
+    h_size = w1.size(0)
+    m_size = w2.size(0)
+    
+    grid = lambda META: (triton.cdiv(m_size, META['block_m']) * META['split_h'],)
+    y = triton_fused_ffn_loop_split[grid](
+        x, w1, w2, None,
+        seq,
+        h_size,
+        m_size,
+        block_s=get_block_s(seq),
+    )
+
+    return y.sum(0)
+
 def triton_llama_ffn_atomic(x, w1, w2):
     seq = x.size(0)
     h_size = w1.size(0)
@@ -264,6 +360,7 @@ def demo_triton():
 
     y1 = torch_ref(x, w1, w2)
     y2 = triton_llama_ffn(x, w1, w2)
+    y21 = triton_llama_ffn_loop_split(x, w1, w2)
     y3 = triton_llama_ffn_atomic(x, w1, w2)
     torch.cuda.synchronize()
 
@@ -272,6 +369,7 @@ def demo_triton():
 
     print(torch.allclose(y1, y2, atol=5e-2, rtol=5e-2))
     print(torch.allclose(y1, y3, atol=5e-2, rtol=5e-2))
+    print(torch.allclose(y1, y21, atol=5e-2, rtol=5e-2))
     return y1, y2, y3
 
 y1, y2, y3 = demo_triton()
@@ -288,9 +386,9 @@ for M in [1, 2, 4, 16]:
             ],  # Different possible values for `x_name`
             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
             # Possible values for `line_arg`
-            line_vals=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            line_vals=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic'],
             # Label name for the lines
-            line_names=['torch_naive', 'triton_fused', 'triton_fused_atomic'],
+            line_names=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic'],
             # Line styles
             styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
             ylabel="ms",  # Label name for the y-axis
@@ -309,6 +407,8 @@ for M in [1, 2, 4, 16]:
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch_ref(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn(a, w1, w2), quantiles=quantiles)
+        if provider == 'triton_fused_loop_split':
+            ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_loop_split(a, w1, w2), quantiles=quantiles)
         if provider == 'triton_fused_atomic':
             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_atomic(a, w1, w2), quantiles=quantiles)
         # if provider == 'triton_default':

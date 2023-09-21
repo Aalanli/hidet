@@ -22,7 +22,7 @@ def get_block_s(seq):
 def generate_configs(zero=False):
     for bm in [32, 64, 128]:
         for bh in [32, 64, 128, 256]:
-            for split_h in [1]:
+            for split_h in [1, 2]:
                 for nstage in [2, 3, 4, 5]:
                     for nwarp in [4, 8, 16]:
                         pre_hook = lambda x: x['y_ptr'].zero_() if zero else None
@@ -87,13 +87,13 @@ def triton_fused_ffn(
     m_mask = m_range[:, None] + pid * block_m < m_size
 
     for k in range(tl.cdiv(h_size, block_h * split_h)):
-        h_remaining = h_size - (k * block_h + pid_h * block_h)
+        h_remaining = h_size - (k * block_h * split_h + pid_h * block_h)
         h_mask = h_range[None, :] < h_remaining
         w2 = tl.load(w2_ptrs, mask=h_mask & m_mask, other=0)
         y = tl.dot(y1, w2, out_dtype=tl.float16)
         tl.store(y_ptrs, y, mask=s_mask & h_mask)
-        w2_ptrs += block_h
-        y_ptrs += block_h
+        w2_ptrs += block_h * split_h
+        y_ptrs += block_h * split_h
 
 
 # monkey patch to get dynamic buffer
@@ -275,12 +275,11 @@ def demo_triton():
     return y1, y2, y3
 
 y1, y2, y3 = demo_triton()
+# %%
+print((y1 - y3).abs().max())
 
 # %%
-(y1 - y3).abs().max()
-
-# %%
-for M in [16]:
+for M in [1, 2, 4, 16]:
     @triton.testing.perf_report(
         triton.testing.Benchmark(
             x_names=['D'],  # Argument names to use as an x-axis for the plot

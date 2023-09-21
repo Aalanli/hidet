@@ -3,7 +3,7 @@ import triton
 import triton.language as tl
 
 import torch
-
+print(triton.__version__)
 
 def prune_seq_config(configs, args):
     seq_len = args['seq']
@@ -137,6 +137,8 @@ def triton_fused_ffn_loop_split(
         x_ptrs += block_h
         w1_ptrs += 2 * m_size * block_h
     
+    y1_lhs = tl.sigmoid(y1_lhs.to(tl.float32)).to(tl.float16) * y1_lhs
+
     h_range = tl.arange(0, block_h)
     m_range = tl.arange(0, block_m)
     s_range = tl.arange(0, block_s)
@@ -154,7 +156,7 @@ def triton_fused_ffn_loop_split(
         x_ptrs += block_h
         w2_ptrs += 2 * m_size * block_h
 
-    y1 = tl.sigmoid(y1_lhs.to(tl.float32)).to(tl.float16) * y1_lhs * y1_rhs
+    y1 = y1_lhs * y1_rhs
 
     h_range = tl.arange(0, block_h)
     m_range = tl.arange(0, block_m)

@@ -371,9 +371,9 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288, no_bench=F
 
 def main():
     # demo_matmul()
-    ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
+    # ncu_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
     # nsys_run(demo_llama_ffn, hidden_size=4096, intermediate_size=12288, no_bench=True).visualize()
-    # demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
+    demo_llama_ffn(hidden_size=4096, intermediate_size=12288)
     # demo_triton()
 
     # demo_reduce_add()

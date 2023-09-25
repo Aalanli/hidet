@@ -15,6 +15,7 @@ from hidet.ir.type import DataType
 from hidet.transforms.base import TileFunctionPass
 from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.transforms.tile.generic.dead_code_elimination import DeadCodeEliminationRewriter
+from hidet.transforms.tile.generic.loop_invariant_code_motion import LoopInvariantCodeMotionRewriter
 from hidet.transforms.tile.cuda.remove_layout_convert import FoldConvertLayoutTransform, IdentityConvertLayoutTransform
 
 """
@@ -103,6 +104,7 @@ class SplitDotKPass(TileFunctionPass):
                 FoldConvertLayoutTransform(),
                 IdentityConvertLayoutTransform(),
                 DeadCodeEliminationRewriter(),
+                LoopInvariantCodeMotionRewriter(allow=[ConvertLayout])
             ],
         )
 

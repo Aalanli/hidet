@@ -358,14 +358,10 @@ def demo_llama_ffn(seq=16, hidden_size=4096, intermediate_size=12288, no_bench=F
     x = torch.ones([seq, h_size], dtype=torch.float16, device='cuda')
     y1 = hidet_func(x)
     y2 = torch_func(x)
-    y3 = triton_func(x)
-    print(y1)
-    print(y2)
-    print(y3)
-    # exit(0)
+    # y3 = triton_func(x)
 
     hidet.utils.assert_close(y1, y2, atol=5e-2, rtol=5e-2)
-    hidet.utils.assert_close(y1, y3, atol=5e-2, rtol=5e-2)
+    # hidet.utils.assert_close(y1, y3, atol=5e-2, rtol=5e-2)
 
     if not no_bench:
         print('        torch: {:.3f}'.format(hidet.utils.benchmark_func(lambda: torch_func(x), repeat=100)))

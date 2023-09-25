@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List, Tuple, Set
+from typing import Dict, Optional, List, Tuple, Set, Type
 from collections import defaultdict
 from hidet.ir.expr import Var, Expr
 from hidet.ir.stmt import LetStmt, ForStmt, DeclareStmt
@@ -126,24 +126,34 @@ class ApplyMovementRewriter(IRRewriter):
             return LetStmt(bind_vars, bind_values, self.visit(stmt.body))
 
 
-class LoopInvariantCodeMotionPass(TileFunctionPass):
+class LoopInvariantCodeMotionRewriter(IRRewriter):
+    def __init__(self, allow: Optional[List[Type[TileOp]]] = None, disallow: Optional[List[Type[TileOp]]] = None):
+        super().__init__()
+        self.allow: Optional[List[Type[TileOp]]] = allow
+        self.disallow: Optional[List[Type[TileOp]]] = disallow
 
     def check_move(self, value: Expr) -> bool:
         # sometimes, it is better to keep the variable in the loop body because it is cheap to compute.
         # moving the variable out of the loop body may increase the lifetime of the variable and
-        # increase the register pressure.
+        # increase the register pressure. When self.allow is not None, we only move the variable out of the loop body
+        # if the op is in the allow list. When self.disallow is not None, we only move the variable out of the loop body
+        # if the op is not in the disallow list.
 
         if isinstance(value, CallTileOp):
             op: TileOp = value.op
-            if isinstance(op, Create):
+            if self.allow is not None and not any(isinstance(op, op_type) for op_type in self.allow):
                 return False
-            else:
-                return True
+            if self.disallow is not None and any(isinstance(op, op_type) for op_type in self.disallow):
+                return False
+            return True
         else:
             # scalar value will always be moved out of the loop body
             return True
 
-    def run_once(self, func: Function) -> Function:
+    def visit_Function(self, func: Function):
+        if func.kind != 'cuda_tile':
+            return func
+
         # step 1
         analyzer = VarToLoopAnalyzer()
         analyzer.visit(func)
@@ -199,8 +209,17 @@ class LoopInvariantCodeMotionPass(TileFunctionPass):
             rewriter = ApplyMovementRewriter(moving_vars, loop2queue)
         return rewriter.visit(func)
 
+
+class LoopInvariantCodeMotionPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        return self.apply_transforms(func, [self.run_once], repeat_limit=-1)
+        return self.apply_transforms(
+            node=func,
+            transforms=[
+                # do not move the "Create" op out of the loop body to reduce the register pressure
+                LoopInvariantCodeMotionRewriter(disallow=[Create])
+            ],
+            repeat_limit=-1
+        )
 
 
 def loop_invariant_code_motion_pass() -> TileFunctionPass:

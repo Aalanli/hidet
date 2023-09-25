@@ -57,9 +57,29 @@ def generate_configs2(zero=False):
                                 pre_hook = lambda x: x['y_ptr'].zero_() if zero else None
                                 yield triton.Config({'block_m': bm, 'block_h': bh, 'block_h1': bh1, 'split_h': split_h}, num_stages=nstage, num_warps=nwarp, pre_hook=pre_hook)
 
+def generate_configs3(zero=False):
+    for bm in [32, 64, 128]:
+        for bh in [32, 64, 128, 256]:
+            for bh1 in [32, 64, 128, 256]:
+                if bh1 >= bh:
+                    for nstage in [2, 3, 4]:
+                        for nwarp in [4, 8]:
+                            pre_hook = lambda x: x['y_ptr'].zero_() if zero else None
+                            yield triton.Config({'block_m': bm, 'block_h': bh, 'block_h1': bh1}, num_stages=nstage, num_warps=nwarp, pre_hook=pre_hook)
+
 
 @triton.autotune(
-    configs=list(generate_configs2()),
+    configs=[
+        triton.Config({'block_m': 32, 'block_h': 32,  'block_h1': 64, 'split_h': 2},   num_stages=2, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64, 'split_h': 1},   num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 128,  'block_h1': 128, 'split_h': 2}, num_stages=4, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 128,  'block_h1': 128, 'split_h': 2}, num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 128, 'split_h': 2},  num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64, 'split_h': 1},   num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64, 'split_h': 1},   num_stages=3, num_warps=4),
+        triton.Config({'block_m': 64, 'block_h': 32,  'block_h1': 64, 'split_h': 1},   num_stages=3, num_warps=4),
+
+    ],
     key=['m_size', 'h_size', 'h_size', 'h_size'],
 )
 @triton.jit
@@ -127,7 +147,17 @@ def triton_fused_ffn(
         y_ptrs += block_h1 * split_h
 
 @triton.autotune(
-    configs=list(generate_configs()),
+    configs=[
+        triton.Config({'block_m': 128, 'block_h': 64,  'block_h1': 64, }, num_stages=4, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 32,  'block_h1': 32,  }, num_stages=4, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 32,  'block_h1': 32,  }, num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64,  }, num_stages=4, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64,  }, num_stages=4, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 64,  'block_h1': 64,  }, num_stages=3, num_warps=4),
+        triton.Config({'block_m': 32, 'block_h': 128,  'block_h1': 128,}, num_stages=2, num_warps=4),
+        triton.Config({'block_m': 128, 'block_h': 64,  'block_h1': 64, }, num_stages=2, num_warps=4),
+
+    ],
     key=['m_size', 'h_size', 'h_size'],
 )
 @triton.jit
@@ -172,27 +202,38 @@ def triton_fused_ffn_concurrent_block(
     s_range = tl.arange(0, block_s)
     m_range = tl.arange(0, block_m)
     buf_ptrs = y_buf + s_range[:, None] * 2 * m_size + m_range[None, :] + pid * block_m + pid_m * m_size
-    tl.store(buf_ptrs, y1, mask=s_range[:, None] < seq & (m_range[None, :] + pid * block_m < m_size))
+    tl.store(buf_ptrs, y1, mask=(s_range[:, None] < seq) & (m_range[None, :] + pid * block_m < m_size))
+    tl.atomic_xchg(ready + tl.program_id(0), 1)
+    other_id = pid * 2 + (pid_m + 1) % 2
+    # fingers crossed there is no deadlock, eg blocks are launched in groups of 2
+    while tl.atomic_cas(ready + other_id, 1, 0) == 0:
+        pass
+    # while tl.load(ready + other_id) == 0:
+    #     pass
     tl.debug_barrier()
-    tl.store(ready + tl.program_id(0), True)
-
-    num_blocks_m = tl.cdiv(m_size, block_m)
-    next_id = pid + (pid_m + 1) % 2 * num_blocks_m
+    other_buf_ptrs = y_buf + s_range[:, None] * 2 * m_size + m_range[None, :] + pid * block_m + (pid_m + 1) % 2 * m_size
+    y1_other = tl.load(other_buf_ptrs, mask=(s_range[:, None] < seq) & (m_range[None, :] + pid * block_m < m_size))
+    if pid_m == 0:
+        y1 = tl.sigmoid(y1.to(tl.float32)).to(tl.float16) * y1 * y1_other
+    else:
+        y1 = tl.sigmoid(y1_other.to(tl.float32)).to(tl.float16) * y1 * y1_other
     
-    y1 = tl.sigmoid(y1_lhs.to(tl.float32)).to(tl.float16) * y1_lhs * y1_rhs
 
-    h_range = tl.arange(0, block_h)
+    # y1 how contains the result of the first matmul
+    # there are automatically two concurrent blocks per h1 row block
+    h_range = tl.arange(0, block_h1)
     m_range = tl.arange(0, block_m)
     s_range = tl.arange(0, block_s)
 
-    w2_ptrs = w2_ptr + (m_range[:, None] + pid * block_m) * h_size + h_range[None, :] + pid_h * block_h
-    y_ptrs = y_ptr + (s_range[:, None] + pid * seq) * h_size + h_range[None, :] + pid_h * block_h
+    w2_ptrs = w2_ptr + (m_range[:, None] + pid * block_m) * h_size + h_range[None, :] + pid_m * block_h
+    y_ptrs = y_ptr + (s_range[:, None] + pid * seq) * h_size + h_range[None, :] + pid_m * block_h
 
     s_mask = s_range[:, None] < seq
     m_mask = m_range[:, None] + pid * block_m < m_size
 
+    split_h = 2
     for k in range(tl.cdiv(h_size, block_h * split_h)):
-        h_remaining = h_size - (k * block_h * split_h + pid_h * block_h)
+        h_remaining = h_size - (k * block_h * split_h + pid_m * block_h)
         h_mask = h_range[None, :] < h_remaining
         w2 = tl.load(w2_ptrs, mask=h_mask & m_mask, other=0)
         y = tl.dot(y1, w2, out_dtype=tl.float16)
@@ -200,8 +241,18 @@ def triton_fused_ffn_concurrent_block(
         w2_ptrs += block_h * split_h
         y_ptrs += block_h * split_h
 
+
 @triton.autotune(
-    configs=list(generate_configs()),
+    configs=[
+        triton.Config({'block_m': 128, 'block_h': 64, 'split_h': 1}, num_warps=4, num_stages=2),
+        triton.Config({'block_m': 32, 'block_h': 32, 'split_h': 2}, num_warps=4, num_stages=4),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 1}, num_warps=4, num_stages=4),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 2}, num_warps=4, num_stages=4),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 2}, num_warps=4, num_stages=4),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 1}, num_warps=4, num_stages=5),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 2}, num_warps=4, num_stages=4),
+        triton.Config({'block_m': 64, 'block_h': 64, 'split_h': 1}, num_warps=4, num_stages=4),
+    ],
     key=['m_size', 'h_size', 'h_size'],
 )
 @triton.jit
@@ -328,11 +379,23 @@ def run(self, *args, **kwargs):
     return Y
 
 triton_fused_ffn.run = lambda *args, **kwargs: run(triton_fused_ffn, *args, **kwargs)
-triton_fused_ffn_loop_split.run = lambda *args, **kwargs: run(triton_fused_ffn, *args, **kwargs)
+triton_fused_ffn_loop_split.run = lambda *args, **kwargs: run(triton_fused_ffn_loop_split, *args, **kwargs)
+triton_fused_ffn_concurrent_block.run = lambda *args, **kwargs: run(triton_fused_ffn_concurrent_block, *args, **kwargs)
 
+def prehook(x):
+    x['y_ptr'].zero_()
 
 @triton.autotune(
-    configs=list(generate_configs(zero=True)),
+    configs=[
+        triton.Config({'block_m': 64, 'block_h': 32, 'split_h': 2}, num_warps=4, num_stages=2, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 32, 'split_h': 1}, num_warps=4, num_stages=3, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 32, 'split_h': 2}, num_warps=4, num_stages=3, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 2}, num_warps=4, num_stages=3, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 128, 'split_h': 2}, num_warps=4, num_stages=4, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 256, 'split_h': 1}, num_warps=4, num_stages=2, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 2}, num_warps=4, num_stages=3, pre_hook=prehook),
+        triton.Config({'block_m': 32, 'block_h': 64, 'split_h': 1}, num_warps=8, num_stages=3, pre_hook=prehook),
+    ],
     key=['m_size', 'h_size', 'h_size'],
 )
 @triton.jit
@@ -414,6 +477,26 @@ def triton_llama_ffn(x, w1, w2):
 
     return y.sum(0)
 
+
+def triton_llama_concurrent_block_ffn(x, w1, w2):
+    seq = x.size(0)
+    h_size = w1.size(0)
+    m_size = w2.size(0)
+    
+    grid = lambda META: (triton.cdiv(m_size, META['block_m']) * 2,)
+    y_buf = torch.empty(seq, 2 * m_size, dtype=torch.float16, device='cuda')
+    ready = torch.zeros(2 * m_size // 16, dtype=torch.int32, device='cuda')
+    y = triton_fused_ffn_concurrent_block[grid](
+        x, w1, w2, None, y_buf, ready,
+        seq,
+        h_size,
+        m_size,
+        block_s=get_block_s(seq),
+    )
+
+    return y.sum(0)
+
+
 def triton_llama_ffn_loop_split(x, w1, w2):
     seq = x.size(0)
     h_size = w1.size(0)
@@ -458,7 +541,7 @@ def demo_triton():
 
     seq = 16
     h_size = 4096
-    m_size = 12288
+    m_size = h_size * 3
 
     x =  torch.randn(seq, h_size, dtype=torch.float16, device='cuda') / 10
     w1 = torch.randn(h_size, m_size * 2, dtype=torch.float16, device='cuda') / 10
@@ -468,6 +551,7 @@ def demo_triton():
     y2 = triton_llama_ffn(x, w1, w2)
     y21 = triton_llama_ffn_loop_split(x, w1, w2)
     y3 = triton_llama_ffn_atomic(x, w1, w2)
+    y4 = triton_llama_concurrent_block_ffn(x, w1, w2)
     torch.cuda.synchronize()
 
     # print(y1)
@@ -476,7 +560,9 @@ def demo_triton():
     print(torch.allclose(y1, y2, atol=5e-2, rtol=5e-2))
     print(torch.allclose(y1, y3, atol=5e-2, rtol=5e-2))
     print(torch.allclose(y1, y21, atol=5e-2, rtol=5e-2))
-    return y1, y2, y3
+    print(torch.allclose(y1, y4, atol=5e-2, rtol=5e-2))
+    return y1, y21
+
 
 def bench_triton():
     seq = 16
@@ -491,66 +577,74 @@ def bench_triton():
     y2 = triton_llama_ffn(x, w1, w2)
     y21 = triton_llama_ffn_loop_split(x, w1, w2)
     y3 = triton_llama_ffn_atomic(x, w1, w2)
+    y4 = triton_llama_concurrent_block_ffn(x, w1, w2)
 
-# bench_triton()
-demo_triton()
-# %% 
-if __name__ == "__main__":
-    from hidet.utils.ncu_utils import ncu_run
-    ncu_run(bench_triton, no_bench=True).visualize()
-
-y1, y2, y3 = demo_triton()
+bench_triton()
+# demo_triton()
 # %%
-print((y1 - y3).abs().max())
+# y1, y4 = demo_triton()
+# # %%
+# print((y1 - y4).abs().max())
 
-# %%
-for M in [1, 2, 4, 16]:
-    @triton.testing.perf_report(
-        triton.testing.Benchmark(
-            x_names=['D'],  # Argument names to use as an x-axis for the plot
-            x_vals=[
-                32, 64, 128, 256, 512, 1024, 2048, 4096
-            ],  # Different possible values for `x_name`
-            line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
-            # Possible values for `line_arg`
-            line_vals=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic'],
-            # Label name for the lines
-            line_names=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic'],
-            # Line styles
-            styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
-            ylabel="ms",  # Label name for the y-axis
-            plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
-            args={},
-        )
-    )
-    def benchmark(D, provider):
-        m_size = 3 * D
-        a = torch.randn([M, D], dtype=torch.float16, device='cuda')
-        w1 = torch.randn([D, m_size * 2], dtype=torch.float16, device='cuda')
-        w2 = torch.randn([m_size, D], dtype=torch.float16, device='cuda')
+# # %% 
+# if __name__ == "__main__":
+#     from hidet.utils.ncu_utils import ncu_run
+#     ncu_run(bench_triton, no_bench=True).visualize()
 
-        quantiles = [0.5, 0.2, 0.8]
-        if provider == 'torch_naive':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch_ref(a, w1, w2), quantiles=quantiles)
-        if provider == 'triton_fused':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn(a, w1, w2), quantiles=quantiles)
-        if provider == 'triton_fused_loop_split':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_loop_split(a, w1, w2), quantiles=quantiles)
-        if provider == 'triton_fused_atomic':
-            ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_atomic(a, w1, w2), quantiles=quantiles)
-        # if provider == 'triton_default':
-        #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2), quantiles=quantiles)        
-        # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
-        # return perf(ms), perf(max_ms), perf(min_ms)
-        return ms, max_ms, min_ms
+# y1, y2, y3 = demo_triton()
+# # %%
+# print((y1 - y3).abs().max())
+
+# # %%
+# for M in [1, 2, 4, 16]:
+#     @triton.testing.perf_report(
+#         triton.testing.Benchmark(
+#             x_names=['D'],  # Argument names to use as an x-axis for the plot
+#             x_vals=[
+#                 32, 64, 128, 256, 512, 1024, 2048, 4096
+#             ],  # Different possible values for `x_name`
+#             line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
+#             # Possible values for `line_arg`
+#             line_vals=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic', 'triton_concurrent_block'],
+#             # Label name for the lines
+#             line_names=['torch_naive', 'triton_fused', 'triton_fused_loop_split', 'triton_fused_atomic', 'triton_concurrent_block'],
+#             # Line styles
+#             styles=[('green', '-'), ('blue', '-'), ('orange', '-'), ('purple', '-'), ('brown', '-')],
+#             ylabel="ms",  # Label name for the y-axis
+#             plot_name=f"mlp-performance-M={M}",  # Name for the plot, used also as a file name for saving the plot.
+#             args={},
+#         )
+#     )
+#     def benchmark(D, provider):
+#         m_size = 3 * D
+#         a = torch.randn([M, D], dtype=torch.float16, device='cuda')
+#         w1 = torch.randn([D, m_size * 2], dtype=torch.float16, device='cuda')
+#         w2 = torch.randn([m_size, D], dtype=torch.float16, device='cuda')
+
+#         quantiles = [0.5, 0.2, 0.8]
+#         if provider == 'torch_naive':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: torch_ref(a, w1, w2), quantiles=quantiles)
+#         if provider == 'triton_fused':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn(a, w1, w2), quantiles=quantiles)
+#         if provider == 'triton_fused_loop_split':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_loop_split(a, w1, w2), quantiles=quantiles)
+#         if provider == 'triton_fused_atomic':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_ffn_atomic(a, w1, w2), quantiles=quantiles)
+#         if provider == 'triton_concurrent_block':
+#             ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_llama_concurrent_block_ffn(a, w1, w2), quantiles=quantiles)
+#         # if provider == 'triton_default':
+#         #     ms, min_ms, max_ms = triton.testing.do_bench(lambda: two_triton(a, w1, w2), quantiles=quantiles)        
+#         # perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+#         # return perf(ms), perf(max_ms), perf(min_ms)
+#         return ms, max_ms, min_ms
 
 
-    benchmark.run(show_plots=True, print_data=True)
+#     benchmark.run(show_plots=True, print_data=True)
 
-# %%
-for k, v in triton_fused_ffn.cache.items():
-    print(k, v)
+# # %%
+# for k, v in triton_fused_ffn.cache.items():
+#     print(k, v)
 
-# %%
-for k, v in triton_fused_ffn_loop_split.cache.items():
-    print(k, v)
+# # %%
+# for k, v in triton_fused_ffn_loop_split.cache.items():
+#     print(k, v)

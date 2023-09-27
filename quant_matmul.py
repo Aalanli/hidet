@@ -26,7 +26,7 @@ from hidet.utils.py import is_power_of_two, cdiv, prod
 from hidet.graph.ops.utils import broadcast_indices
 
 
-class SymmetricQuantizedMatmulF16Task(Task):
+class SymmetricQuantizedMatmulF16TaskV2(Task):
     def __init__(self, a: TensorNode, weight: TensorNode, scale: TensorNode, parallel_k_parts: int = 1):
 
         self._assert(
@@ -85,7 +85,7 @@ class SymmetricQuantizedMatmulF16Task(Task):
         )
 
         super().__init__(
-            name='symmetric_quantized_matmulf16',
+            name='symmetric_quantized_matmulf16V2',
             inputs=[a, weight, scale],
             outputs=[c],
             attributes={'parallel_k_parts': parallel_k_parts},
@@ -327,7 +327,7 @@ class SymmetricQuantizedMatmulF16Task(Task):
                     load_smem_fixed(~smem_b[k, j], ~gmem_b[k, j], alignment, 16, src_size)
 
             @hidet.script
-            def matmul_f16_i8_kernel(
+            def matmul_f16_i8_kernelv2(
                 a: float16[a_head + [m_size, k_size]],
                 b: int8[b_head + [k_size, n_size]],
                 scale: float16[n_size],
@@ -454,19 +454,19 @@ class SymmetricQuantizedMatmulF16Task(Task):
                             gmem_c[i, j] = smem_c[i, j] * smem_scale[j]
 
         ir_module = module.ir_module()
-        assert isinstance(matmul_f16_i8_kernel, Function)
+        assert isinstance(matmul_f16_i8_kernelv2, Function)
 
         return ir_module
 
 
-class SymmetricQuantizedMatmulF16Op(Operator):
+class SymmetricQuantizedMatmulF16OpV2(Operator):
     def __init__(self, a: Tensor, b: Tensor, scale: Tensor, parallel_k_parts=1):
         if not (isinstance(parallel_k_parts, int) and not isinstance(parallel_k_parts, bool)):
             raise ValueError('parallel_k_parts must be an integer, got {}'.format(parallel_k_parts))
         super().__init__(
             inputs=[a, b, scale],
             attributes={'parallel_k_parts': parallel_k_parts},
-            task=SymmetricQuantizedMatmulF16Task(
+            task=SymmetricQuantizedMatmulF16TaskV2(
                 input_like(a, 'a'), input_like(b, 'b'), input_like(scale, 'scale'), parallel_k_parts
             ),
         )
@@ -482,60 +482,6 @@ def symmetric_quant_matmul(a: Tensor, weight: Tensor, scale: Tensor, parallel_k_
         raise ValueError('Expect the last dimension of the input tensors to be a multiple of 2')
     if a.dtype != dtypes.float16 or weight.dtype != dtypes.int8:
         raise ValueError('BatchMatmulF16Op only support float16, int8, got {} and {}'.format(a.dtype, weight.dtype))
-    return SymmetricQuantizedMatmulF16Op(a, weight, scale, parallel_k_parts).outputs[0]
+    return SymmetricQuantizedMatmulF16OpV2(a, weight, scale, parallel_k_parts).outputs[0]
 
-from hidet.utils.benchmark import Bench
-
-import hidet
-
-a = hidet.randn([128, 128], dtype=dtypes.float16, device='cuda')
-b = (hidet.randn([128, 128], dtype=dtypes.float16, device='cuda') * 10).to(int8)
-scale = hidet.randn([128], dtype=dtypes.float16, device='cuda')
-
-y1 = symmetric_quant_matmul(a, b, scale, parallel_k_parts=1)
-from hidet.graph.ops.quant.matmul import symmetric_quant_matmul as symmetric_quant_matmul_ref
-
-y2 = symmetric_quant_matmul_ref(a, b, scale, parallel_k_parts=1)
-import torch
-print(torch.allclose(y1.torch(), y2.torch()))
-
-
-from hidet.utils.benchmark import Bench
-
-def get_args(i):
-    a = hidet.from_torch(torch.randn(i, i, dtype=torch.float16, device='cuda'))
-    b = hidet.from_torch((torch.randn(i, i, dtype=torch.float16, device='cuda') * 10).to(torch.int8))
-    scale = hidet.from_torch(torch.randn(i, dtype=torch.float16, device='cuda'))
-    return a, b, scale
-
-def bench_ref(i, **kwargs):
-    a, b, scale = get_args(i)
-
-    sa = hidet.symbol_like(a)
-    sb = hidet.symbol_like(b)
-    sscale = hidet.symbol_like(scale)
-    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=1)
-    g = hidet.trace_from(ys, [sa, sb, sscale])
-    func = g.build(space=kwargs['space'])
-    return lambda: func(a, b, scale)
-
-def bench_packed_quant(i, **kwargs):
-    a, b, scale = get_args(i)
-
-    sa = hidet.symbol_like(a)
-    sb = hidet.symbol_like(b)
-    sscale = hidet.symbol_like(scale)
-    ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=1)
-    g = hidet.trace_from(ys, [sa, sb, sscale])
-    func = g.build(space=kwargs['space'])
-    return lambda: func(a, b, scale)
-
-
-bn = Bench(x_name='C', x_vals=[128 * i for i in range(2, 8)], space=2)
-bn.bench(bench_ref)
-bn.bench(bench_packed_quant)
-# bn.measure_flops(lambda config, c: torch.finfo(config.dtype).bits // 8 * c**2)
-data = bn.run()
-data.show_plot()
-data.print_data()
 

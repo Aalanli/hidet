@@ -35,16 +35,17 @@ def bench_ref(i, **kwargs):
     func = g.build(space=kwargs['space'])
     return lambda: func(a, b, scale)
 
-s = 128
-d = 256
+# s = 128
+# d = 256
 
-a, b, scale = get_args(s, d)
+# a, b, scale = get_args(s, d)
 
-bench_packed_quant(d, space=2, s=s)()
-bench_ref(d, space=2, s=s)()
-y3 = triton_matmul(a.torch(), b.torch(), scale.torch())
+# bench_packed_quant(d, space=2, s=s)()
+# bench_ref(d, space=2, s=s)()
+# y3 = triton_matmul(a.torch(), b.torch(), scale.torch())
 
-s = 4
+s = 8
+d = 4096
 a, b, scale = get_args(s, d)
 
 bench_packed_quant(d, space=2, s=s)()

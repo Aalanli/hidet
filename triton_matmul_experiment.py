@@ -70,13 +70,18 @@ def get_configs_io_bound():
         triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 64, 'SPLIT_K': 1}, num_warps=2, num_stages=5),
         triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 64, 'SPLIT_K': 1}, num_warps=2, num_stages=5),
         triton.Config({'BLOCK_M': 64, 'BLOCK_N': 32, 'BLOCK_K': 64, 'SPLIT_K': 1}, num_warps=2, num_stages=5),
-    ],
+        triton.Config({'BLOCK_M': 16, 'BLOCK_N': 32, 'BLOCK_K': 64, 'SPLIT_K': 1}, num_warps=2, num_stages=5),
+        triton.Config({'BLOCK_M': 16, 'BLOCK_N': 128, 'BLOCK_K': 64, 'SPLIT_K': 4}, num_warps=4, num_stages=3),
+        triton.Config({'BLOCK_M': 16, 'BLOCK_N': 256, 'BLOCK_K': 32, 'SPLIT_K': 8}, num_warps=4, num_stages=3),
+        triton.Config({'BLOCK_M': 16, 'BLOCK_N': 256, 'BLOCK_K': 32, 'SPLIT_K': 8}, num_warps=4, num_stages=3),
+        triton.Config({'BLOCK_M': 16, 'BLOCK_N': 256, 'BLOCK_K': 32, 'SPLIT_K': 4}, num_warps=4, num_stages=3),
+    ], # + get_configs_io_bound(),
     key=['M', 'N', 'K'],
-    # prune_configs_by={
-    #     'early_config_prune': early_config_prune,
-    #     'perf_model': estimate_matmul_time,
-    #     'top_k': 10
-    # },
+    prune_configs_by={
+        'early_config_prune': early_config_prune,
+        'perf_model': estimate_matmul_time,
+        'top_k': 10
+    },
 )
 @triton.heuristics({
     'EVEN_K': lambda args: args['K'] % (args['BLOCK_K'] * args['SPLIT_K']) == 0,
@@ -113,11 +118,11 @@ def _kernel(A, B, S, C,
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=ACC_TYPE)
     for k in range(K, 0, -BLOCK_K * SPLIT_K):
         if EVEN_K:
-            a = tl.load(A)
-            b = tl.load(B).to(A.dtype.element_ty)
+            a = tl.load(A, mask=rm[:, None] < M)
+            b = tl.load(B, mask=rn[None, :] < N).to(A.dtype.element_ty)
         else:
-            a = tl.load(A, mask=rk[None, :] < k, other=0.)
-            b = tl.load(B, mask=rk[:, None] < k, other=0.).to(A.dtype.element_ty)
+            a = tl.load(A, mask=(rk[None, :] < k) & (rm[:, None] < M), other=0.)
+            b = tl.load(B, mask=(rk[:, None] < k) & (rn[None, :] < N), other=0.).to(A.dtype.element_ty)
         acc += tl.dot(a, b)
         A += BLOCK_K * SPLIT_K
         B += BLOCK_K * SPLIT_K * N

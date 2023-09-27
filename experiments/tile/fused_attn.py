@@ -80,6 +80,7 @@ def demo_flash_attn(B, H, M, N, D, dtype, BLOCK_M, BLOCK_N, BLOCK_D, num_warps=4
 def attn_ref(q, k, v):
     return torch.softmax(q @ k.transpose(-1, -2), dim=-1) @ v
 
+hidet.option.debug_show_var_id(True)
 B = 2
 H = 4
 M = 32

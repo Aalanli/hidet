@@ -1,5 +1,5 @@
 import contextlib
-from typing import Dict, List, Optional, Union
+from typing import Dict, Set, List, Optional, Union
 
 from hidet.ir.expr import Expr, Var, Let, var
 from hidet.ir.func import Function
@@ -148,15 +148,18 @@ class CanonicalizeToSSARewriter(IRRewriter):
         modified_vars: List[Var] = []
         args: List[Var] = []
         values: List[Expr] = []
+        visited_vars: Set[Var] = set()
         for assign_stmt in assignments:
             assigned_var = assign_stmt.var
             value: Optional[Expr] = self.var2current.get(assign_stmt.var, None)
             if value is not None:
-                arg = Var(assigned_var.hint, assigned_var.type)
-                args.append(arg)
-                values.append(value)
-                self.var2current[assigned_var] = arg
-                modified_vars.append(assigned_var)
+                if assigned_var not in visited_vars:
+                    arg = Var(assigned_var.hint, assigned_var.type)
+                    args.append(arg)
+                    values.append(value)
+                    self.var2current[assigned_var] = arg
+                    modified_vars.append(assigned_var)
+                    visited_vars.add(assigned_var)
             else:
                 # not found in parent scopes, so it is a variable defined in the loop body
                 pass

@@ -492,6 +492,9 @@ class FlattenBlockLayout(TileLayout):
 
     def __str__(self):
         return 'flatten_block(parent={}, axis={})'.format(self.parent, self.axis)
+    
+    def __hash__(self):
+        return hash(str(self))
 
     def __eq__(self, other):
         assert isinstance(other, TileLayout)

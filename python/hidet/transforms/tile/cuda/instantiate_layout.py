@@ -127,6 +127,8 @@ class InstantiateLayoutRewriter(IRRewriter):
             )
         else:
             raise NotImplementedError()
+        if x_type.layout != y_layout:
+            x = convert_layout(x, y_layout)
         return Broadcast(x, e.shape, y_layout)
 
     def visit_ExpandDims(self, e: ExpandDims):
@@ -134,6 +136,12 @@ class InstantiateLayoutRewriter(IRRewriter):
         x_type = self.type_infer.visit(x)
         assert isinstance(x_type, TileType)
         if isinstance(x_type.layout, BlockLayout):
+            y_shape = x_type.shape[: e.axis] + [1] + x_type.shape[e.axis :]
+            y_layout = BlockLayout.from_shape(y_shape, self.num_warps)
+            return ExpandDims(
+                x=convert_layout(x, layout=FlattenBlockLayout(y_layout, axis=e.axis)), axis=e.axis, layout=y_layout
+            )
+        elif isinstance(x_type.layout, FlattenBlockLayout):
             y_shape = x_type.shape[: e.axis] + [1] + x_type.shape[e.axis :]
             y_layout = BlockLayout.from_shape(y_shape, self.num_warps)
             return ExpandDims(

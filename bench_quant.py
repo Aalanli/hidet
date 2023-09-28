@@ -79,3 +79,63 @@ for k, v in _kernel.cache.items():
     print(k)
     print(v)
 
+
+# %%
+from hidet.utils.benchmark import Bench
+
+def get_args2(m, k, n):
+    a = hidet.from_torch(torch.randn(m, k, dtype=torch.float16, device='cuda'))
+    b = hidet.from_torch((torch.randn(k, n, dtype=torch.float16, device='cuda') * 10).to(torch.int8))
+    scale = hidet.from_torch(torch.randn(n, dtype=torch.float16, device='cuda'))
+    return a, b, scale
+
+def bench_ref(i, **kwargs):
+    m, k, n = i
+    a, b, scale = get_args2(m, k, n)
+
+    sa = hidet.symbol(['s', k], dtype=a.dtype, device='cuda')
+    sb = hidet.symbol([k, n], dtype=b.dtype, device='cuda')
+    sscale = hidet.symbol_like(scale)
+    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=1)
+    g = hidet.trace_from(ys, [sa, sb, sscale])
+    func = g.build(space=kwargs['space'])
+    return lambda: func(a, b, scale)
+
+def bench_packed_quant(i, **kwargs):
+    m, k, n = i
+    a, b, scale = get_args2(m, k, n)
+
+    sa = hidet.symbol(['s', k], dtype=a.dtype, device='cuda')
+    sb = hidet.symbol([k, n], dtype=b.dtype, device='cuda')
+    sscale = hidet.symbol_like(scale)
+    ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=8)
+    ys = ys.sum(0)
+    g = hidet.trace_from(ys, [sa, sb, sscale])
+    func = g.build(space=kwargs['space'])
+    return lambda: func(a, b, scale)
+
+def bench_triton(i, **kwargs):
+    m, k, n = i
+    a, b, scale = get_args2(m, k, n)
+    a = a.torch()
+    b = b.torch()
+    scale = scale.torch()
+    return lambda: triton_matmul(a, b, scale)
+
+def torch_orig(i, **kwargs):
+    m, k, n = i
+    a = torch.randn(m, k, dtype=torch.float16, device='cuda')
+    b = torch.randn(k, n, dtype=torch.float16, device='cuda')
+
+    return lambda: a @ b
+
+S = 1
+bn = Bench(x_name='C', x_vals=[(S, 4096, 11008), (S, 11008, 4096), (S, 4096, 4096), (S, 4096, 32000)], space=2)
+bn.bench(bench_ref)
+bn.bench(bench_packed_quant)
+bn.bench(bench_triton)
+bn.bench(torch_orig)
+# bn.measure_flops(lambda config, c: torch.finfo(config.dtype).bits // 8 * c**2)
+data = bn.run()
+data.show_plot(title=f'f32 x i8')
+data.print_data()

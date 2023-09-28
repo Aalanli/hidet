@@ -113,16 +113,17 @@ class SymmetricQuantizedMatmulF16TaskV2(Task):
     @tune.space(
         2,
         block_m=[32, 64, 128, 256],
-        block_n=[128, 256, 512],
+        block_n=[64, 128, 256, 512],
         block_k=[16, 32, 64, 128],
         warp_m=[16, 32, 48, 64],
         warp_n=[16, 32, 48, 64, 96],
         warp_k=[8, 16, 32, 64],
+        n_stages=[2, 3, 4, 5],
         mma=['m16n8k16'],
     )
-    @tune.space(1, block_m=[128], block_n=[128], block_k=[16], warp_m=[64], warp_n=[64], warp_k=[16], mma=['m16n8k16'])
+    @tune.space(1, block_m=[128], block_n=[128], block_k=[16], warp_m=[64], warp_n=[64], warp_k=[16], n_stages=[2, 3], mma=['m16n8k16'])
     def schedule(
-        self, block_m=64, block_n=128, block_k=16, warp_m=32, warp_n=64, warp_k=16, mma: str = 'm16n8k16'
+        self, block_m=64, block_n=128, block_k=16, warp_m=32, warp_n=64, warp_k=16, n_stages=2, mma: str = 'm16n8k16'
     ) -> IRModule:
         # pylint: disable=unused-variable
         import hidet
@@ -133,7 +134,7 @@ class SymmetricQuantizedMatmulF16TaskV2(Task):
         from hidet.lang.layout import row_major
         from hidet.lang.mapping import spatial, auto_map
         from hidet.lang.cuda import blockIdx, threadIdx, syncthreads, dynamic_shared_memory
-        from hidet.lang.cuda import MmaConfig, mma_sync, cp_async, cp_async_wait_all, ldmatrix
+        from hidet.lang.cuda import MmaConfig, mma_sync, cp_async, cp_async_wait_all, ldmatrix, cp_async_commit_group, cp_async_wait_group
         from hidet.lang.cuda import register_tensor
 
         # load a as usual, [block_m, block_k] of fp16 values into smem
@@ -170,7 +171,7 @@ class SymmetricQuantizedMatmulF16TaskV2(Task):
         # tile_b of size int8[2, block_k, block_n] takes block_k * block_n bytes
         # tile_c of size fp16[block_m, block_n] takes block_m * block_n * 2 bytes
         # scale_parameters of size fp16[block_n] takes block_n * 2 bytes
-        dynamic_smem_bytes = max(2 * block_m * block_k * 2 + 2 * block_n * block_k, block_m * block_n * 2) + block_n * 2
+        dynamic_smem_bytes = max(n_stages * block_m * block_k * 2 + n_stages * block_n * block_k, block_m * block_n * 2) + block_n * 2
 
         tune.check(block_m % warp_m == block_n % warp_n == block_k % warp_k == 0, 'warp dims divide block dims')
         tune.check(warp_m % mma_m == warp_n % mma_n == warp_k % mma_k == 0, 'mma dims divide warp dims')
@@ -339,15 +340,15 @@ class SymmetricQuantizedMatmulF16TaskV2(Task):
                 attrs.cuda.dynamic_smem_bytes = dynamic_smem_bytes
                 # smem_storage = dyn_smem_storage
                 smem_a = tensor_pointer(
-                    'float16', shape=[2, block_m, block_k], layout=row_major(2) + smem_a_type.layout
+                    'float16', shape=[n_stages, block_m, block_k], layout=row_major(n_stages) + smem_a_type.layout
                 )
-                smem_b = tensor_pointer('int8', shape=[2, block_k, block_n], layout=row_major(2) + smem_b_type.layout)
+                smem_b = tensor_pointer('int8', shape=[n_stages, block_k, block_n], layout=row_major(n_stages) + smem_b_type.layout)
                 smem_scale = tensor_pointer('float16', shape=[block_n])  # we use row_major for now
 
                 smem_a = dynamic_shared_memory(byte_offset=0, dtype=float16)
-                smem_b = dynamic_shared_memory(byte_offset=2 * block_m * block_k * 2, dtype=int8)
+                smem_b = dynamic_shared_memory(byte_offset=n_stages * block_m * block_k * 2, dtype=int8)
                 smem_scale = dynamic_shared_memory(
-                    byte_offset=2 * block_m * block_k * 2 + 2 * block_k * block_n, dtype=float16
+                    byte_offset=n_stages * block_m * block_k * 2 + n_stages * block_k * block_n, dtype=float16
                 )
 
                 regs_a = register_tensor(float16, [2, mma_count_m, mma_config.a_elements])
@@ -382,31 +383,37 @@ class SymmetricQuantizedMatmulF16TaskV2(Task):
                             )
                             loc_tid += threads * 8
 
-                load_smem_a(0, a, ~smem_a[0, 0, 0])
-                load_smem_b(0, b, ~smem_b[0, 0, 0])
-                cp_async_wait_all()
-
+                for ki in range(n_stages - 1):
+                    load_smem_a(ki, a, ~smem_a[ki, 0, 0])
+                    load_smem_b(ki, b, ~smem_b[ki, 0, 0])
+                    cp_async_commit_group()
+                
+                cp_async_wait_group(n_stages - 2)
                 syncthreads()
-                for k0 in range((k_part_extent + block_k - 1) // block_k):
-                    load_smem_a(k0 + 1, a, ~smem_a[(k0 + 1) % 2, 0, 0])
-                    load_smem_b(k0 + 1, b, ~smem_b[(k0 + 1) % 2, 0, 0])
+
+                load_kn = (k_part_extent + block_k - 1) // block_k
+                for k0 in range(load_kn):
                     for mi in range(mma_count_m):
-                        load_regs_a(mi, 0, ~smem_a[k0 % 2, 0, 0], ~regs_a[0, mi, 0])
+                        load_regs_a(mi, 0, ~smem_a[k0 % n_stages, 0, 0], ~regs_a[0, mi, 0])
                     for mj in range(mma_count_n):
-                        load_regs_b(mj, 0, ~smem_b[k0 % 2, 0, 0], ~regs_b[0, mj, 0, 0], ~smem_scale[0])
+                        load_regs_b(mj, 0, ~smem_b[k0 % n_stages, 0, 0], ~regs_b[0, mj, 0, 0], ~smem_scale[0])
 
                     for mk in range(mma_count_k):
                         if mk + 1 < mma_count_k:
                             for mi in range(mma_count_m):
-                                load_regs_a(mi, mk + 1, ~smem_a[k0 % 2, 0, 0], ~regs_a[(mk + 1) % 2, mi, 0])
+                                load_regs_a(mi, mk + 1, ~smem_a[k0 % n_stages, 0, 0], ~regs_a[(mk + 1) % 2, mi, 0])
                             for mj in range(mma_count_n):
                                 load_regs_b(
-                                    mj, mk + 1, ~smem_b[k0 % 2, 0, 0], ~regs_b[(mk + 1) % 2, mj, 0, 0], ~smem_scale[0]
+                                    mj, mk + 1, ~smem_b[k0 % n_stages, 0, 0], ~regs_b[(mk + 1) % 2, mj, 0, 0], ~smem_scale[0]
                                 )
 
                         for mi, mj in grid(mma_count_m, mma_count_n):
                             warp_mma(~regs_a[mk % 2, mi, 0], ~regs_b[mk % 2, mj, 0, 0], ~regs_c[mi, mj, 0, 0])
-                    cp_async_wait_all()
+                    
+                    load_smem_a(k0 + n_stages - 1, a, ~smem_a[(k0 + n_stages - 1) % n_stages, 0, 0])
+                    load_smem_b(k0 + n_stages - 1, b, ~smem_b[(k0 + n_stages - 1) % n_stages, 0, 0])
+                    cp_async_commit_group()
+                    cp_async_wait_group(n_stages - 2)
                     syncthreads()
 
                 # store back

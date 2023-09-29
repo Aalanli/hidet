@@ -558,3 +558,4 @@ if __name__ == '__main__':
     # color_table()
     print(color_text('sample', idx=1))
     print(color_text('sample', idx=2))
+    print(color('sample', fg='red'))

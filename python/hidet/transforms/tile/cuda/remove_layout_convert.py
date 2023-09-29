@@ -1,8 +1,8 @@
-from typing import List, Dict, Optional, Type
+from typing import List, Dict, Optional, Type, Any, Set
 from collections import defaultdict
-from hidet.ir.expr import Var, Expr, var
+from hidet.ir.expr import Let, Var, Expr, var
 from hidet.ir.func import Function
-from hidet.ir.functors import IRRewriter
+from hidet.ir.functors import IRRewriter, IRVisitor
 from hidet.ir.stmt import LetStmt, DeclareStmt, AssignStmt, EvaluateStmt, Stmt
 from hidet.ir.tile.type import TileLayout
 from hidet.ir.tile.expr import CallTileOp, TileOp
@@ -20,6 +20,100 @@ from hidet.transforms.tile.generic.pattern_transform import apply_transforms, Pa
 from hidet.transforms.tile.generic.dead_code_elimination import DeadCodeEliminationRewriter
 from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
 from hidet.utils import same_list
+
+from hidet.lang.cuda import blockDim, blockIdx
+
+from hidet.ir.tools.printer import IRPrinter
+from hidet.utils.py import color
+
+class HighLightVarPrinter(IRPrinter):
+    def __init__(self, vars: Set[Var]):
+        super().__init__()
+        self.should_highlight = vars
+
+    def visit_Var(self, e: Var):
+        if e in self.should_highlight:
+            return color(super().visit_Var(e), fg='red')
+        else:
+            return super().visit_Var(e)
+
+class VarScope:
+    def __init__(self):
+        self.scope: List[Dict[Var, Any]] = []
+    
+    def __enter__(self):
+        self.scope.append(dict())
+    
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.scope.pop()
+    
+    def contains(self, v: Var):
+        if v is blockIdx.x:
+            return True
+        for scope in reversed(self.scope):
+            if v in scope:
+                return True
+        return False
+    
+    def define(self, v: Var, value: Any):
+        self.scope[-1][v] = value
+
+
+class CheckStrandedVar(IRVisitor):
+    def __init__(self):
+        super().__init__()
+        self._scope = VarScope()
+        self.stranded_vars: Set[Var] = set()
+    
+    def open_scope(self):
+        return self._scope
+    
+    def define(self, v: Var, value: Any):
+        if self.is_defined(v):
+            raise RuntimeError(f'{v} is already defined')
+        self._scope.define(v, value)
+    
+    def is_defined(self, v: Var):
+        return self._scope.contains(v)
+    
+    def visit_Function(self, func: Function):
+        with self.open_scope():
+            for param in func.params:
+                self.define(param, param.type)
+            self.visit(func.body)
+
+    def visit_PureForStmt(self, stmt: PureForStmt):
+        with self.open_scope():
+            self.define(stmt.loop_var, stmt.loop_var.type)
+            for arg in stmt.args:
+                self.define(arg, arg.type)
+            self.visit(stmt.body)
+        with self.open_scope():
+            for arg in stmt.let_vars:
+                self.define(arg, arg.type)
+            self.visit(stmt.let_body)
+        
+    def visit_LetStmt(self, stmt: LetStmt):
+        for v in stmt.bind_vars:
+            self.define(v, v.type)
+        return super().visit_LetStmt(stmt)
+    
+    def visit_Var(self, e: Var):
+        if not self.is_defined(e):
+            self.stranded_vars.add(e)
+        
+    def visit_Create(self, e: Create):
+        with self.open_scope():
+            for v in e.axes:
+                self.define(v, v.type)
+            return super().visit_Create(e)
+
+def check_for_stranded_var(func: Function): 
+    checker = CheckStrandedVar()
+    checker.visit(func)
+    if len(checker.stranded_vars) > 0:
+        print(HighLightVarPrinter(checker.stranded_vars).visit(func))
+        raise RuntimeError('stranded vars:', list(checker.stranded_vars))
 
 
 class IdentityConvertLayoutTransform(PatternTransform):
@@ -282,23 +376,34 @@ class ChangeForArgLayoutRewriter(IRRewriter):
 
 class RemoveLayoutConvertPass(TileFunctionPass):
     def process_tile_func(self, func: Function) -> Function:
-        transforms = [
-            ChangeForArgLayoutRewriter(),
-            IdentityConvertLayoutTransform(),
-            ConvertConstructLayoutTransform(),
-            FoldConvertLayoutTransform(),
-            PushConvertLayoutForUnaryOpTransform(),
-            PushConvertLayoutForBinaryOpTransform(),
-            FoldConvertLayoutBeforeAndAfterCast(),
-            DeadCodeEliminationRewriter(),
-        ]
         while True:
+            transforms = [
+                ChangeForArgLayoutRewriter(),
+                IdentityConvertLayoutTransform(),
+                ConvertConstructLayoutTransform(),
+                FoldConvertLayoutTransform(),
+                PushConvertLayoutForUnaryOpTransform(),
+                PushConvertLayoutForBinaryOpTransform(),
+                FoldConvertLayoutBeforeAndAfterCast(),
+                DeadCodeEliminationRewriter(),
+            ]
             orig_func = func
             for transform in transforms:
+                print(transform.__class__.__name__)
+
                 func_before = func
                 func = transform(func)
                 if func_before is not func:
-                    func = canonicalize_to_ssa(func)
+                    func_ssa = canonicalize_to_ssa(func)
+                try:
+                    check_for_stranded_var(func_ssa)
+                except RuntimeError as e:
+                    print(func)
+                    print(func_before)
+                    print(transform.__class__.__name__)
+                    raise e
+
+                func = func_ssa
             if func is orig_func:
                 break
         return func

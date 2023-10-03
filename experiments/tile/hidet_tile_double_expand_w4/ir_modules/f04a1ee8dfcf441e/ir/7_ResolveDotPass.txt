@@ -1,0 +1,21 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 128
+    # cuda.grid_dim: 1
+    let a_ptr: float32*[2, 64, 32] = create((a + (i + ((((j * 32) + k) * 32) * 64))), shape=[2, 64, 32], axes=[i, j, k])
+    let b_ptr: float32*[2, 64, 8] = create((b + (i_0 + ((((j_0 * 8) + k_0) * 8) * 64))), shape=[2, 64, 8], axes=[i_0, j_0, k_0])
+    let a1: float32[2, 64, 32] = load(a_ptr)
+    let b1: float32[2, 64, 8] = load(b_ptr)
+    let reduce_op: float32[2, 64] = reduce_op(a1, axis=2, keepdims=False, kind=ReduceKind.sum)
+    let reduce_op_0: float32[2] = reduce_op(reduce_op, axis=1, keepdims=False, kind=ReduceKind.sum)
+    let expand_dims: float32[2, 1] = expand_dims(reduce_op_0, axis=1)
+    let expand_dims_0: float32[2, 1, 1] = expand_dims(expand_dims, axis=2)
+    let broadcast: float32[2, 64, 8] = broadcast(expand_dims_0, shape=[2, 64, 8])
+    let c1: float32[2, 64, 8] = multiply(b1, broadcast)
+    let add: float32*[2, 64, 8] = create((c + (i_1 + ((((j_1 * 8) + k_1) * 8) * 64))), shape=[2, 64, 8], axes=[i_1, j_1, k_1])
+    store(add, c1)
+

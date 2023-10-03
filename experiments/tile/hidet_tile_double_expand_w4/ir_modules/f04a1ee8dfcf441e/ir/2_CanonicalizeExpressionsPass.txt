@@ -1,0 +1,22 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 128
+    # cuda.grid_dim: 1
+    declare a_idx1: int32[32] = create(i, shape=[32], axes=[i])
+    declare a_idx2: int32[64] = create(i_0, shape=[64], axes=[i_0])
+    declare b_idx1: int32[8] = create(i_1, shape=[8], axes=[i_1])
+    declare b_idx2: int32[64] = create(i_2, shape=[64], axes=[i_2])
+    declare d_idx: int32[2] = create(i_3, shape=[2], axes=[i_3])
+    declare a_idx: int32[2, 64, 32] = add(broadcast(expand_dims(expand_dims(d_idx, axis=1), axis=2), shape=[2, 64, 32]), broadcast(multiply(multiply(add(broadcast(multiply(expand_dims(expand_dims(a_idx2, axis=1), axis=0), create(32, shape=[1, 64, 1], axes=[i_4, j, k])), shape=[1, 64, 32]), broadcast(expand_dims(expand_dims(a_idx1, axis=0), axis=0), shape=[1, 64, 32])), create(32, shape=[1, 64, 32], axes=[i_5, j_0, k_0])), create(64, shape=[1, 64, 32], axes=[i_6, j_1, k_1])), shape=[2, 64, 32]))
+    declare b_idx: int32[2, 64, 8] = add(broadcast(expand_dims(expand_dims(d_idx, axis=1), axis=2), shape=[2, 64, 8]), broadcast(multiply(multiply(add(broadcast(multiply(expand_dims(expand_dims(b_idx2, axis=1), axis=0), create(8, shape=[1, 64, 1], axes=[i_7, j_2, k_2])), shape=[1, 64, 8]), broadcast(expand_dims(expand_dims(b_idx1, axis=0), axis=0), shape=[1, 64, 8])), create(8, shape=[1, 64, 8], axes=[i_8, j_3, k_3])), create(64, shape=[1, 64, 8], axes=[i_9, j_4, k_4])), shape=[2, 64, 8]))
+    declare a_ptr: float32*[2, 64, 32] = add(create(a, shape=[2, 64, 32], axes=[i_10, j_5, k_5]), a_idx)
+    declare b_ptr: float32*[2, 64, 8] = add(create(b, shape=[2, 64, 8], axes=[i_11, j_6, k_6]), b_idx)
+    declare a1: float32[2, 64, 32] = load(a_ptr)
+    declare b1: float32[2, 64, 8] = load(b_ptr)
+    declare c1: float32[2, 64, 8] = multiply(b1, broadcast(expand_dims(expand_dims(reduce_op(reduce_op(a1, axis=2, keepdims=False, kind=ReduceKind.sum), axis=1, keepdims=False, kind=ReduceKind.sum), axis=1), axis=2), shape=[2, 64, 8]))
+    store(add(create(c, shape=[2, 64, 8], axes=[i_12, j_7, k_7]), b_idx), c1)
+

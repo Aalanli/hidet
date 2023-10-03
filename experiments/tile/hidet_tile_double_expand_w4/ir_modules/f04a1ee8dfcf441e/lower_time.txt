@@ -1,0 +1,7 @@
+                    InjectExplicitTransformOpsPass 0.002 seconds
+                       CanonicalizeExpressionsPass 0.002 seconds
+                             CanonicalizeToSSAPass 0.005 seconds
+                                  FoldConstantPass 0.004 seconds
+                              PatternTransformPass 0.002 seconds
+                       LoopInvariantCodeMotionPass 0.001 seconds
+                                    ResolveDotPass 0.001 seconds

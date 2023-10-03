@@ -1,0 +1,27 @@
+#layout: block(shape=[64, 32], size_per_thread=[1, 1], thread_per_warp=[1, 32], warps_per_block=[4, 1])
+#layout1: block(shape=[64, 16], size_per_thread=[1, 1], thread_per_warp=[2, 16], warps_per_block=[4, 1])
+#layout2: block(shape=[64, 1], size_per_thread=[1, 1], thread_per_warp=[32, 1], warps_per_block=[2, 2])
+#layout3: block(shape=[64, 16], size_per_thread=[1, 1], thread_per_warp=[32, 1], warps_per_block=[2, 2])
+
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 128
+    # cuda.grid_dim: 1
+    let a_ptr: float32*[64, 32, #layout] = create((a + ((i * 32) + j)), shape=[64, 32], axes=[i, j], layout=#layout)
+    let b_ptr: float32*[64, 16, #layout1] = create((b + ((i_0 * 16) + j_0)), shape=[64, 16], axes=[i_0, j_0], layout=#layout1)
+    let a1: float32[64, 32, #layout] = load(a_ptr)
+    let b1: float32[64, 16, #layout1] = load(b_ptr)
+    let reduce_op: float32[64, flatten_block(#layout, axis=1)] = reduce_op(a1, axis=1, keepdims=False, kind=ReduceKind.sum, layout=flatten_block(#layout, axis=1))
+    let cvt: float32[64, flatten_block(#layout2, axis=1)] = convert_layout(reduce_op, layout=flatten_block(#layout2, axis=1))
+    let expand_dims: float32[64, 1, #layout2] = expand_dims(cvt, axis=1, layout=#layout2)
+    let cvt_0: float32[64, 1, #layout3] = convert_layout(expand_dims, layout=#layout3)
+    let broadcast: float32[64, 16, #layout3] = broadcast(cvt_0, shape=[64, 16], layout=#layout3)
+    let cvt_1: float32[64, 16, #layout1] = convert_layout(broadcast, layout=#layout1)
+    let c1: float32[64, 16, #layout1] = multiply(b1, cvt_1)
+    let add: float32*[64, 16, #layout1] = create((c + ((i_1 * 16) + j_1)), shape=[64, 16], axes=[i_1, j_1], layout=#layout1)
+    store(add, c1)
+

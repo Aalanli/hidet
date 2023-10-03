@@ -6,3052 +6,801 @@
 .target sm_86
 .address_size 64
 
-	// .globl	test1_01
+	// .globl	test1_0d1d
 
-.visible .entry test1_01(
-	.param .u64 test1_01_param_0,
-	.param .u64 test1_01_param_1
+.visible .entry test1_0d1d(
+	.param .u64 test1_0d1d_param_0,
+	.param .u64 test1_0d1d_param_1
 )
 .maxntid 32, 1, 1
 {
-	.reg .pred 	%p<129>;
-	.reg .b32 	%r<771>;
-	.reg .f32 	%f<769>;
-	.reg .b64 	%rd<132>;
-	.loc	1 3 0
+	.reg .pred 	%p<33>;
+	.reg .b32 	%r<228>;
+	.reg .f32 	%f<273>;
+	.reg .b64 	%rd<36>;
+	.loc	1 44 0
 $L__func_begin0:
-	.loc	1 3 0
+	.loc	1 44 0
 
-	ld.param.u64 	%rd129, [test1_01_param_0];
-	ld.param.u64 	%rd130, [test1_01_param_1];
+	ld.param.u64 	%rd33, [test1_0d1d_param_0];
+	ld.param.u64 	%rd34, [test1_0d1d_param_1];
 $L__tmp0:
-	.loc	1 7 19
-	mov.u32 	%r769, %tid.x;
-	and.b32  	%r770, %r769, 31;
-	.loc	1 9 16
-	mul.wide.u32 	%rd131, %r770, 4;
-	add.s64 	%rd1, %rd129, %rd131;
-	add.s64 	%rd2, %rd1, 128;
-	add.s64 	%rd3, %rd1, 256;
-	add.s64 	%rd4, %rd1, 384;
-	add.s64 	%rd5, %rd1, 512;
-	add.s64 	%rd6, %rd1, 640;
-	add.s64 	%rd7, %rd1, 768;
-	add.s64 	%rd8, %rd1, 896;
-	add.s64 	%rd9, %rd1, 1024;
-	add.s64 	%rd10, %rd1, 1152;
-	add.s64 	%rd11, %rd1, 1280;
-	add.s64 	%rd12, %rd1, 1408;
-	add.s64 	%rd13, %rd1, 1536;
-	add.s64 	%rd14, %rd1, 1664;
-	add.s64 	%rd15, %rd1, 1792;
-	add.s64 	%rd16, %rd1, 1920;
-	add.s64 	%rd17, %rd1, 2048;
-	add.s64 	%rd18, %rd1, 2176;
-	add.s64 	%rd19, %rd1, 2304;
-	add.s64 	%rd20, %rd1, 2432;
-	add.s64 	%rd21, %rd1, 2560;
-	add.s64 	%rd22, %rd1, 2688;
-	add.s64 	%rd23, %rd1, 2816;
-	add.s64 	%rd24, %rd1, 2944;
-	add.s64 	%rd25, %rd1, 3072;
-	add.s64 	%rd26, %rd1, 3200;
-	add.s64 	%rd27, %rd1, 3328;
-	add.s64 	%rd28, %rd1, 3456;
-	add.s64 	%rd29, %rd1, 3584;
-	add.s64 	%rd30, %rd1, 3712;
-	add.s64 	%rd31, %rd1, 3840;
-	add.s64 	%rd32, %rd1, 3968;
-	add.s64 	%rd33, %rd1, 4096;
-	add.s64 	%rd34, %rd1, 4224;
-	add.s64 	%rd35, %rd1, 4352;
-	add.s64 	%rd36, %rd1, 4480;
-	add.s64 	%rd37, %rd1, 4608;
-	add.s64 	%rd38, %rd1, 4736;
-	add.s64 	%rd39, %rd1, 4864;
-	add.s64 	%rd40, %rd1, 4992;
-	add.s64 	%rd41, %rd1, 5120;
-	add.s64 	%rd42, %rd1, 5248;
-	add.s64 	%rd43, %rd1, 5376;
-	add.s64 	%rd44, %rd1, 5504;
-	add.s64 	%rd45, %rd1, 5632;
-	add.s64 	%rd46, %rd1, 5760;
-	add.s64 	%rd47, %rd1, 5888;
-	add.s64 	%rd48, %rd1, 6016;
-	add.s64 	%rd49, %rd1, 6144;
-	add.s64 	%rd50, %rd1, 6272;
-	add.s64 	%rd51, %rd1, 6400;
-	add.s64 	%rd52, %rd1, 6528;
-	add.s64 	%rd53, %rd1, 6656;
-	add.s64 	%rd54, %rd1, 6784;
-	add.s64 	%rd55, %rd1, 6912;
-	add.s64 	%rd56, %rd1, 7040;
-	add.s64 	%rd57, %rd1, 7168;
-	add.s64 	%rd58, %rd1, 7296;
-	add.s64 	%rd59, %rd1, 7424;
-	add.s64 	%rd60, %rd1, 7552;
-	add.s64 	%rd61, %rd1, 7680;
-	add.s64 	%rd62, %rd1, 7808;
-	add.s64 	%rd63, %rd1, 7936;
-	add.s64 	%rd64, %rd1, 8064;
+	.loc	1 48 19
+	mov.u32 	%r225, %tid.x;
+	.loc	1 48 42
+	shl.b32 	%r226, %r225, 2;
+	.loc	1 48 35
+	and.b32  	%r227, %r226, 124;
+	.loc	1 50 16
+	mul.wide.u32 	%rd35, %r227, 4;
+	add.s64 	%rd1, %rd33, %rd35;
+	add.s64 	%rd2, %rd1, 512;
+	add.s64 	%rd3, %rd1, 1024;
+	add.s64 	%rd4, %rd1, 1536;
+	add.s64 	%rd5, %rd1, 2048;
+	add.s64 	%rd6, %rd1, 2560;
+	add.s64 	%rd7, %rd1, 3072;
+	add.s64 	%rd8, %rd1, 3584;
+	add.s64 	%rd9, %rd1, 4096;
+	add.s64 	%rd10, %rd1, 4608;
+	add.s64 	%rd11, %rd1, 5120;
+	add.s64 	%rd12, %rd1, 5632;
+	add.s64 	%rd13, %rd1, 6144;
+	add.s64 	%rd14, %rd1, 6656;
+	add.s64 	%rd15, %rd1, 7168;
+	add.s64 	%rd16, %rd1, 7680;
 	mov.pred 	%p1, -1;
-	.loc	1 10 17
-	mov.u32 %r66, 0x0;
-	@%p1 ld.global.b32 { %r66 }, [ %rd1 + 0 ];
-	mov.b32 	%f1, %r66;
-	mov.u32 %r76, 0x0;
-	@%p1 ld.global.b32 { %r76 }, [ %rd2 + 0 ];
-	mov.b32 	%f2, %r76;
-	mov.u32 %r86, 0x0;
-	@%p1 ld.global.b32 { %r86 }, [ %rd3 + 0 ];
-	mov.b32 	%f3, %r86;
-	mov.u32 %r96, 0x0;
-	@%p1 ld.global.b32 { %r96 }, [ %rd4 + 0 ];
-	mov.b32 	%f4, %r96;
-	mov.u32 %r106, 0x0;
-	@%p1 ld.global.b32 { %r106 }, [ %rd5 + 0 ];
-	mov.b32 	%f5, %r106;
-	mov.u32 %r116, 0x0;
-	@%p1 ld.global.b32 { %r116 }, [ %rd6 + 0 ];
-	mov.b32 	%f6, %r116;
-	mov.u32 %r126, 0x0;
-	@%p1 ld.global.b32 { %r126 }, [ %rd7 + 0 ];
-	mov.b32 	%f7, %r126;
-	mov.u32 %r136, 0x0;
-	@%p1 ld.global.b32 { %r136 }, [ %rd8 + 0 ];
-	mov.b32 	%f8, %r136;
-	mov.u32 %r146, 0x0;
-	@%p1 ld.global.b32 { %r146 }, [ %rd9 + 0 ];
-	mov.b32 	%f9, %r146;
-	mov.u32 %r156, 0x0;
-	@%p1 ld.global.b32 { %r156 }, [ %rd10 + 0 ];
-	mov.b32 	%f10, %r156;
-	mov.u32 %r166, 0x0;
-	@%p1 ld.global.b32 { %r166 }, [ %rd11 + 0 ];
-	mov.b32 	%f11, %r166;
-	mov.u32 %r176, 0x0;
-	@%p1 ld.global.b32 { %r176 }, [ %rd12 + 0 ];
-	mov.b32 	%f12, %r176;
-	mov.u32 %r186, 0x0;
-	@%p1 ld.global.b32 { %r186 }, [ %rd13 + 0 ];
-	mov.b32 	%f13, %r186;
-	mov.u32 %r196, 0x0;
-	@%p1 ld.global.b32 { %r196 }, [ %rd14 + 0 ];
-	mov.b32 	%f14, %r196;
-	mov.u32 %r206, 0x0;
-	@%p1 ld.global.b32 { %r206 }, [ %rd15 + 0 ];
-	mov.b32 	%f15, %r206;
-	mov.u32 %r216, 0x0;
-	@%p1 ld.global.b32 { %r216 }, [ %rd16 + 0 ];
-	mov.b32 	%f16, %r216;
-	mov.u32 %r226, 0x0;
-	@%p1 ld.global.b32 { %r226 }, [ %rd17 + 0 ];
-	mov.b32 	%f17, %r226;
-	mov.u32 %r236, 0x0;
-	@%p1 ld.global.b32 { %r236 }, [ %rd18 + 0 ];
-	mov.b32 	%f18, %r236;
-	mov.u32 %r246, 0x0;
-	@%p1 ld.global.b32 { %r246 }, [ %rd19 + 0 ];
-	mov.b32 	%f19, %r246;
-	mov.u32 %r256, 0x0;
-	@%p1 ld.global.b32 { %r256 }, [ %rd20 + 0 ];
-	mov.b32 	%f20, %r256;
-	mov.u32 %r266, 0x0;
-	@%p1 ld.global.b32 { %r266 }, [ %rd21 + 0 ];
-	mov.b32 	%f21, %r266;
-	mov.u32 %r276, 0x0;
-	@%p1 ld.global.b32 { %r276 }, [ %rd22 + 0 ];
-	mov.b32 	%f22, %r276;
-	mov.u32 %r286, 0x0;
-	@%p1 ld.global.b32 { %r286 }, [ %rd23 + 0 ];
-	mov.b32 	%f23, %r286;
-	mov.u32 %r296, 0x0;
-	@%p1 ld.global.b32 { %r296 }, [ %rd24 + 0 ];
-	mov.b32 	%f24, %r296;
-	mov.u32 %r306, 0x0;
-	@%p1 ld.global.b32 { %r306 }, [ %rd25 + 0 ];
-	mov.b32 	%f25, %r306;
-	mov.u32 %r316, 0x0;
-	@%p1 ld.global.b32 { %r316 }, [ %rd26 + 0 ];
-	mov.b32 	%f26, %r316;
-	mov.u32 %r326, 0x0;
-	@%p1 ld.global.b32 { %r326 }, [ %rd27 + 0 ];
-	mov.b32 	%f27, %r326;
-	mov.u32 %r336, 0x0;
-	@%p1 ld.global.b32 { %r336 }, [ %rd28 + 0 ];
-	mov.b32 	%f28, %r336;
-	mov.u32 %r346, 0x0;
-	@%p1 ld.global.b32 { %r346 }, [ %rd29 + 0 ];
-	mov.b32 	%f29, %r346;
-	mov.u32 %r356, 0x0;
-	@%p1 ld.global.b32 { %r356 }, [ %rd30 + 0 ];
-	mov.b32 	%f30, %r356;
-	mov.u32 %r366, 0x0;
-	@%p1 ld.global.b32 { %r366 }, [ %rd31 + 0 ];
-	mov.b32 	%f31, %r366;
-	mov.u32 %r376, 0x0;
-	@%p1 ld.global.b32 { %r376 }, [ %rd32 + 0 ];
-	mov.b32 	%f32, %r376;
-	mov.u32 %r386, 0x0;
-	@%p1 ld.global.b32 { %r386 }, [ %rd33 + 0 ];
-	mov.b32 	%f33, %r386;
-	mov.u32 %r396, 0x0;
-	@%p1 ld.global.b32 { %r396 }, [ %rd34 + 0 ];
-	mov.b32 	%f34, %r396;
-	mov.u32 %r406, 0x0;
-	@%p1 ld.global.b32 { %r406 }, [ %rd35 + 0 ];
-	mov.b32 	%f35, %r406;
-	mov.u32 %r416, 0x0;
-	@%p1 ld.global.b32 { %r416 }, [ %rd36 + 0 ];
-	mov.b32 	%f36, %r416;
-	mov.u32 %r426, 0x0;
-	@%p1 ld.global.b32 { %r426 }, [ %rd37 + 0 ];
-	mov.b32 	%f37, %r426;
-	mov.u32 %r436, 0x0;
-	@%p1 ld.global.b32 { %r436 }, [ %rd38 + 0 ];
-	mov.b32 	%f38, %r436;
-	mov.u32 %r446, 0x0;
-	@%p1 ld.global.b32 { %r446 }, [ %rd39 + 0 ];
-	mov.b32 	%f39, %r446;
-	mov.u32 %r456, 0x0;
-	@%p1 ld.global.b32 { %r456 }, [ %rd40 + 0 ];
-	mov.b32 	%f40, %r456;
-	mov.u32 %r466, 0x0;
-	@%p1 ld.global.b32 { %r466 }, [ %rd41 + 0 ];
-	mov.b32 	%f41, %r466;
-	mov.u32 %r476, 0x0;
-	@%p1 ld.global.b32 { %r476 }, [ %rd42 + 0 ];
-	mov.b32 	%f42, %r476;
-	mov.u32 %r486, 0x0;
-	@%p1 ld.global.b32 { %r486 }, [ %rd43 + 0 ];
-	mov.b32 	%f43, %r486;
-	mov.u32 %r496, 0x0;
-	@%p1 ld.global.b32 { %r496 }, [ %rd44 + 0 ];
-	mov.b32 	%f44, %r496;
-	mov.u32 %r506, 0x0;
-	@%p1 ld.global.b32 { %r506 }, [ %rd45 + 0 ];
-	mov.b32 	%f45, %r506;
-	mov.u32 %r516, 0x0;
-	@%p1 ld.global.b32 { %r516 }, [ %rd46 + 0 ];
-	mov.b32 	%f46, %r516;
-	mov.u32 %r526, 0x0;
-	@%p1 ld.global.b32 { %r526 }, [ %rd47 + 0 ];
-	mov.b32 	%f47, %r526;
-	mov.u32 %r536, 0x0;
-	@%p1 ld.global.b32 { %r536 }, [ %rd48 + 0 ];
-	mov.b32 	%f48, %r536;
-	mov.u32 %r546, 0x0;
-	@%p1 ld.global.b32 { %r546 }, [ %rd49 + 0 ];
-	mov.b32 	%f49, %r546;
-	mov.u32 %r556, 0x0;
-	@%p1 ld.global.b32 { %r556 }, [ %rd50 + 0 ];
-	mov.b32 	%f50, %r556;
-	mov.u32 %r566, 0x0;
-	@%p1 ld.global.b32 { %r566 }, [ %rd51 + 0 ];
-	mov.b32 	%f51, %r566;
-	mov.u32 %r576, 0x0;
-	@%p1 ld.global.b32 { %r576 }, [ %rd52 + 0 ];
-	mov.b32 	%f52, %r576;
-	mov.u32 %r586, 0x0;
-	@%p1 ld.global.b32 { %r586 }, [ %rd53 + 0 ];
-	mov.b32 	%f53, %r586;
-	mov.u32 %r596, 0x0;
-	@%p1 ld.global.b32 { %r596 }, [ %rd54 + 0 ];
-	mov.b32 	%f54, %r596;
-	mov.u32 %r606, 0x0;
-	@%p1 ld.global.b32 { %r606 }, [ %rd55 + 0 ];
-	mov.b32 	%f55, %r606;
-	mov.u32 %r616, 0x0;
-	@%p1 ld.global.b32 { %r616 }, [ %rd56 + 0 ];
-	mov.b32 	%f56, %r616;
-	mov.u32 %r626, 0x0;
-	@%p1 ld.global.b32 { %r626 }, [ %rd57 + 0 ];
-	mov.b32 	%f57, %r626;
-	mov.u32 %r636, 0x0;
-	@%p1 ld.global.b32 { %r636 }, [ %rd58 + 0 ];
-	mov.b32 	%f58, %r636;
-	mov.u32 %r646, 0x0;
-	@%p1 ld.global.b32 { %r646 }, [ %rd59 + 0 ];
-	mov.b32 	%f59, %r646;
-	mov.u32 %r656, 0x0;
-	@%p1 ld.global.b32 { %r656 }, [ %rd60 + 0 ];
-	mov.b32 	%f60, %r656;
-	mov.u32 %r666, 0x0;
-	@%p1 ld.global.b32 { %r666 }, [ %rd61 + 0 ];
-	mov.b32 	%f61, %r666;
-	mov.u32 %r676, 0x0;
-	@%p1 ld.global.b32 { %r676 }, [ %rd62 + 0 ];
-	mov.b32 	%f62, %r676;
-	mov.u32 %r686, 0x0;
-	@%p1 ld.global.b32 { %r686 }, [ %rd63 + 0 ];
-	mov.b32 	%f63, %r686;
-	mov.u32 %r696, 0x0;
-	@%p1 ld.global.b32 { %r696 }, [ %rd64 + 0 ];
-	mov.b32 	%f64, %r696;
+	.loc	1 51 17
+	mov.u32 %r1, 0x0;
+	mov.u32 %r2, 0x0;
+	mov.u32 %r3, 0x0;
+	mov.u32 %r4, 0x0;
+	@%p1 ld.global.v4.b32 { %r1, %r2, %r3, %r4 }, [ %rd1 + 0 ];
+	mov.b32 	%f1, %r1;
+	mov.b32 	%f2, %r2;
+	mov.b32 	%f3, %r3;
+	mov.b32 	%f4, %r4;
+	mov.u32 %r5, 0x0;
+	mov.u32 %r6, 0x0;
+	mov.u32 %r7, 0x0;
+	mov.u32 %r8, 0x0;
+	@%p1 ld.global.v4.b32 { %r5, %r6, %r7, %r8 }, [ %rd2 + 0 ];
+	mov.b32 	%f5, %r5;
+	mov.b32 	%f6, %r6;
+	mov.b32 	%f7, %r7;
+	mov.b32 	%f8, %r8;
+	mov.u32 %r9, 0x0;
+	mov.u32 %r10, 0x0;
+	mov.u32 %r11, 0x0;
+	mov.u32 %r12, 0x0;
+	@%p1 ld.global.v4.b32 { %r9, %r10, %r11, %r12 }, [ %rd3 + 0 ];
+	mov.b32 	%f9, %r9;
+	mov.b32 	%f10, %r10;
+	mov.b32 	%f11, %r11;
+	mov.b32 	%f12, %r12;
+	mov.u32 %r13, 0x0;
+	mov.u32 %r14, 0x0;
+	mov.u32 %r15, 0x0;
+	mov.u32 %r16, 0x0;
+	@%p1 ld.global.v4.b32 { %r13, %r14, %r15, %r16 }, [ %rd4 + 0 ];
+	mov.b32 	%f13, %r13;
+	mov.b32 	%f14, %r14;
+	mov.b32 	%f15, %r15;
+	mov.b32 	%f16, %r16;
+	mov.u32 %r17, 0x0;
+	mov.u32 %r18, 0x0;
+	mov.u32 %r19, 0x0;
+	mov.u32 %r20, 0x0;
+	@%p1 ld.global.v4.b32 { %r17, %r18, %r19, %r20 }, [ %rd5 + 0 ];
+	mov.b32 	%f17, %r17;
+	mov.b32 	%f18, %r18;
+	mov.b32 	%f19, %r19;
+	mov.b32 	%f20, %r20;
+	mov.u32 %r21, 0x0;
+	mov.u32 %r22, 0x0;
+	mov.u32 %r23, 0x0;
+	mov.u32 %r24, 0x0;
+	@%p1 ld.global.v4.b32 { %r21, %r22, %r23, %r24 }, [ %rd6 + 0 ];
+	mov.b32 	%f21, %r21;
+	mov.b32 	%f22, %r22;
+	mov.b32 	%f23, %r23;
+	mov.b32 	%f24, %r24;
+	mov.u32 %r25, 0x0;
+	mov.u32 %r26, 0x0;
+	mov.u32 %r27, 0x0;
+	mov.u32 %r28, 0x0;
+	@%p1 ld.global.v4.b32 { %r25, %r26, %r27, %r28 }, [ %rd7 + 0 ];
+	mov.b32 	%f25, %r25;
+	mov.b32 	%f26, %r26;
+	mov.b32 	%f27, %r27;
+	mov.b32 	%f28, %r28;
+	mov.u32 %r29, 0x0;
+	mov.u32 %r30, 0x0;
+	mov.u32 %r31, 0x0;
+	mov.u32 %r32, 0x0;
+	@%p1 ld.global.v4.b32 { %r29, %r30, %r31, %r32 }, [ %rd8 + 0 ];
+	mov.b32 	%f29, %r29;
+	mov.b32 	%f30, %r30;
+	mov.b32 	%f31, %r31;
+	mov.b32 	%f32, %r32;
+	mov.u32 %r33, 0x0;
+	mov.u32 %r34, 0x0;
+	mov.u32 %r35, 0x0;
+	mov.u32 %r36, 0x0;
+	@%p1 ld.global.v4.b32 { %r33, %r34, %r35, %r36 }, [ %rd9 + 0 ];
+	mov.b32 	%f33, %r33;
+	mov.b32 	%f34, %r34;
+	mov.b32 	%f35, %r35;
+	mov.b32 	%f36, %r36;
+	mov.u32 %r37, 0x0;
+	mov.u32 %r38, 0x0;
+	mov.u32 %r39, 0x0;
+	mov.u32 %r40, 0x0;
+	@%p1 ld.global.v4.b32 { %r37, %r38, %r39, %r40 }, [ %rd10 + 0 ];
+	mov.b32 	%f37, %r37;
+	mov.b32 	%f38, %r38;
+	mov.b32 	%f39, %r39;
+	mov.b32 	%f40, %r40;
+	mov.u32 %r41, 0x0;
+	mov.u32 %r42, 0x0;
+	mov.u32 %r43, 0x0;
+	mov.u32 %r44, 0x0;
+	@%p1 ld.global.v4.b32 { %r41, %r42, %r43, %r44 }, [ %rd11 + 0 ];
+	mov.b32 	%f41, %r41;
+	mov.b32 	%f42, %r42;
+	mov.b32 	%f43, %r43;
+	mov.b32 	%f44, %r44;
+	mov.u32 %r45, 0x0;
+	mov.u32 %r46, 0x0;
+	mov.u32 %r47, 0x0;
+	mov.u32 %r48, 0x0;
+	@%p1 ld.global.v4.b32 { %r45, %r46, %r47, %r48 }, [ %rd12 + 0 ];
+	mov.b32 	%f45, %r45;
+	mov.b32 	%f46, %r46;
+	mov.b32 	%f47, %r47;
+	mov.b32 	%f48, %r48;
+	mov.u32 %r49, 0x0;
+	mov.u32 %r50, 0x0;
+	mov.u32 %r51, 0x0;
+	mov.u32 %r52, 0x0;
+	@%p1 ld.global.v4.b32 { %r49, %r50, %r51, %r52 }, [ %rd13 + 0 ];
+	mov.b32 	%f49, %r49;
+	mov.b32 	%f50, %r50;
+	mov.b32 	%f51, %r51;
+	mov.b32 	%f52, %r52;
+	mov.u32 %r53, 0x0;
+	mov.u32 %r54, 0x0;
+	mov.u32 %r55, 0x0;
+	mov.u32 %r56, 0x0;
+	@%p1 ld.global.v4.b32 { %r53, %r54, %r55, %r56 }, [ %rd14 + 0 ];
+	mov.b32 	%f53, %r53;
+	mov.b32 	%f54, %r54;
+	mov.b32 	%f55, %r55;
+	mov.b32 	%f56, %r56;
+	mov.u32 %r57, 0x0;
+	mov.u32 %r58, 0x0;
+	mov.u32 %r59, 0x0;
+	mov.u32 %r60, 0x0;
+	@%p1 ld.global.v4.b32 { %r57, %r58, %r59, %r60 }, [ %rd15 + 0 ];
+	mov.b32 	%f57, %r57;
+	mov.b32 	%f58, %r58;
+	mov.b32 	%f59, %r59;
+	mov.b32 	%f60, %r60;
+	mov.u32 %r61, 0x0;
+	mov.u32 %r62, 0x0;
+	mov.u32 %r63, 0x0;
+	mov.u32 %r64, 0x0;
+	@%p1 ld.global.v4.b32 { %r61, %r62, %r63, %r64 }, [ %rd16 + 0 ];
+	mov.b32 	%f61, %r61;
+	mov.b32 	%f62, %r62;
+	mov.b32 	%f63, %r63;
+	mov.b32 	%f64, %r64;
 $L__tmp1:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r65, %r66, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f65, %r65;
+	.loc	2 1518 15
+	add.f32 	%f65, %f1, %f2;
+	add.f32 	%f66, %f65, %f3;
+	add.f32 	%f67, %f66, %f4;
+	add.f32 	%f68, %f5, %f6;
+	add.f32 	%f69, %f68, %f7;
+	add.f32 	%f70, %f69, %f8;
+	add.f32 	%f71, %f9, %f10;
+	add.f32 	%f72, %f71, %f11;
+	add.f32 	%f73, %f72, %f12;
+	add.f32 	%f74, %f13, %f14;
+	add.f32 	%f75, %f74, %f15;
+	add.f32 	%f76, %f75, %f16;
+	add.f32 	%f77, %f17, %f18;
+	add.f32 	%f78, %f77, %f19;
+	add.f32 	%f79, %f78, %f20;
+	add.f32 	%f80, %f21, %f22;
+	add.f32 	%f81, %f80, %f23;
+	add.f32 	%f82, %f81, %f24;
+	add.f32 	%f83, %f25, %f26;
+	add.f32 	%f84, %f83, %f27;
+	add.f32 	%f85, %f84, %f28;
+	add.f32 	%f86, %f29, %f30;
+	add.f32 	%f87, %f86, %f31;
+	add.f32 	%f88, %f87, %f32;
+	add.f32 	%f89, %f33, %f34;
+	add.f32 	%f90, %f89, %f35;
+	add.f32 	%f91, %f90, %f36;
+	add.f32 	%f92, %f37, %f38;
+	add.f32 	%f93, %f92, %f39;
+	add.f32 	%f94, %f93, %f40;
+	add.f32 	%f95, %f41, %f42;
+	add.f32 	%f96, %f95, %f43;
+	add.f32 	%f97, %f96, %f44;
+	add.f32 	%f98, %f45, %f46;
+	add.f32 	%f99, %f98, %f47;
+	add.f32 	%f100, %f99, %f48;
+	add.f32 	%f101, %f49, %f50;
+	add.f32 	%f102, %f101, %f51;
+	add.f32 	%f103, %f102, %f52;
+	add.f32 	%f104, %f53, %f54;
+	add.f32 	%f105, %f104, %f55;
+	add.f32 	%f106, %f105, %f56;
+	add.f32 	%f107, %f57, %f58;
+	add.f32 	%f108, %f107, %f59;
+	add.f32 	%f109, %f108, %f60;
+	add.f32 	%f110, %f61, %f62;
+	add.f32 	%f111, %f110, %f63;
+	add.f32 	%f112, %f111, %f64;
 $L__tmp2:
-	.loc	2 1518 15
-	add.f32 	%f66, %f65, %f1;
+	.loc	2 1527 31
+	mov.b32 	%r66, %f67;
+	shfl.sync.bfly.b32 %r65, %r66, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f113, %r65;
 $L__tmp3:
-	.loc	2 1527 31
-	mov.b32 	%r68, %f66;
-	shfl.sync.bfly.b32 %r67, %r68, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f67, %r67;
+	.loc	2 1518 15
+	add.f32 	%f114, %f67, %f113;
 $L__tmp4:
-	.loc	2 1518 15
-	add.f32 	%f68, %f66, %f67;
+	.loc	2 1527 31
+	mov.b32 	%r68, %f114;
+	shfl.sync.bfly.b32 %r67, %r68, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f115, %r67;
 $L__tmp5:
-	.loc	2 1527 31
-	mov.b32 	%r70, %f68;
-	shfl.sync.bfly.b32 %r69, %r70, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f69, %r69;
+	.loc	2 1518 15
+	add.f32 	%f116, %f114, %f115;
 $L__tmp6:
-	.loc	2 1518 15
-	add.f32 	%f70, %f68, %f69;
+	.loc	2 1527 31
+	mov.b32 	%r70, %f116;
+	shfl.sync.bfly.b32 %r69, %r70, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f117, %r69;
 $L__tmp7:
-	.loc	2 1527 31
-	mov.b32 	%r72, %f70;
-	shfl.sync.bfly.b32 %r71, %r72, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f71, %r71;
-$L__tmp8:
-	.loc	2 1518 15
-	add.f32 	%f72, %f70, %f71;
-$L__tmp9:
-	.loc	2 1527 31
-	mov.b32 	%r74, %f72;
-	shfl.sync.bfly.b32 %r73, %r74, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f73, %r73;
-$L__tmp10:
-	.loc	2 1518 15
-	add.f32 	%f74, %f72, %f73;
-$L__tmp11:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r75, %r76, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f75, %r75;
-$L__tmp12:
-	.loc	2 1518 15
-	add.f32 	%f76, %f75, %f2;
-$L__tmp13:
-	.loc	2 1527 31
-	mov.b32 	%r78, %f76;
-	shfl.sync.bfly.b32 %r77, %r78, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f77, %r77;
-$L__tmp14:
-	.loc	2 1518 15
-	add.f32 	%f78, %f76, %f77;
-$L__tmp15:
-	.loc	2 1527 31
-	mov.b32 	%r80, %f78;
-	shfl.sync.bfly.b32 %r79, %r80, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f79, %r79;
-$L__tmp16:
-	.loc	2 1518 15
-	add.f32 	%f80, %f78, %f79;
-$L__tmp17:
-	.loc	2 1527 31
-	mov.b32 	%r82, %f80;
-	shfl.sync.bfly.b32 %r81, %r82, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f81, %r81;
-$L__tmp18:
-	.loc	2 1518 15
-	add.f32 	%f82, %f80, %f81;
-$L__tmp19:
-	.loc	2 1527 31
-	mov.b32 	%r84, %f82;
-	shfl.sync.bfly.b32 %r83, %r84, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f83, %r83;
-$L__tmp20:
-	.loc	2 1518 15
-	add.f32 	%f84, %f82, %f83;
-$L__tmp21:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r85, %r86, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f85, %r85;
-$L__tmp22:
-	.loc	2 1518 15
-	add.f32 	%f86, %f85, %f3;
-$L__tmp23:
-	.loc	2 1527 31
-	mov.b32 	%r88, %f86;
-	shfl.sync.bfly.b32 %r87, %r88, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f87, %r87;
-$L__tmp24:
-	.loc	2 1518 15
-	add.f32 	%f88, %f86, %f87;
-$L__tmp25:
-	.loc	2 1527 31
-	mov.b32 	%r90, %f88;
-	shfl.sync.bfly.b32 %r89, %r90, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f89, %r89;
-$L__tmp26:
-	.loc	2 1518 15
-	add.f32 	%f90, %f88, %f89;
-$L__tmp27:
-	.loc	2 1527 31
-	mov.b32 	%r92, %f90;
-	shfl.sync.bfly.b32 %r91, %r92, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f91, %r91;
-$L__tmp28:
-	.loc	2 1518 15
-	add.f32 	%f92, %f90, %f91;
-$L__tmp29:
-	.loc	2 1527 31
-	mov.b32 	%r94, %f92;
-	shfl.sync.bfly.b32 %r93, %r94, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f93, %r93;
-$L__tmp30:
-	.loc	2 1518 15
-	add.f32 	%f94, %f92, %f93;
-$L__tmp31:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r95, %r96, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f95, %r95;
-$L__tmp32:
-	.loc	2 1518 15
-	add.f32 	%f96, %f95, %f4;
-$L__tmp33:
-	.loc	2 1527 31
-	mov.b32 	%r98, %f96;
-	shfl.sync.bfly.b32 %r97, %r98, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f97, %r97;
-$L__tmp34:
-	.loc	2 1518 15
-	add.f32 	%f98, %f96, %f97;
-$L__tmp35:
-	.loc	2 1527 31
-	mov.b32 	%r100, %f98;
-	shfl.sync.bfly.b32 %r99, %r100, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f99, %r99;
-$L__tmp36:
-	.loc	2 1518 15
-	add.f32 	%f100, %f98, %f99;
-$L__tmp37:
-	.loc	2 1527 31
-	mov.b32 	%r102, %f100;
-	shfl.sync.bfly.b32 %r101, %r102, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f101, %r101;
-$L__tmp38:
-	.loc	2 1518 15
-	add.f32 	%f102, %f100, %f101;
-$L__tmp39:
-	.loc	2 1527 31
-	mov.b32 	%r104, %f102;
-	shfl.sync.bfly.b32 %r103, %r104, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f103, %r103;
-$L__tmp40:
-	.loc	2 1518 15
-	add.f32 	%f104, %f102, %f103;
-$L__tmp41:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r105, %r106, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f105, %r105;
-$L__tmp42:
-	.loc	2 1518 15
-	add.f32 	%f106, %f105, %f5;
-$L__tmp43:
-	.loc	2 1527 31
-	mov.b32 	%r108, %f106;
-	shfl.sync.bfly.b32 %r107, %r108, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f107, %r107;
-$L__tmp44:
-	.loc	2 1518 15
-	add.f32 	%f108, %f106, %f107;
-$L__tmp45:
-	.loc	2 1527 31
-	mov.b32 	%r110, %f108;
-	shfl.sync.bfly.b32 %r109, %r110, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f109, %r109;
-$L__tmp46:
-	.loc	2 1518 15
-	add.f32 	%f110, %f108, %f109;
-$L__tmp47:
-	.loc	2 1527 31
-	mov.b32 	%r112, %f110;
-	shfl.sync.bfly.b32 %r111, %r112, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f111, %r111;
-$L__tmp48:
-	.loc	2 1518 15
-	add.f32 	%f112, %f110, %f111;
-$L__tmp49:
-	.loc	2 1527 31
-	mov.b32 	%r114, %f112;
-	shfl.sync.bfly.b32 %r113, %r114, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f113, %r113;
-$L__tmp50:
-	.loc	2 1518 15
-	add.f32 	%f114, %f112, %f113;
-$L__tmp51:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r115, %r116, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f115, %r115;
-$L__tmp52:
-	.loc	2 1518 15
-	add.f32 	%f116, %f115, %f6;
-$L__tmp53:
-	.loc	2 1527 31
-	mov.b32 	%r118, %f116;
-	shfl.sync.bfly.b32 %r117, %r118, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f117, %r117;
-$L__tmp54:
 	.loc	2 1518 15
 	add.f32 	%f118, %f116, %f117;
-$L__tmp55:
+$L__tmp8:
 	.loc	2 1527 31
-	mov.b32 	%r120, %f118;
-	shfl.sync.bfly.b32 %r119, %r120, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f119, %r119;
-$L__tmp56:
+	mov.b32 	%r72, %f70;
+	shfl.sync.bfly.b32 %r71, %r72, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f119, %r71;
+$L__tmp9:
 	.loc	2 1518 15
-	add.f32 	%f120, %f118, %f119;
-$L__tmp57:
+	add.f32 	%f120, %f70, %f119;
+$L__tmp10:
 	.loc	2 1527 31
-	mov.b32 	%r122, %f120;
-	shfl.sync.bfly.b32 %r121, %r122, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f121, %r121;
-$L__tmp58:
+	mov.b32 	%r74, %f120;
+	shfl.sync.bfly.b32 %r73, %r74, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f121, %r73;
+$L__tmp11:
 	.loc	2 1518 15
 	add.f32 	%f122, %f120, %f121;
-$L__tmp59:
+$L__tmp12:
 	.loc	2 1527 31
-	mov.b32 	%r124, %f122;
-	shfl.sync.bfly.b32 %r123, %r124, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f123, %r123;
-$L__tmp60:
+	mov.b32 	%r76, %f122;
+	shfl.sync.bfly.b32 %r75, %r76, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f123, %r75;
+$L__tmp13:
 	.loc	2 1518 15
 	add.f32 	%f124, %f122, %f123;
-$L__tmp61:
+$L__tmp14:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r125, %r126, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f125, %r125;
-$L__tmp62:
+	mov.b32 	%r78, %f73;
+	shfl.sync.bfly.b32 %r77, %r78, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f125, %r77;
+$L__tmp15:
 	.loc	2 1518 15
-	add.f32 	%f126, %f125, %f7;
-$L__tmp63:
+	add.f32 	%f126, %f73, %f125;
+$L__tmp16:
 	.loc	2 1527 31
-	mov.b32 	%r128, %f126;
-	shfl.sync.bfly.b32 %r127, %r128, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f127, %r127;
-$L__tmp64:
+	mov.b32 	%r80, %f126;
+	shfl.sync.bfly.b32 %r79, %r80, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f127, %r79;
+$L__tmp17:
 	.loc	2 1518 15
 	add.f32 	%f128, %f126, %f127;
-$L__tmp65:
+$L__tmp18:
 	.loc	2 1527 31
-	mov.b32 	%r130, %f128;
-	shfl.sync.bfly.b32 %r129, %r130, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f129, %r129;
-$L__tmp66:
+	mov.b32 	%r82, %f128;
+	shfl.sync.bfly.b32 %r81, %r82, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f129, %r81;
+$L__tmp19:
 	.loc	2 1518 15
 	add.f32 	%f130, %f128, %f129;
-$L__tmp67:
+$L__tmp20:
 	.loc	2 1527 31
-	mov.b32 	%r132, %f130;
-	shfl.sync.bfly.b32 %r131, %r132, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f131, %r131;
-$L__tmp68:
+	mov.b32 	%r84, %f76;
+	shfl.sync.bfly.b32 %r83, %r84, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f131, %r83;
+$L__tmp21:
 	.loc	2 1518 15
-	add.f32 	%f132, %f130, %f131;
-$L__tmp69:
+	add.f32 	%f132, %f76, %f131;
+$L__tmp22:
 	.loc	2 1527 31
-	mov.b32 	%r134, %f132;
-	shfl.sync.bfly.b32 %r133, %r134, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f133, %r133;
-$L__tmp70:
+	mov.b32 	%r86, %f132;
+	shfl.sync.bfly.b32 %r85, %r86, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f133, %r85;
+$L__tmp23:
 	.loc	2 1518 15
 	add.f32 	%f134, %f132, %f133;
-$L__tmp71:
+$L__tmp24:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r135, %r136, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f135, %r135;
-$L__tmp72:
+	mov.b32 	%r88, %f134;
+	shfl.sync.bfly.b32 %r87, %r88, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f135, %r87;
+$L__tmp25:
 	.loc	2 1518 15
-	add.f32 	%f136, %f135, %f8;
-$L__tmp73:
+	add.f32 	%f136, %f134, %f135;
+$L__tmp26:
 	.loc	2 1527 31
-	mov.b32 	%r138, %f136;
-	shfl.sync.bfly.b32 %r137, %r138, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f137, %r137;
-$L__tmp74:
+	mov.b32 	%r90, %f79;
+	shfl.sync.bfly.b32 %r89, %r90, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f137, %r89;
+$L__tmp27:
 	.loc	2 1518 15
-	add.f32 	%f138, %f136, %f137;
-$L__tmp75:
+	add.f32 	%f138, %f79, %f137;
+$L__tmp28:
 	.loc	2 1527 31
-	mov.b32 	%r140, %f138;
-	shfl.sync.bfly.b32 %r139, %r140, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f139, %r139;
-$L__tmp76:
+	mov.b32 	%r92, %f138;
+	shfl.sync.bfly.b32 %r91, %r92, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f139, %r91;
+$L__tmp29:
 	.loc	2 1518 15
 	add.f32 	%f140, %f138, %f139;
-$L__tmp77:
+$L__tmp30:
 	.loc	2 1527 31
-	mov.b32 	%r142, %f140;
-	shfl.sync.bfly.b32 %r141, %r142, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f141, %r141;
-$L__tmp78:
+	mov.b32 	%r94, %f140;
+	shfl.sync.bfly.b32 %r93, %r94, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f141, %r93;
+$L__tmp31:
 	.loc	2 1518 15
 	add.f32 	%f142, %f140, %f141;
-$L__tmp79:
+$L__tmp32:
 	.loc	2 1527 31
-	mov.b32 	%r144, %f142;
-	shfl.sync.bfly.b32 %r143, %r144, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f143, %r143;
-$L__tmp80:
+	mov.b32 	%r96, %f82;
+	shfl.sync.bfly.b32 %r95, %r96, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f143, %r95;
+$L__tmp33:
 	.loc	2 1518 15
-	add.f32 	%f144, %f142, %f143;
-$L__tmp81:
+	add.f32 	%f144, %f82, %f143;
+$L__tmp34:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r145, %r146, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f145, %r145;
-$L__tmp82:
+	mov.b32 	%r98, %f144;
+	shfl.sync.bfly.b32 %r97, %r98, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f145, %r97;
+$L__tmp35:
 	.loc	2 1518 15
-	add.f32 	%f146, %f145, %f9;
-$L__tmp83:
+	add.f32 	%f146, %f144, %f145;
+$L__tmp36:
 	.loc	2 1527 31
-	mov.b32 	%r148, %f146;
-	shfl.sync.bfly.b32 %r147, %r148, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f147, %r147;
-$L__tmp84:
+	mov.b32 	%r100, %f146;
+	shfl.sync.bfly.b32 %r99, %r100, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f147, %r99;
+$L__tmp37:
 	.loc	2 1518 15
 	add.f32 	%f148, %f146, %f147;
-$L__tmp85:
+$L__tmp38:
 	.loc	2 1527 31
-	mov.b32 	%r150, %f148;
-	shfl.sync.bfly.b32 %r149, %r150, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f149, %r149;
-$L__tmp86:
+	mov.b32 	%r102, %f85;
+	shfl.sync.bfly.b32 %r101, %r102, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f149, %r101;
+$L__tmp39:
 	.loc	2 1518 15
-	add.f32 	%f150, %f148, %f149;
-$L__tmp87:
+	add.f32 	%f150, %f85, %f149;
+$L__tmp40:
 	.loc	2 1527 31
-	mov.b32 	%r152, %f150;
-	shfl.sync.bfly.b32 %r151, %r152, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f151, %r151;
-$L__tmp88:
+	mov.b32 	%r104, %f150;
+	shfl.sync.bfly.b32 %r103, %r104, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f151, %r103;
+$L__tmp41:
 	.loc	2 1518 15
 	add.f32 	%f152, %f150, %f151;
-$L__tmp89:
+$L__tmp42:
 	.loc	2 1527 31
-	mov.b32 	%r154, %f152;
-	shfl.sync.bfly.b32 %r153, %r154, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f153, %r153;
-$L__tmp90:
+	mov.b32 	%r106, %f152;
+	shfl.sync.bfly.b32 %r105, %r106, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f153, %r105;
+$L__tmp43:
 	.loc	2 1518 15
 	add.f32 	%f154, %f152, %f153;
-$L__tmp91:
+$L__tmp44:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r155, %r156, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f155, %r155;
-$L__tmp92:
+	mov.b32 	%r108, %f88;
+	shfl.sync.bfly.b32 %r107, %r108, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f155, %r107;
+$L__tmp45:
 	.loc	2 1518 15
-	add.f32 	%f156, %f155, %f10;
-$L__tmp93:
+	add.f32 	%f156, %f88, %f155;
+$L__tmp46:
 	.loc	2 1527 31
-	mov.b32 	%r158, %f156;
-	shfl.sync.bfly.b32 %r157, %r158, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f157, %r157;
-$L__tmp94:
+	mov.b32 	%r110, %f156;
+	shfl.sync.bfly.b32 %r109, %r110, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f157, %r109;
+$L__tmp47:
 	.loc	2 1518 15
 	add.f32 	%f158, %f156, %f157;
-$L__tmp95:
+$L__tmp48:
 	.loc	2 1527 31
-	mov.b32 	%r160, %f158;
-	shfl.sync.bfly.b32 %r159, %r160, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f159, %r159;
-$L__tmp96:
+	mov.b32 	%r112, %f158;
+	shfl.sync.bfly.b32 %r111, %r112, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f159, %r111;
+$L__tmp49:
 	.loc	2 1518 15
 	add.f32 	%f160, %f158, %f159;
-$L__tmp97:
+$L__tmp50:
 	.loc	2 1527 31
-	mov.b32 	%r162, %f160;
-	shfl.sync.bfly.b32 %r161, %r162, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f161, %r161;
-$L__tmp98:
+	mov.b32 	%r114, %f91;
+	shfl.sync.bfly.b32 %r113, %r114, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f161, %r113;
+$L__tmp51:
 	.loc	2 1518 15
-	add.f32 	%f162, %f160, %f161;
-$L__tmp99:
+	add.f32 	%f162, %f91, %f161;
+$L__tmp52:
 	.loc	2 1527 31
-	mov.b32 	%r164, %f162;
-	shfl.sync.bfly.b32 %r163, %r164, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f163, %r163;
-$L__tmp100:
+	mov.b32 	%r116, %f162;
+	shfl.sync.bfly.b32 %r115, %r116, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f163, %r115;
+$L__tmp53:
 	.loc	2 1518 15
 	add.f32 	%f164, %f162, %f163;
-$L__tmp101:
+$L__tmp54:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r165, %r166, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f165, %r165;
-$L__tmp102:
+	mov.b32 	%r118, %f164;
+	shfl.sync.bfly.b32 %r117, %r118, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f165, %r117;
+$L__tmp55:
 	.loc	2 1518 15
-	add.f32 	%f166, %f165, %f11;
-$L__tmp103:
+	add.f32 	%f166, %f164, %f165;
+$L__tmp56:
 	.loc	2 1527 31
-	mov.b32 	%r168, %f166;
-	shfl.sync.bfly.b32 %r167, %r168, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f167, %r167;
-$L__tmp104:
+	mov.b32 	%r120, %f94;
+	shfl.sync.bfly.b32 %r119, %r120, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f167, %r119;
+$L__tmp57:
 	.loc	2 1518 15
-	add.f32 	%f168, %f166, %f167;
-$L__tmp105:
+	add.f32 	%f168, %f94, %f167;
+$L__tmp58:
 	.loc	2 1527 31
-	mov.b32 	%r170, %f168;
-	shfl.sync.bfly.b32 %r169, %r170, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f169, %r169;
-$L__tmp106:
+	mov.b32 	%r122, %f168;
+	shfl.sync.bfly.b32 %r121, %r122, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f169, %r121;
+$L__tmp59:
 	.loc	2 1518 15
 	add.f32 	%f170, %f168, %f169;
-$L__tmp107:
+$L__tmp60:
 	.loc	2 1527 31
-	mov.b32 	%r172, %f170;
-	shfl.sync.bfly.b32 %r171, %r172, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f171, %r171;
-$L__tmp108:
+	mov.b32 	%r124, %f170;
+	shfl.sync.bfly.b32 %r123, %r124, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f171, %r123;
+$L__tmp61:
 	.loc	2 1518 15
 	add.f32 	%f172, %f170, %f171;
-$L__tmp109:
+$L__tmp62:
 	.loc	2 1527 31
-	mov.b32 	%r174, %f172;
-	shfl.sync.bfly.b32 %r173, %r174, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f173, %r173;
-$L__tmp110:
+	mov.b32 	%r126, %f97;
+	shfl.sync.bfly.b32 %r125, %r126, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f173, %r125;
+$L__tmp63:
 	.loc	2 1518 15
-	add.f32 	%f174, %f172, %f173;
-$L__tmp111:
+	add.f32 	%f174, %f97, %f173;
+$L__tmp64:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r175, %r176, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f175, %r175;
-$L__tmp112:
+	mov.b32 	%r128, %f174;
+	shfl.sync.bfly.b32 %r127, %r128, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f175, %r127;
+$L__tmp65:
 	.loc	2 1518 15
-	add.f32 	%f176, %f175, %f12;
-$L__tmp113:
+	add.f32 	%f176, %f174, %f175;
+$L__tmp66:
 	.loc	2 1527 31
-	mov.b32 	%r178, %f176;
-	shfl.sync.bfly.b32 %r177, %r178, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f177, %r177;
-$L__tmp114:
+	mov.b32 	%r130, %f176;
+	shfl.sync.bfly.b32 %r129, %r130, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f177, %r129;
+$L__tmp67:
 	.loc	2 1518 15
 	add.f32 	%f178, %f176, %f177;
-$L__tmp115:
+$L__tmp68:
 	.loc	2 1527 31
-	mov.b32 	%r180, %f178;
-	shfl.sync.bfly.b32 %r179, %r180, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f179, %r179;
-$L__tmp116:
+	mov.b32 	%r132, %f100;
+	shfl.sync.bfly.b32 %r131, %r132, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f179, %r131;
+$L__tmp69:
 	.loc	2 1518 15
-	add.f32 	%f180, %f178, %f179;
-$L__tmp117:
+	add.f32 	%f180, %f100, %f179;
+$L__tmp70:
 	.loc	2 1527 31
-	mov.b32 	%r182, %f180;
-	shfl.sync.bfly.b32 %r181, %r182, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f181, %r181;
-$L__tmp118:
+	mov.b32 	%r134, %f180;
+	shfl.sync.bfly.b32 %r133, %r134, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f181, %r133;
+$L__tmp71:
 	.loc	2 1518 15
 	add.f32 	%f182, %f180, %f181;
-$L__tmp119:
+$L__tmp72:
 	.loc	2 1527 31
-	mov.b32 	%r184, %f182;
-	shfl.sync.bfly.b32 %r183, %r184, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f183, %r183;
-$L__tmp120:
+	mov.b32 	%r136, %f182;
+	shfl.sync.bfly.b32 %r135, %r136, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f183, %r135;
+$L__tmp73:
 	.loc	2 1518 15
 	add.f32 	%f184, %f182, %f183;
-$L__tmp121:
+$L__tmp74:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r185, %r186, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f185, %r185;
-$L__tmp122:
+	mov.b32 	%r138, %f103;
+	shfl.sync.bfly.b32 %r137, %r138, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f185, %r137;
+$L__tmp75:
 	.loc	2 1518 15
-	add.f32 	%f186, %f185, %f13;
-$L__tmp123:
+	add.f32 	%f186, %f103, %f185;
+$L__tmp76:
 	.loc	2 1527 31
-	mov.b32 	%r188, %f186;
-	shfl.sync.bfly.b32 %r187, %r188, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f187, %r187;
-$L__tmp124:
+	mov.b32 	%r140, %f186;
+	shfl.sync.bfly.b32 %r139, %r140, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f187, %r139;
+$L__tmp77:
 	.loc	2 1518 15
 	add.f32 	%f188, %f186, %f187;
-$L__tmp125:
+$L__tmp78:
 	.loc	2 1527 31
-	mov.b32 	%r190, %f188;
-	shfl.sync.bfly.b32 %r189, %r190, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f189, %r189;
-$L__tmp126:
+	mov.b32 	%r142, %f188;
+	shfl.sync.bfly.b32 %r141, %r142, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f189, %r141;
+$L__tmp79:
 	.loc	2 1518 15
 	add.f32 	%f190, %f188, %f189;
-$L__tmp127:
+$L__tmp80:
 	.loc	2 1527 31
-	mov.b32 	%r192, %f190;
-	shfl.sync.bfly.b32 %r191, %r192, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f191, %r191;
-$L__tmp128:
+	mov.b32 	%r144, %f106;
+	shfl.sync.bfly.b32 %r143, %r144, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f191, %r143;
+$L__tmp81:
 	.loc	2 1518 15
-	add.f32 	%f192, %f190, %f191;
-$L__tmp129:
+	add.f32 	%f192, %f106, %f191;
+$L__tmp82:
 	.loc	2 1527 31
-	mov.b32 	%r194, %f192;
-	shfl.sync.bfly.b32 %r193, %r194, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f193, %r193;
-$L__tmp130:
+	mov.b32 	%r146, %f192;
+	shfl.sync.bfly.b32 %r145, %r146, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f193, %r145;
+$L__tmp83:
 	.loc	2 1518 15
 	add.f32 	%f194, %f192, %f193;
-$L__tmp131:
+$L__tmp84:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r195, %r196, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f195, %r195;
-$L__tmp132:
+	mov.b32 	%r148, %f194;
+	shfl.sync.bfly.b32 %r147, %r148, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f195, %r147;
+$L__tmp85:
 	.loc	2 1518 15
-	add.f32 	%f196, %f195, %f14;
-$L__tmp133:
+	add.f32 	%f196, %f194, %f195;
+$L__tmp86:
 	.loc	2 1527 31
-	mov.b32 	%r198, %f196;
-	shfl.sync.bfly.b32 %r197, %r198, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f197, %r197;
-$L__tmp134:
+	mov.b32 	%r150, %f109;
+	shfl.sync.bfly.b32 %r149, %r150, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f197, %r149;
+$L__tmp87:
 	.loc	2 1518 15
-	add.f32 	%f198, %f196, %f197;
-$L__tmp135:
+	add.f32 	%f198, %f109, %f197;
+$L__tmp88:
 	.loc	2 1527 31
-	mov.b32 	%r200, %f198;
-	shfl.sync.bfly.b32 %r199, %r200, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f199, %r199;
-$L__tmp136:
+	mov.b32 	%r152, %f198;
+	shfl.sync.bfly.b32 %r151, %r152, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f199, %r151;
+$L__tmp89:
 	.loc	2 1518 15
 	add.f32 	%f200, %f198, %f199;
-$L__tmp137:
+$L__tmp90:
 	.loc	2 1527 31
-	mov.b32 	%r202, %f200;
-	shfl.sync.bfly.b32 %r201, %r202, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f201, %r201;
-$L__tmp138:
+	mov.b32 	%r154, %f200;
+	shfl.sync.bfly.b32 %r153, %r154, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f201, %r153;
+$L__tmp91:
 	.loc	2 1518 15
 	add.f32 	%f202, %f200, %f201;
-$L__tmp139:
+$L__tmp92:
 	.loc	2 1527 31
-	mov.b32 	%r204, %f202;
-	shfl.sync.bfly.b32 %r203, %r204, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f203, %r203;
-$L__tmp140:
+	mov.b32 	%r156, %f112;
+	shfl.sync.bfly.b32 %r155, %r156, 0x4, 0x1f, 0xffffffff;
+	mov.b32 	%f203, %r155;
+$L__tmp93:
 	.loc	2 1518 15
-	add.f32 	%f204, %f202, %f203;
-$L__tmp141:
+	add.f32 	%f204, %f112, %f203;
+$L__tmp94:
 	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r205, %r206, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f205, %r205;
-$L__tmp142:
+	mov.b32 	%r158, %f204;
+	shfl.sync.bfly.b32 %r157, %r158, 0x2, 0x1f, 0xffffffff;
+	mov.b32 	%f205, %r157;
+$L__tmp95:
 	.loc	2 1518 15
-	add.f32 	%f206, %f205, %f15;
-$L__tmp143:
+	add.f32 	%f206, %f204, %f205;
+$L__tmp96:
 	.loc	2 1527 31
-	mov.b32 	%r208, %f206;
-	shfl.sync.bfly.b32 %r207, %r208, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f207, %r207;
-$L__tmp144:
+	mov.b32 	%r160, %f206;
+	shfl.sync.bfly.b32 %r159, %r160, 0x1, 0x1f, 0xffffffff;
+	mov.b32 	%f207, %r159;
+$L__tmp97:
 	.loc	2 1518 15
 	add.f32 	%f208, %f206, %f207;
-$L__tmp145:
-	.loc	2 1527 31
-	mov.b32 	%r210, %f208;
-	shfl.sync.bfly.b32 %r209, %r210, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f209, %r209;
-$L__tmp146:
-	.loc	2 1518 15
-	add.f32 	%f210, %f208, %f209;
-$L__tmp147:
-	.loc	2 1527 31
-	mov.b32 	%r212, %f210;
-	shfl.sync.bfly.b32 %r211, %r212, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f211, %r211;
-$L__tmp148:
-	.loc	2 1518 15
-	add.f32 	%f212, %f210, %f211;
-$L__tmp149:
-	.loc	2 1527 31
-	mov.b32 	%r214, %f212;
-	shfl.sync.bfly.b32 %r213, %r214, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f213, %r213;
-$L__tmp150:
-	.loc	2 1518 15
-	add.f32 	%f214, %f212, %f213;
-$L__tmp151:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r215, %r216, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f215, %r215;
-$L__tmp152:
-	.loc	2 1518 15
-	add.f32 	%f216, %f215, %f16;
-$L__tmp153:
-	.loc	2 1527 31
-	mov.b32 	%r218, %f216;
-	shfl.sync.bfly.b32 %r217, %r218, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f217, %r217;
-$L__tmp154:
-	.loc	2 1518 15
-	add.f32 	%f218, %f216, %f217;
-$L__tmp155:
-	.loc	2 1527 31
-	mov.b32 	%r220, %f218;
-	shfl.sync.bfly.b32 %r219, %r220, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f219, %r219;
-$L__tmp156:
-	.loc	2 1518 15
-	add.f32 	%f220, %f218, %f219;
-$L__tmp157:
-	.loc	2 1527 31
-	mov.b32 	%r222, %f220;
-	shfl.sync.bfly.b32 %r221, %r222, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f221, %r221;
-$L__tmp158:
-	.loc	2 1518 15
-	add.f32 	%f222, %f220, %f221;
-$L__tmp159:
-	.loc	2 1527 31
-	mov.b32 	%r224, %f222;
-	shfl.sync.bfly.b32 %r223, %r224, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f223, %r223;
-$L__tmp160:
-	.loc	2 1518 15
-	add.f32 	%f224, %f222, %f223;
-$L__tmp161:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r225, %r226, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f225, %r225;
-$L__tmp162:
-	.loc	2 1518 15
-	add.f32 	%f226, %f225, %f17;
-$L__tmp163:
-	.loc	2 1527 31
-	mov.b32 	%r228, %f226;
-	shfl.sync.bfly.b32 %r227, %r228, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f227, %r227;
-$L__tmp164:
-	.loc	2 1518 15
-	add.f32 	%f228, %f226, %f227;
-$L__tmp165:
-	.loc	2 1527 31
-	mov.b32 	%r230, %f228;
-	shfl.sync.bfly.b32 %r229, %r230, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f229, %r229;
-$L__tmp166:
-	.loc	2 1518 15
-	add.f32 	%f230, %f228, %f229;
-$L__tmp167:
-	.loc	2 1527 31
-	mov.b32 	%r232, %f230;
-	shfl.sync.bfly.b32 %r231, %r232, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f231, %r231;
-$L__tmp168:
-	.loc	2 1518 15
-	add.f32 	%f232, %f230, %f231;
-$L__tmp169:
-	.loc	2 1527 31
-	mov.b32 	%r234, %f232;
-	shfl.sync.bfly.b32 %r233, %r234, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f233, %r233;
-$L__tmp170:
-	.loc	2 1518 15
-	add.f32 	%f234, %f232, %f233;
-$L__tmp171:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r235, %r236, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f235, %r235;
-$L__tmp172:
-	.loc	2 1518 15
-	add.f32 	%f236, %f235, %f18;
-$L__tmp173:
-	.loc	2 1527 31
-	mov.b32 	%r238, %f236;
-	shfl.sync.bfly.b32 %r237, %r238, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f237, %r237;
-$L__tmp174:
-	.loc	2 1518 15
-	add.f32 	%f238, %f236, %f237;
-$L__tmp175:
-	.loc	2 1527 31
-	mov.b32 	%r240, %f238;
-	shfl.sync.bfly.b32 %r239, %r240, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f239, %r239;
-$L__tmp176:
-	.loc	2 1518 15
-	add.f32 	%f240, %f238, %f239;
-$L__tmp177:
-	.loc	2 1527 31
-	mov.b32 	%r242, %f240;
-	shfl.sync.bfly.b32 %r241, %r242, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f241, %r241;
-$L__tmp178:
-	.loc	2 1518 15
-	add.f32 	%f242, %f240, %f241;
-$L__tmp179:
-	.loc	2 1527 31
-	mov.b32 	%r244, %f242;
-	shfl.sync.bfly.b32 %r243, %r244, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f243, %r243;
-$L__tmp180:
-	.loc	2 1518 15
-	add.f32 	%f244, %f242, %f243;
-$L__tmp181:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r245, %r246, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f245, %r245;
-$L__tmp182:
-	.loc	2 1518 15
-	add.f32 	%f246, %f245, %f19;
-$L__tmp183:
-	.loc	2 1527 31
-	mov.b32 	%r248, %f246;
-	shfl.sync.bfly.b32 %r247, %r248, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f247, %r247;
-$L__tmp184:
-	.loc	2 1518 15
-	add.f32 	%f248, %f246, %f247;
-$L__tmp185:
-	.loc	2 1527 31
-	mov.b32 	%r250, %f248;
-	shfl.sync.bfly.b32 %r249, %r250, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f249, %r249;
-$L__tmp186:
-	.loc	2 1518 15
-	add.f32 	%f250, %f248, %f249;
-$L__tmp187:
-	.loc	2 1527 31
-	mov.b32 	%r252, %f250;
-	shfl.sync.bfly.b32 %r251, %r252, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f251, %r251;
-$L__tmp188:
-	.loc	2 1518 15
-	add.f32 	%f252, %f250, %f251;
-$L__tmp189:
-	.loc	2 1527 31
-	mov.b32 	%r254, %f252;
-	shfl.sync.bfly.b32 %r253, %r254, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f253, %r253;
-$L__tmp190:
-	.loc	2 1518 15
-	add.f32 	%f254, %f252, %f253;
-$L__tmp191:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r255, %r256, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f255, %r255;
-$L__tmp192:
-	.loc	2 1518 15
-	add.f32 	%f256, %f255, %f20;
-$L__tmp193:
-	.loc	2 1527 31
-	mov.b32 	%r258, %f256;
-	shfl.sync.bfly.b32 %r257, %r258, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f257, %r257;
-$L__tmp194:
-	.loc	2 1518 15
-	add.f32 	%f258, %f256, %f257;
-$L__tmp195:
-	.loc	2 1527 31
-	mov.b32 	%r260, %f258;
-	shfl.sync.bfly.b32 %r259, %r260, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f259, %r259;
-$L__tmp196:
-	.loc	2 1518 15
-	add.f32 	%f260, %f258, %f259;
-$L__tmp197:
-	.loc	2 1527 31
-	mov.b32 	%r262, %f260;
-	shfl.sync.bfly.b32 %r261, %r262, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f261, %r261;
-$L__tmp198:
-	.loc	2 1518 15
-	add.f32 	%f262, %f260, %f261;
-$L__tmp199:
-	.loc	2 1527 31
-	mov.b32 	%r264, %f262;
-	shfl.sync.bfly.b32 %r263, %r264, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f263, %r263;
-$L__tmp200:
-	.loc	2 1518 15
-	add.f32 	%f264, %f262, %f263;
-$L__tmp201:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r265, %r266, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f265, %r265;
-$L__tmp202:
-	.loc	2 1518 15
-	add.f32 	%f266, %f265, %f21;
-$L__tmp203:
-	.loc	2 1527 31
-	mov.b32 	%r268, %f266;
-	shfl.sync.bfly.b32 %r267, %r268, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f267, %r267;
-$L__tmp204:
-	.loc	2 1518 15
-	add.f32 	%f268, %f266, %f267;
-$L__tmp205:
-	.loc	2 1527 31
-	mov.b32 	%r270, %f268;
-	shfl.sync.bfly.b32 %r269, %r270, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f269, %r269;
-$L__tmp206:
-	.loc	2 1518 15
-	add.f32 	%f270, %f268, %f269;
-$L__tmp207:
-	.loc	2 1527 31
-	mov.b32 	%r272, %f270;
-	shfl.sync.bfly.b32 %r271, %r272, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f271, %r271;
-$L__tmp208:
-	.loc	2 1518 15
-	add.f32 	%f272, %f270, %f271;
-$L__tmp209:
-	.loc	2 1527 31
-	mov.b32 	%r274, %f272;
-	shfl.sync.bfly.b32 %r273, %r274, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f273, %r273;
-$L__tmp210:
-	.loc	2 1518 15
-	add.f32 	%f274, %f272, %f273;
-$L__tmp211:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r275, %r276, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f275, %r275;
-$L__tmp212:
-	.loc	2 1518 15
-	add.f32 	%f276, %f275, %f22;
-$L__tmp213:
-	.loc	2 1527 31
-	mov.b32 	%r278, %f276;
-	shfl.sync.bfly.b32 %r277, %r278, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f277, %r277;
-$L__tmp214:
-	.loc	2 1518 15
-	add.f32 	%f278, %f276, %f277;
-$L__tmp215:
-	.loc	2 1527 31
-	mov.b32 	%r280, %f278;
-	shfl.sync.bfly.b32 %r279, %r280, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f279, %r279;
-$L__tmp216:
-	.loc	2 1518 15
-	add.f32 	%f280, %f278, %f279;
-$L__tmp217:
-	.loc	2 1527 31
-	mov.b32 	%r282, %f280;
-	shfl.sync.bfly.b32 %r281, %r282, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f281, %r281;
-$L__tmp218:
-	.loc	2 1518 15
-	add.f32 	%f282, %f280, %f281;
-$L__tmp219:
-	.loc	2 1527 31
-	mov.b32 	%r284, %f282;
-	shfl.sync.bfly.b32 %r283, %r284, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f283, %r283;
-$L__tmp220:
-	.loc	2 1518 15
-	add.f32 	%f284, %f282, %f283;
-$L__tmp221:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r285, %r286, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f285, %r285;
-$L__tmp222:
-	.loc	2 1518 15
-	add.f32 	%f286, %f285, %f23;
-$L__tmp223:
-	.loc	2 1527 31
-	mov.b32 	%r288, %f286;
-	shfl.sync.bfly.b32 %r287, %r288, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f287, %r287;
-$L__tmp224:
-	.loc	2 1518 15
-	add.f32 	%f288, %f286, %f287;
-$L__tmp225:
-	.loc	2 1527 31
-	mov.b32 	%r290, %f288;
-	shfl.sync.bfly.b32 %r289, %r290, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f289, %r289;
-$L__tmp226:
-	.loc	2 1518 15
-	add.f32 	%f290, %f288, %f289;
-$L__tmp227:
-	.loc	2 1527 31
-	mov.b32 	%r292, %f290;
-	shfl.sync.bfly.b32 %r291, %r292, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f291, %r291;
-$L__tmp228:
-	.loc	2 1518 15
-	add.f32 	%f292, %f290, %f291;
-$L__tmp229:
-	.loc	2 1527 31
-	mov.b32 	%r294, %f292;
-	shfl.sync.bfly.b32 %r293, %r294, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f293, %r293;
-$L__tmp230:
-	.loc	2 1518 15
-	add.f32 	%f294, %f292, %f293;
-$L__tmp231:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r295, %r296, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f295, %r295;
-$L__tmp232:
-	.loc	2 1518 15
-	add.f32 	%f296, %f295, %f24;
-$L__tmp233:
-	.loc	2 1527 31
-	mov.b32 	%r298, %f296;
-	shfl.sync.bfly.b32 %r297, %r298, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f297, %r297;
-$L__tmp234:
-	.loc	2 1518 15
-	add.f32 	%f298, %f296, %f297;
-$L__tmp235:
-	.loc	2 1527 31
-	mov.b32 	%r300, %f298;
-	shfl.sync.bfly.b32 %r299, %r300, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f299, %r299;
-$L__tmp236:
-	.loc	2 1518 15
-	add.f32 	%f300, %f298, %f299;
-$L__tmp237:
-	.loc	2 1527 31
-	mov.b32 	%r302, %f300;
-	shfl.sync.bfly.b32 %r301, %r302, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f301, %r301;
-$L__tmp238:
-	.loc	2 1518 15
-	add.f32 	%f302, %f300, %f301;
-$L__tmp239:
-	.loc	2 1527 31
-	mov.b32 	%r304, %f302;
-	shfl.sync.bfly.b32 %r303, %r304, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f303, %r303;
-$L__tmp240:
-	.loc	2 1518 15
-	add.f32 	%f304, %f302, %f303;
-$L__tmp241:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r305, %r306, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f305, %r305;
-$L__tmp242:
-	.loc	2 1518 15
-	add.f32 	%f306, %f305, %f25;
-$L__tmp243:
-	.loc	2 1527 31
-	mov.b32 	%r308, %f306;
-	shfl.sync.bfly.b32 %r307, %r308, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f307, %r307;
-$L__tmp244:
-	.loc	2 1518 15
-	add.f32 	%f308, %f306, %f307;
-$L__tmp245:
-	.loc	2 1527 31
-	mov.b32 	%r310, %f308;
-	shfl.sync.bfly.b32 %r309, %r310, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f309, %r309;
-$L__tmp246:
-	.loc	2 1518 15
-	add.f32 	%f310, %f308, %f309;
-$L__tmp247:
-	.loc	2 1527 31
-	mov.b32 	%r312, %f310;
-	shfl.sync.bfly.b32 %r311, %r312, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f311, %r311;
-$L__tmp248:
-	.loc	2 1518 15
-	add.f32 	%f312, %f310, %f311;
-$L__tmp249:
-	.loc	2 1527 31
-	mov.b32 	%r314, %f312;
-	shfl.sync.bfly.b32 %r313, %r314, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f313, %r313;
-$L__tmp250:
-	.loc	2 1518 15
-	add.f32 	%f314, %f312, %f313;
-$L__tmp251:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r315, %r316, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f315, %r315;
-$L__tmp252:
-	.loc	2 1518 15
-	add.f32 	%f316, %f315, %f26;
-$L__tmp253:
-	.loc	2 1527 31
-	mov.b32 	%r318, %f316;
-	shfl.sync.bfly.b32 %r317, %r318, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f317, %r317;
-$L__tmp254:
-	.loc	2 1518 15
-	add.f32 	%f318, %f316, %f317;
-$L__tmp255:
-	.loc	2 1527 31
-	mov.b32 	%r320, %f318;
-	shfl.sync.bfly.b32 %r319, %r320, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f319, %r319;
-$L__tmp256:
-	.loc	2 1518 15
-	add.f32 	%f320, %f318, %f319;
-$L__tmp257:
-	.loc	2 1527 31
-	mov.b32 	%r322, %f320;
-	shfl.sync.bfly.b32 %r321, %r322, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f321, %r321;
-$L__tmp258:
-	.loc	2 1518 15
-	add.f32 	%f322, %f320, %f321;
-$L__tmp259:
-	.loc	2 1527 31
-	mov.b32 	%r324, %f322;
-	shfl.sync.bfly.b32 %r323, %r324, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f323, %r323;
-$L__tmp260:
-	.loc	2 1518 15
-	add.f32 	%f324, %f322, %f323;
-$L__tmp261:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r325, %r326, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f325, %r325;
-$L__tmp262:
-	.loc	2 1518 15
-	add.f32 	%f326, %f325, %f27;
-$L__tmp263:
-	.loc	2 1527 31
-	mov.b32 	%r328, %f326;
-	shfl.sync.bfly.b32 %r327, %r328, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f327, %r327;
-$L__tmp264:
-	.loc	2 1518 15
-	add.f32 	%f328, %f326, %f327;
-$L__tmp265:
-	.loc	2 1527 31
-	mov.b32 	%r330, %f328;
-	shfl.sync.bfly.b32 %r329, %r330, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f329, %r329;
-$L__tmp266:
-	.loc	2 1518 15
-	add.f32 	%f330, %f328, %f329;
-$L__tmp267:
-	.loc	2 1527 31
-	mov.b32 	%r332, %f330;
-	shfl.sync.bfly.b32 %r331, %r332, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f331, %r331;
-$L__tmp268:
-	.loc	2 1518 15
-	add.f32 	%f332, %f330, %f331;
-$L__tmp269:
-	.loc	2 1527 31
-	mov.b32 	%r334, %f332;
-	shfl.sync.bfly.b32 %r333, %r334, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f333, %r333;
-$L__tmp270:
-	.loc	2 1518 15
-	add.f32 	%f334, %f332, %f333;
-$L__tmp271:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r335, %r336, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f335, %r335;
-$L__tmp272:
-	.loc	2 1518 15
-	add.f32 	%f336, %f335, %f28;
-$L__tmp273:
-	.loc	2 1527 31
-	mov.b32 	%r338, %f336;
-	shfl.sync.bfly.b32 %r337, %r338, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f337, %r337;
-$L__tmp274:
-	.loc	2 1518 15
-	add.f32 	%f338, %f336, %f337;
-$L__tmp275:
-	.loc	2 1527 31
-	mov.b32 	%r340, %f338;
-	shfl.sync.bfly.b32 %r339, %r340, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f339, %r339;
-$L__tmp276:
-	.loc	2 1518 15
-	add.f32 	%f340, %f338, %f339;
-$L__tmp277:
-	.loc	2 1527 31
-	mov.b32 	%r342, %f340;
-	shfl.sync.bfly.b32 %r341, %r342, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f341, %r341;
-$L__tmp278:
-	.loc	2 1518 15
-	add.f32 	%f342, %f340, %f341;
-$L__tmp279:
-	.loc	2 1527 31
-	mov.b32 	%r344, %f342;
-	shfl.sync.bfly.b32 %r343, %r344, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f343, %r343;
-$L__tmp280:
-	.loc	2 1518 15
-	add.f32 	%f344, %f342, %f343;
-$L__tmp281:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r345, %r346, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f345, %r345;
-$L__tmp282:
-	.loc	2 1518 15
-	add.f32 	%f346, %f345, %f29;
-$L__tmp283:
-	.loc	2 1527 31
-	mov.b32 	%r348, %f346;
-	shfl.sync.bfly.b32 %r347, %r348, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f347, %r347;
-$L__tmp284:
-	.loc	2 1518 15
-	add.f32 	%f348, %f346, %f347;
-$L__tmp285:
-	.loc	2 1527 31
-	mov.b32 	%r350, %f348;
-	shfl.sync.bfly.b32 %r349, %r350, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f349, %r349;
-$L__tmp286:
-	.loc	2 1518 15
-	add.f32 	%f350, %f348, %f349;
-$L__tmp287:
-	.loc	2 1527 31
-	mov.b32 	%r352, %f350;
-	shfl.sync.bfly.b32 %r351, %r352, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f351, %r351;
-$L__tmp288:
-	.loc	2 1518 15
-	add.f32 	%f352, %f350, %f351;
-$L__tmp289:
-	.loc	2 1527 31
-	mov.b32 	%r354, %f352;
-	shfl.sync.bfly.b32 %r353, %r354, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f353, %r353;
-$L__tmp290:
-	.loc	2 1518 15
-	add.f32 	%f354, %f352, %f353;
-$L__tmp291:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r355, %r356, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f355, %r355;
-$L__tmp292:
-	.loc	2 1518 15
-	add.f32 	%f356, %f355, %f30;
-$L__tmp293:
-	.loc	2 1527 31
-	mov.b32 	%r358, %f356;
-	shfl.sync.bfly.b32 %r357, %r358, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f357, %r357;
-$L__tmp294:
-	.loc	2 1518 15
-	add.f32 	%f358, %f356, %f357;
-$L__tmp295:
-	.loc	2 1527 31
-	mov.b32 	%r360, %f358;
-	shfl.sync.bfly.b32 %r359, %r360, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f359, %r359;
-$L__tmp296:
-	.loc	2 1518 15
-	add.f32 	%f360, %f358, %f359;
-$L__tmp297:
-	.loc	2 1527 31
-	mov.b32 	%r362, %f360;
-	shfl.sync.bfly.b32 %r361, %r362, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f361, %r361;
-$L__tmp298:
-	.loc	2 1518 15
-	add.f32 	%f362, %f360, %f361;
-$L__tmp299:
-	.loc	2 1527 31
-	mov.b32 	%r364, %f362;
-	shfl.sync.bfly.b32 %r363, %r364, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f363, %r363;
-$L__tmp300:
-	.loc	2 1518 15
-	add.f32 	%f364, %f362, %f363;
-$L__tmp301:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r365, %r366, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f365, %r365;
-$L__tmp302:
-	.loc	2 1518 15
-	add.f32 	%f366, %f365, %f31;
-$L__tmp303:
-	.loc	2 1527 31
-	mov.b32 	%r368, %f366;
-	shfl.sync.bfly.b32 %r367, %r368, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f367, %r367;
-$L__tmp304:
-	.loc	2 1518 15
-	add.f32 	%f368, %f366, %f367;
-$L__tmp305:
-	.loc	2 1527 31
-	mov.b32 	%r370, %f368;
-	shfl.sync.bfly.b32 %r369, %r370, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f369, %r369;
-$L__tmp306:
-	.loc	2 1518 15
-	add.f32 	%f370, %f368, %f369;
-$L__tmp307:
-	.loc	2 1527 31
-	mov.b32 	%r372, %f370;
-	shfl.sync.bfly.b32 %r371, %r372, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f371, %r371;
-$L__tmp308:
-	.loc	2 1518 15
-	add.f32 	%f372, %f370, %f371;
-$L__tmp309:
-	.loc	2 1527 31
-	mov.b32 	%r374, %f372;
-	shfl.sync.bfly.b32 %r373, %r374, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f373, %r373;
-$L__tmp310:
-	.loc	2 1518 15
-	add.f32 	%f374, %f372, %f373;
-$L__tmp311:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r375, %r376, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f375, %r375;
-$L__tmp312:
-	.loc	2 1518 15
-	add.f32 	%f376, %f375, %f32;
-$L__tmp313:
-	.loc	2 1527 31
-	mov.b32 	%r378, %f376;
-	shfl.sync.bfly.b32 %r377, %r378, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f377, %r377;
-$L__tmp314:
-	.loc	2 1518 15
-	add.f32 	%f378, %f376, %f377;
-$L__tmp315:
-	.loc	2 1527 31
-	mov.b32 	%r380, %f378;
-	shfl.sync.bfly.b32 %r379, %r380, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f379, %r379;
-$L__tmp316:
-	.loc	2 1518 15
-	add.f32 	%f380, %f378, %f379;
-$L__tmp317:
-	.loc	2 1527 31
-	mov.b32 	%r382, %f380;
-	shfl.sync.bfly.b32 %r381, %r382, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f381, %r381;
-$L__tmp318:
-	.loc	2 1518 15
-	add.f32 	%f382, %f380, %f381;
-$L__tmp319:
-	.loc	2 1527 31
-	mov.b32 	%r384, %f382;
-	shfl.sync.bfly.b32 %r383, %r384, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f383, %r383;
-$L__tmp320:
-	.loc	2 1518 15
-	add.f32 	%f384, %f382, %f383;
-$L__tmp321:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r385, %r386, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f385, %r385;
-$L__tmp322:
-	.loc	2 1518 15
-	add.f32 	%f386, %f385, %f33;
-$L__tmp323:
-	.loc	2 1527 31
-	mov.b32 	%r388, %f386;
-	shfl.sync.bfly.b32 %r387, %r388, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f387, %r387;
-$L__tmp324:
-	.loc	2 1518 15
-	add.f32 	%f388, %f386, %f387;
-$L__tmp325:
-	.loc	2 1527 31
-	mov.b32 	%r390, %f388;
-	shfl.sync.bfly.b32 %r389, %r390, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f389, %r389;
-$L__tmp326:
-	.loc	2 1518 15
-	add.f32 	%f390, %f388, %f389;
-$L__tmp327:
-	.loc	2 1527 31
-	mov.b32 	%r392, %f390;
-	shfl.sync.bfly.b32 %r391, %r392, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f391, %r391;
-$L__tmp328:
-	.loc	2 1518 15
-	add.f32 	%f392, %f390, %f391;
-$L__tmp329:
-	.loc	2 1527 31
-	mov.b32 	%r394, %f392;
-	shfl.sync.bfly.b32 %r393, %r394, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f393, %r393;
-$L__tmp330:
-	.loc	2 1518 15
-	add.f32 	%f394, %f392, %f393;
-$L__tmp331:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r395, %r396, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f395, %r395;
-$L__tmp332:
-	.loc	2 1518 15
-	add.f32 	%f396, %f395, %f34;
-$L__tmp333:
-	.loc	2 1527 31
-	mov.b32 	%r398, %f396;
-	shfl.sync.bfly.b32 %r397, %r398, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f397, %r397;
-$L__tmp334:
-	.loc	2 1518 15
-	add.f32 	%f398, %f396, %f397;
-$L__tmp335:
-	.loc	2 1527 31
-	mov.b32 	%r400, %f398;
-	shfl.sync.bfly.b32 %r399, %r400, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f399, %r399;
-$L__tmp336:
-	.loc	2 1518 15
-	add.f32 	%f400, %f398, %f399;
-$L__tmp337:
-	.loc	2 1527 31
-	mov.b32 	%r402, %f400;
-	shfl.sync.bfly.b32 %r401, %r402, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f401, %r401;
-$L__tmp338:
-	.loc	2 1518 15
-	add.f32 	%f402, %f400, %f401;
-$L__tmp339:
-	.loc	2 1527 31
-	mov.b32 	%r404, %f402;
-	shfl.sync.bfly.b32 %r403, %r404, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f403, %r403;
-$L__tmp340:
-	.loc	2 1518 15
-	add.f32 	%f404, %f402, %f403;
-$L__tmp341:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r405, %r406, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f405, %r405;
-$L__tmp342:
-	.loc	2 1518 15
-	add.f32 	%f406, %f405, %f35;
-$L__tmp343:
-	.loc	2 1527 31
-	mov.b32 	%r408, %f406;
-	shfl.sync.bfly.b32 %r407, %r408, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f407, %r407;
-$L__tmp344:
-	.loc	2 1518 15
-	add.f32 	%f408, %f406, %f407;
-$L__tmp345:
-	.loc	2 1527 31
-	mov.b32 	%r410, %f408;
-	shfl.sync.bfly.b32 %r409, %r410, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f409, %r409;
-$L__tmp346:
-	.loc	2 1518 15
-	add.f32 	%f410, %f408, %f409;
-$L__tmp347:
-	.loc	2 1527 31
-	mov.b32 	%r412, %f410;
-	shfl.sync.bfly.b32 %r411, %r412, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f411, %r411;
-$L__tmp348:
-	.loc	2 1518 15
-	add.f32 	%f412, %f410, %f411;
-$L__tmp349:
-	.loc	2 1527 31
-	mov.b32 	%r414, %f412;
-	shfl.sync.bfly.b32 %r413, %r414, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f413, %r413;
-$L__tmp350:
-	.loc	2 1518 15
-	add.f32 	%f414, %f412, %f413;
-$L__tmp351:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r415, %r416, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f415, %r415;
-$L__tmp352:
-	.loc	2 1518 15
-	add.f32 	%f416, %f415, %f36;
-$L__tmp353:
-	.loc	2 1527 31
-	mov.b32 	%r418, %f416;
-	shfl.sync.bfly.b32 %r417, %r418, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f417, %r417;
-$L__tmp354:
-	.loc	2 1518 15
-	add.f32 	%f418, %f416, %f417;
-$L__tmp355:
-	.loc	2 1527 31
-	mov.b32 	%r420, %f418;
-	shfl.sync.bfly.b32 %r419, %r420, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f419, %r419;
-$L__tmp356:
-	.loc	2 1518 15
-	add.f32 	%f420, %f418, %f419;
-$L__tmp357:
-	.loc	2 1527 31
-	mov.b32 	%r422, %f420;
-	shfl.sync.bfly.b32 %r421, %r422, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f421, %r421;
-$L__tmp358:
-	.loc	2 1518 15
-	add.f32 	%f422, %f420, %f421;
-$L__tmp359:
-	.loc	2 1527 31
-	mov.b32 	%r424, %f422;
-	shfl.sync.bfly.b32 %r423, %r424, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f423, %r423;
-$L__tmp360:
-	.loc	2 1518 15
-	add.f32 	%f424, %f422, %f423;
-$L__tmp361:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r425, %r426, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f425, %r425;
-$L__tmp362:
-	.loc	2 1518 15
-	add.f32 	%f426, %f425, %f37;
-$L__tmp363:
-	.loc	2 1527 31
-	mov.b32 	%r428, %f426;
-	shfl.sync.bfly.b32 %r427, %r428, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f427, %r427;
-$L__tmp364:
-	.loc	2 1518 15
-	add.f32 	%f428, %f426, %f427;
-$L__tmp365:
-	.loc	2 1527 31
-	mov.b32 	%r430, %f428;
-	shfl.sync.bfly.b32 %r429, %r430, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f429, %r429;
-$L__tmp366:
-	.loc	2 1518 15
-	add.f32 	%f430, %f428, %f429;
-$L__tmp367:
-	.loc	2 1527 31
-	mov.b32 	%r432, %f430;
-	shfl.sync.bfly.b32 %r431, %r432, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f431, %r431;
-$L__tmp368:
-	.loc	2 1518 15
-	add.f32 	%f432, %f430, %f431;
-$L__tmp369:
-	.loc	2 1527 31
-	mov.b32 	%r434, %f432;
-	shfl.sync.bfly.b32 %r433, %r434, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f433, %r433;
-$L__tmp370:
-	.loc	2 1518 15
-	add.f32 	%f434, %f432, %f433;
-$L__tmp371:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r435, %r436, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f435, %r435;
-$L__tmp372:
-	.loc	2 1518 15
-	add.f32 	%f436, %f435, %f38;
-$L__tmp373:
-	.loc	2 1527 31
-	mov.b32 	%r438, %f436;
-	shfl.sync.bfly.b32 %r437, %r438, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f437, %r437;
-$L__tmp374:
-	.loc	2 1518 15
-	add.f32 	%f438, %f436, %f437;
-$L__tmp375:
-	.loc	2 1527 31
-	mov.b32 	%r440, %f438;
-	shfl.sync.bfly.b32 %r439, %r440, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f439, %r439;
-$L__tmp376:
-	.loc	2 1518 15
-	add.f32 	%f440, %f438, %f439;
-$L__tmp377:
-	.loc	2 1527 31
-	mov.b32 	%r442, %f440;
-	shfl.sync.bfly.b32 %r441, %r442, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f441, %r441;
-$L__tmp378:
-	.loc	2 1518 15
-	add.f32 	%f442, %f440, %f441;
-$L__tmp379:
-	.loc	2 1527 31
-	mov.b32 	%r444, %f442;
-	shfl.sync.bfly.b32 %r443, %r444, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f443, %r443;
-$L__tmp380:
-	.loc	2 1518 15
-	add.f32 	%f444, %f442, %f443;
-$L__tmp381:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r445, %r446, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f445, %r445;
-$L__tmp382:
-	.loc	2 1518 15
-	add.f32 	%f446, %f445, %f39;
-$L__tmp383:
-	.loc	2 1527 31
-	mov.b32 	%r448, %f446;
-	shfl.sync.bfly.b32 %r447, %r448, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f447, %r447;
-$L__tmp384:
-	.loc	2 1518 15
-	add.f32 	%f448, %f446, %f447;
-$L__tmp385:
-	.loc	2 1527 31
-	mov.b32 	%r450, %f448;
-	shfl.sync.bfly.b32 %r449, %r450, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f449, %r449;
-$L__tmp386:
-	.loc	2 1518 15
-	add.f32 	%f450, %f448, %f449;
-$L__tmp387:
-	.loc	2 1527 31
-	mov.b32 	%r452, %f450;
-	shfl.sync.bfly.b32 %r451, %r452, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f451, %r451;
-$L__tmp388:
-	.loc	2 1518 15
-	add.f32 	%f452, %f450, %f451;
-$L__tmp389:
-	.loc	2 1527 31
-	mov.b32 	%r454, %f452;
-	shfl.sync.bfly.b32 %r453, %r454, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f453, %r453;
-$L__tmp390:
-	.loc	2 1518 15
-	add.f32 	%f454, %f452, %f453;
-$L__tmp391:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r455, %r456, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f455, %r455;
-$L__tmp392:
-	.loc	2 1518 15
-	add.f32 	%f456, %f455, %f40;
-$L__tmp393:
-	.loc	2 1527 31
-	mov.b32 	%r458, %f456;
-	shfl.sync.bfly.b32 %r457, %r458, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f457, %r457;
-$L__tmp394:
-	.loc	2 1518 15
-	add.f32 	%f458, %f456, %f457;
-$L__tmp395:
-	.loc	2 1527 31
-	mov.b32 	%r460, %f458;
-	shfl.sync.bfly.b32 %r459, %r460, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f459, %r459;
-$L__tmp396:
-	.loc	2 1518 15
-	add.f32 	%f460, %f458, %f459;
-$L__tmp397:
-	.loc	2 1527 31
-	mov.b32 	%r462, %f460;
-	shfl.sync.bfly.b32 %r461, %r462, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f461, %r461;
-$L__tmp398:
-	.loc	2 1518 15
-	add.f32 	%f462, %f460, %f461;
-$L__tmp399:
-	.loc	2 1527 31
-	mov.b32 	%r464, %f462;
-	shfl.sync.bfly.b32 %r463, %r464, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f463, %r463;
-$L__tmp400:
-	.loc	2 1518 15
-	add.f32 	%f464, %f462, %f463;
-$L__tmp401:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r465, %r466, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f465, %r465;
-$L__tmp402:
-	.loc	2 1518 15
-	add.f32 	%f466, %f465, %f41;
-$L__tmp403:
-	.loc	2 1527 31
-	mov.b32 	%r468, %f466;
-	shfl.sync.bfly.b32 %r467, %r468, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f467, %r467;
-$L__tmp404:
-	.loc	2 1518 15
-	add.f32 	%f468, %f466, %f467;
-$L__tmp405:
-	.loc	2 1527 31
-	mov.b32 	%r470, %f468;
-	shfl.sync.bfly.b32 %r469, %r470, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f469, %r469;
-$L__tmp406:
-	.loc	2 1518 15
-	add.f32 	%f470, %f468, %f469;
-$L__tmp407:
-	.loc	2 1527 31
-	mov.b32 	%r472, %f470;
-	shfl.sync.bfly.b32 %r471, %r472, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f471, %r471;
-$L__tmp408:
-	.loc	2 1518 15
-	add.f32 	%f472, %f470, %f471;
-$L__tmp409:
-	.loc	2 1527 31
-	mov.b32 	%r474, %f472;
-	shfl.sync.bfly.b32 %r473, %r474, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f473, %r473;
-$L__tmp410:
-	.loc	2 1518 15
-	add.f32 	%f474, %f472, %f473;
-$L__tmp411:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r475, %r476, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f475, %r475;
-$L__tmp412:
-	.loc	2 1518 15
-	add.f32 	%f476, %f475, %f42;
-$L__tmp413:
-	.loc	2 1527 31
-	mov.b32 	%r478, %f476;
-	shfl.sync.bfly.b32 %r477, %r478, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f477, %r477;
-$L__tmp414:
-	.loc	2 1518 15
-	add.f32 	%f478, %f476, %f477;
-$L__tmp415:
-	.loc	2 1527 31
-	mov.b32 	%r480, %f478;
-	shfl.sync.bfly.b32 %r479, %r480, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f479, %r479;
-$L__tmp416:
-	.loc	2 1518 15
-	add.f32 	%f480, %f478, %f479;
-$L__tmp417:
-	.loc	2 1527 31
-	mov.b32 	%r482, %f480;
-	shfl.sync.bfly.b32 %r481, %r482, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f481, %r481;
-$L__tmp418:
-	.loc	2 1518 15
-	add.f32 	%f482, %f480, %f481;
-$L__tmp419:
-	.loc	2 1527 31
-	mov.b32 	%r484, %f482;
-	shfl.sync.bfly.b32 %r483, %r484, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f483, %r483;
-$L__tmp420:
-	.loc	2 1518 15
-	add.f32 	%f484, %f482, %f483;
-$L__tmp421:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r485, %r486, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f485, %r485;
-$L__tmp422:
-	.loc	2 1518 15
-	add.f32 	%f486, %f485, %f43;
-$L__tmp423:
-	.loc	2 1527 31
-	mov.b32 	%r488, %f486;
-	shfl.sync.bfly.b32 %r487, %r488, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f487, %r487;
-$L__tmp424:
-	.loc	2 1518 15
-	add.f32 	%f488, %f486, %f487;
-$L__tmp425:
-	.loc	2 1527 31
-	mov.b32 	%r490, %f488;
-	shfl.sync.bfly.b32 %r489, %r490, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f489, %r489;
-$L__tmp426:
-	.loc	2 1518 15
-	add.f32 	%f490, %f488, %f489;
-$L__tmp427:
-	.loc	2 1527 31
-	mov.b32 	%r492, %f490;
-	shfl.sync.bfly.b32 %r491, %r492, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f491, %r491;
-$L__tmp428:
-	.loc	2 1518 15
-	add.f32 	%f492, %f490, %f491;
-$L__tmp429:
-	.loc	2 1527 31
-	mov.b32 	%r494, %f492;
-	shfl.sync.bfly.b32 %r493, %r494, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f493, %r493;
-$L__tmp430:
-	.loc	2 1518 15
-	add.f32 	%f494, %f492, %f493;
-$L__tmp431:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r495, %r496, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f495, %r495;
-$L__tmp432:
-	.loc	2 1518 15
-	add.f32 	%f496, %f495, %f44;
-$L__tmp433:
-	.loc	2 1527 31
-	mov.b32 	%r498, %f496;
-	shfl.sync.bfly.b32 %r497, %r498, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f497, %r497;
-$L__tmp434:
-	.loc	2 1518 15
-	add.f32 	%f498, %f496, %f497;
-$L__tmp435:
-	.loc	2 1527 31
-	mov.b32 	%r500, %f498;
-	shfl.sync.bfly.b32 %r499, %r500, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f499, %r499;
-$L__tmp436:
-	.loc	2 1518 15
-	add.f32 	%f500, %f498, %f499;
-$L__tmp437:
-	.loc	2 1527 31
-	mov.b32 	%r502, %f500;
-	shfl.sync.bfly.b32 %r501, %r502, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f501, %r501;
-$L__tmp438:
-	.loc	2 1518 15
-	add.f32 	%f502, %f500, %f501;
-$L__tmp439:
-	.loc	2 1527 31
-	mov.b32 	%r504, %f502;
-	shfl.sync.bfly.b32 %r503, %r504, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f503, %r503;
-$L__tmp440:
-	.loc	2 1518 15
-	add.f32 	%f504, %f502, %f503;
-$L__tmp441:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r505, %r506, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f505, %r505;
-$L__tmp442:
-	.loc	2 1518 15
-	add.f32 	%f506, %f505, %f45;
-$L__tmp443:
-	.loc	2 1527 31
-	mov.b32 	%r508, %f506;
-	shfl.sync.bfly.b32 %r507, %r508, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f507, %r507;
-$L__tmp444:
-	.loc	2 1518 15
-	add.f32 	%f508, %f506, %f507;
-$L__tmp445:
-	.loc	2 1527 31
-	mov.b32 	%r510, %f508;
-	shfl.sync.bfly.b32 %r509, %r510, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f509, %r509;
-$L__tmp446:
-	.loc	2 1518 15
-	add.f32 	%f510, %f508, %f509;
-$L__tmp447:
-	.loc	2 1527 31
-	mov.b32 	%r512, %f510;
-	shfl.sync.bfly.b32 %r511, %r512, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f511, %r511;
-$L__tmp448:
-	.loc	2 1518 15
-	add.f32 	%f512, %f510, %f511;
-$L__tmp449:
-	.loc	2 1527 31
-	mov.b32 	%r514, %f512;
-	shfl.sync.bfly.b32 %r513, %r514, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f513, %r513;
-$L__tmp450:
-	.loc	2 1518 15
-	add.f32 	%f514, %f512, %f513;
-$L__tmp451:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r515, %r516, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f515, %r515;
-$L__tmp452:
-	.loc	2 1518 15
-	add.f32 	%f516, %f515, %f46;
-$L__tmp453:
-	.loc	2 1527 31
-	mov.b32 	%r518, %f516;
-	shfl.sync.bfly.b32 %r517, %r518, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f517, %r517;
-$L__tmp454:
-	.loc	2 1518 15
-	add.f32 	%f518, %f516, %f517;
-$L__tmp455:
-	.loc	2 1527 31
-	mov.b32 	%r520, %f518;
-	shfl.sync.bfly.b32 %r519, %r520, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f519, %r519;
-$L__tmp456:
-	.loc	2 1518 15
-	add.f32 	%f520, %f518, %f519;
-$L__tmp457:
-	.loc	2 1527 31
-	mov.b32 	%r522, %f520;
-	shfl.sync.bfly.b32 %r521, %r522, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f521, %r521;
-$L__tmp458:
-	.loc	2 1518 15
-	add.f32 	%f522, %f520, %f521;
-$L__tmp459:
-	.loc	2 1527 31
-	mov.b32 	%r524, %f522;
-	shfl.sync.bfly.b32 %r523, %r524, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f523, %r523;
-$L__tmp460:
-	.loc	2 1518 15
-	add.f32 	%f524, %f522, %f523;
-$L__tmp461:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r525, %r526, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f525, %r525;
-$L__tmp462:
-	.loc	2 1518 15
-	add.f32 	%f526, %f525, %f47;
-$L__tmp463:
-	.loc	2 1527 31
-	mov.b32 	%r528, %f526;
-	shfl.sync.bfly.b32 %r527, %r528, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f527, %r527;
-$L__tmp464:
-	.loc	2 1518 15
-	add.f32 	%f528, %f526, %f527;
-$L__tmp465:
-	.loc	2 1527 31
-	mov.b32 	%r530, %f528;
-	shfl.sync.bfly.b32 %r529, %r530, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f529, %r529;
-$L__tmp466:
-	.loc	2 1518 15
-	add.f32 	%f530, %f528, %f529;
-$L__tmp467:
-	.loc	2 1527 31
-	mov.b32 	%r532, %f530;
-	shfl.sync.bfly.b32 %r531, %r532, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f531, %r531;
-$L__tmp468:
-	.loc	2 1518 15
-	add.f32 	%f532, %f530, %f531;
-$L__tmp469:
-	.loc	2 1527 31
-	mov.b32 	%r534, %f532;
-	shfl.sync.bfly.b32 %r533, %r534, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f533, %r533;
-$L__tmp470:
-	.loc	2 1518 15
-	add.f32 	%f534, %f532, %f533;
-$L__tmp471:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r535, %r536, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f535, %r535;
-$L__tmp472:
-	.loc	2 1518 15
-	add.f32 	%f536, %f535, %f48;
-$L__tmp473:
-	.loc	2 1527 31
-	mov.b32 	%r538, %f536;
-	shfl.sync.bfly.b32 %r537, %r538, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f537, %r537;
-$L__tmp474:
-	.loc	2 1518 15
-	add.f32 	%f538, %f536, %f537;
-$L__tmp475:
-	.loc	2 1527 31
-	mov.b32 	%r540, %f538;
-	shfl.sync.bfly.b32 %r539, %r540, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f539, %r539;
-$L__tmp476:
-	.loc	2 1518 15
-	add.f32 	%f540, %f538, %f539;
-$L__tmp477:
-	.loc	2 1527 31
-	mov.b32 	%r542, %f540;
-	shfl.sync.bfly.b32 %r541, %r542, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f541, %r541;
-$L__tmp478:
-	.loc	2 1518 15
-	add.f32 	%f542, %f540, %f541;
-$L__tmp479:
-	.loc	2 1527 31
-	mov.b32 	%r544, %f542;
-	shfl.sync.bfly.b32 %r543, %r544, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f543, %r543;
-$L__tmp480:
-	.loc	2 1518 15
-	add.f32 	%f544, %f542, %f543;
-$L__tmp481:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r545, %r546, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f545, %r545;
-$L__tmp482:
-	.loc	2 1518 15
-	add.f32 	%f546, %f545, %f49;
-$L__tmp483:
-	.loc	2 1527 31
-	mov.b32 	%r548, %f546;
-	shfl.sync.bfly.b32 %r547, %r548, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f547, %r547;
-$L__tmp484:
-	.loc	2 1518 15
-	add.f32 	%f548, %f546, %f547;
-$L__tmp485:
-	.loc	2 1527 31
-	mov.b32 	%r550, %f548;
-	shfl.sync.bfly.b32 %r549, %r550, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f549, %r549;
-$L__tmp486:
-	.loc	2 1518 15
-	add.f32 	%f550, %f548, %f549;
-$L__tmp487:
-	.loc	2 1527 31
-	mov.b32 	%r552, %f550;
-	shfl.sync.bfly.b32 %r551, %r552, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f551, %r551;
-$L__tmp488:
-	.loc	2 1518 15
-	add.f32 	%f552, %f550, %f551;
-$L__tmp489:
-	.loc	2 1527 31
-	mov.b32 	%r554, %f552;
-	shfl.sync.bfly.b32 %r553, %r554, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f553, %r553;
-$L__tmp490:
-	.loc	2 1518 15
-	add.f32 	%f554, %f552, %f553;
-$L__tmp491:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r555, %r556, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f555, %r555;
-$L__tmp492:
-	.loc	2 1518 15
-	add.f32 	%f556, %f555, %f50;
-$L__tmp493:
-	.loc	2 1527 31
-	mov.b32 	%r558, %f556;
-	shfl.sync.bfly.b32 %r557, %r558, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f557, %r557;
-$L__tmp494:
-	.loc	2 1518 15
-	add.f32 	%f558, %f556, %f557;
-$L__tmp495:
-	.loc	2 1527 31
-	mov.b32 	%r560, %f558;
-	shfl.sync.bfly.b32 %r559, %r560, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f559, %r559;
-$L__tmp496:
-	.loc	2 1518 15
-	add.f32 	%f560, %f558, %f559;
-$L__tmp497:
-	.loc	2 1527 31
-	mov.b32 	%r562, %f560;
-	shfl.sync.bfly.b32 %r561, %r562, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f561, %r561;
-$L__tmp498:
-	.loc	2 1518 15
-	add.f32 	%f562, %f560, %f561;
-$L__tmp499:
-	.loc	2 1527 31
-	mov.b32 	%r564, %f562;
-	shfl.sync.bfly.b32 %r563, %r564, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f563, %r563;
-$L__tmp500:
-	.loc	2 1518 15
-	add.f32 	%f564, %f562, %f563;
-$L__tmp501:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r565, %r566, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f565, %r565;
-$L__tmp502:
-	.loc	2 1518 15
-	add.f32 	%f566, %f565, %f51;
-$L__tmp503:
-	.loc	2 1527 31
-	mov.b32 	%r568, %f566;
-	shfl.sync.bfly.b32 %r567, %r568, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f567, %r567;
-$L__tmp504:
-	.loc	2 1518 15
-	add.f32 	%f568, %f566, %f567;
-$L__tmp505:
-	.loc	2 1527 31
-	mov.b32 	%r570, %f568;
-	shfl.sync.bfly.b32 %r569, %r570, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f569, %r569;
-$L__tmp506:
-	.loc	2 1518 15
-	add.f32 	%f570, %f568, %f569;
-$L__tmp507:
-	.loc	2 1527 31
-	mov.b32 	%r572, %f570;
-	shfl.sync.bfly.b32 %r571, %r572, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f571, %r571;
-$L__tmp508:
-	.loc	2 1518 15
-	add.f32 	%f572, %f570, %f571;
-$L__tmp509:
-	.loc	2 1527 31
-	mov.b32 	%r574, %f572;
-	shfl.sync.bfly.b32 %r573, %r574, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f573, %r573;
-$L__tmp510:
-	.loc	2 1518 15
-	add.f32 	%f574, %f572, %f573;
-$L__tmp511:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r575, %r576, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f575, %r575;
-$L__tmp512:
-	.loc	2 1518 15
-	add.f32 	%f576, %f575, %f52;
-$L__tmp513:
-	.loc	2 1527 31
-	mov.b32 	%r578, %f576;
-	shfl.sync.bfly.b32 %r577, %r578, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f577, %r577;
-$L__tmp514:
-	.loc	2 1518 15
-	add.f32 	%f578, %f576, %f577;
-$L__tmp515:
-	.loc	2 1527 31
-	mov.b32 	%r580, %f578;
-	shfl.sync.bfly.b32 %r579, %r580, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f579, %r579;
-$L__tmp516:
-	.loc	2 1518 15
-	add.f32 	%f580, %f578, %f579;
-$L__tmp517:
-	.loc	2 1527 31
-	mov.b32 	%r582, %f580;
-	shfl.sync.bfly.b32 %r581, %r582, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f581, %r581;
-$L__tmp518:
-	.loc	2 1518 15
-	add.f32 	%f582, %f580, %f581;
-$L__tmp519:
-	.loc	2 1527 31
-	mov.b32 	%r584, %f582;
-	shfl.sync.bfly.b32 %r583, %r584, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f583, %r583;
-$L__tmp520:
-	.loc	2 1518 15
-	add.f32 	%f584, %f582, %f583;
-$L__tmp521:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r585, %r586, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f585, %r585;
-$L__tmp522:
-	.loc	2 1518 15
-	add.f32 	%f586, %f585, %f53;
-$L__tmp523:
-	.loc	2 1527 31
-	mov.b32 	%r588, %f586;
-	shfl.sync.bfly.b32 %r587, %r588, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f587, %r587;
-$L__tmp524:
-	.loc	2 1518 15
-	add.f32 	%f588, %f586, %f587;
-$L__tmp525:
-	.loc	2 1527 31
-	mov.b32 	%r590, %f588;
-	shfl.sync.bfly.b32 %r589, %r590, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f589, %r589;
-$L__tmp526:
-	.loc	2 1518 15
-	add.f32 	%f590, %f588, %f589;
-$L__tmp527:
-	.loc	2 1527 31
-	mov.b32 	%r592, %f590;
-	shfl.sync.bfly.b32 %r591, %r592, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f591, %r591;
-$L__tmp528:
-	.loc	2 1518 15
-	add.f32 	%f592, %f590, %f591;
-$L__tmp529:
-	.loc	2 1527 31
-	mov.b32 	%r594, %f592;
-	shfl.sync.bfly.b32 %r593, %r594, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f593, %r593;
-$L__tmp530:
-	.loc	2 1518 15
-	add.f32 	%f594, %f592, %f593;
-$L__tmp531:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r595, %r596, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f595, %r595;
-$L__tmp532:
-	.loc	2 1518 15
-	add.f32 	%f596, %f595, %f54;
-$L__tmp533:
-	.loc	2 1527 31
-	mov.b32 	%r598, %f596;
-	shfl.sync.bfly.b32 %r597, %r598, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f597, %r597;
-$L__tmp534:
-	.loc	2 1518 15
-	add.f32 	%f598, %f596, %f597;
-$L__tmp535:
-	.loc	2 1527 31
-	mov.b32 	%r600, %f598;
-	shfl.sync.bfly.b32 %r599, %r600, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f599, %r599;
-$L__tmp536:
-	.loc	2 1518 15
-	add.f32 	%f600, %f598, %f599;
-$L__tmp537:
-	.loc	2 1527 31
-	mov.b32 	%r602, %f600;
-	shfl.sync.bfly.b32 %r601, %r602, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f601, %r601;
-$L__tmp538:
-	.loc	2 1518 15
-	add.f32 	%f602, %f600, %f601;
-$L__tmp539:
-	.loc	2 1527 31
-	mov.b32 	%r604, %f602;
-	shfl.sync.bfly.b32 %r603, %r604, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f603, %r603;
-$L__tmp540:
-	.loc	2 1518 15
-	add.f32 	%f604, %f602, %f603;
-$L__tmp541:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r605, %r606, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f605, %r605;
-$L__tmp542:
-	.loc	2 1518 15
-	add.f32 	%f606, %f605, %f55;
-$L__tmp543:
-	.loc	2 1527 31
-	mov.b32 	%r608, %f606;
-	shfl.sync.bfly.b32 %r607, %r608, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f607, %r607;
-$L__tmp544:
-	.loc	2 1518 15
-	add.f32 	%f608, %f606, %f607;
-$L__tmp545:
-	.loc	2 1527 31
-	mov.b32 	%r610, %f608;
-	shfl.sync.bfly.b32 %r609, %r610, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f609, %r609;
-$L__tmp546:
-	.loc	2 1518 15
-	add.f32 	%f610, %f608, %f609;
-$L__tmp547:
-	.loc	2 1527 31
-	mov.b32 	%r612, %f610;
-	shfl.sync.bfly.b32 %r611, %r612, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f611, %r611;
-$L__tmp548:
-	.loc	2 1518 15
-	add.f32 	%f612, %f610, %f611;
-$L__tmp549:
-	.loc	2 1527 31
-	mov.b32 	%r614, %f612;
-	shfl.sync.bfly.b32 %r613, %r614, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f613, %r613;
-$L__tmp550:
-	.loc	2 1518 15
-	add.f32 	%f614, %f612, %f613;
-$L__tmp551:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r615, %r616, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f615, %r615;
-$L__tmp552:
-	.loc	2 1518 15
-	add.f32 	%f616, %f615, %f56;
-$L__tmp553:
-	.loc	2 1527 31
-	mov.b32 	%r618, %f616;
-	shfl.sync.bfly.b32 %r617, %r618, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f617, %r617;
-$L__tmp554:
-	.loc	2 1518 15
-	add.f32 	%f618, %f616, %f617;
-$L__tmp555:
-	.loc	2 1527 31
-	mov.b32 	%r620, %f618;
-	shfl.sync.bfly.b32 %r619, %r620, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f619, %r619;
-$L__tmp556:
-	.loc	2 1518 15
-	add.f32 	%f620, %f618, %f619;
-$L__tmp557:
-	.loc	2 1527 31
-	mov.b32 	%r622, %f620;
-	shfl.sync.bfly.b32 %r621, %r622, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f621, %r621;
-$L__tmp558:
-	.loc	2 1518 15
-	add.f32 	%f622, %f620, %f621;
-$L__tmp559:
-	.loc	2 1527 31
-	mov.b32 	%r624, %f622;
-	shfl.sync.bfly.b32 %r623, %r624, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f623, %r623;
-$L__tmp560:
-	.loc	2 1518 15
-	add.f32 	%f624, %f622, %f623;
-$L__tmp561:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r625, %r626, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f625, %r625;
-$L__tmp562:
-	.loc	2 1518 15
-	add.f32 	%f626, %f625, %f57;
-$L__tmp563:
-	.loc	2 1527 31
-	mov.b32 	%r628, %f626;
-	shfl.sync.bfly.b32 %r627, %r628, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f627, %r627;
-$L__tmp564:
-	.loc	2 1518 15
-	add.f32 	%f628, %f626, %f627;
-$L__tmp565:
-	.loc	2 1527 31
-	mov.b32 	%r630, %f628;
-	shfl.sync.bfly.b32 %r629, %r630, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f629, %r629;
-$L__tmp566:
-	.loc	2 1518 15
-	add.f32 	%f630, %f628, %f629;
-$L__tmp567:
-	.loc	2 1527 31
-	mov.b32 	%r632, %f630;
-	shfl.sync.bfly.b32 %r631, %r632, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f631, %r631;
-$L__tmp568:
-	.loc	2 1518 15
-	add.f32 	%f632, %f630, %f631;
-$L__tmp569:
-	.loc	2 1527 31
-	mov.b32 	%r634, %f632;
-	shfl.sync.bfly.b32 %r633, %r634, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f633, %r633;
-$L__tmp570:
-	.loc	2 1518 15
-	add.f32 	%f634, %f632, %f633;
-$L__tmp571:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r635, %r636, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f635, %r635;
-$L__tmp572:
-	.loc	2 1518 15
-	add.f32 	%f636, %f635, %f58;
-$L__tmp573:
-	.loc	2 1527 31
-	mov.b32 	%r638, %f636;
-	shfl.sync.bfly.b32 %r637, %r638, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f637, %r637;
-$L__tmp574:
-	.loc	2 1518 15
-	add.f32 	%f638, %f636, %f637;
-$L__tmp575:
-	.loc	2 1527 31
-	mov.b32 	%r640, %f638;
-	shfl.sync.bfly.b32 %r639, %r640, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f639, %r639;
-$L__tmp576:
-	.loc	2 1518 15
-	add.f32 	%f640, %f638, %f639;
-$L__tmp577:
-	.loc	2 1527 31
-	mov.b32 	%r642, %f640;
-	shfl.sync.bfly.b32 %r641, %r642, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f641, %r641;
-$L__tmp578:
-	.loc	2 1518 15
-	add.f32 	%f642, %f640, %f641;
-$L__tmp579:
-	.loc	2 1527 31
-	mov.b32 	%r644, %f642;
-	shfl.sync.bfly.b32 %r643, %r644, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f643, %r643;
-$L__tmp580:
-	.loc	2 1518 15
-	add.f32 	%f644, %f642, %f643;
-$L__tmp581:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r645, %r646, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f645, %r645;
-$L__tmp582:
-	.loc	2 1518 15
-	add.f32 	%f646, %f645, %f59;
-$L__tmp583:
-	.loc	2 1527 31
-	mov.b32 	%r648, %f646;
-	shfl.sync.bfly.b32 %r647, %r648, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f647, %r647;
-$L__tmp584:
-	.loc	2 1518 15
-	add.f32 	%f648, %f646, %f647;
-$L__tmp585:
-	.loc	2 1527 31
-	mov.b32 	%r650, %f648;
-	shfl.sync.bfly.b32 %r649, %r650, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f649, %r649;
-$L__tmp586:
-	.loc	2 1518 15
-	add.f32 	%f650, %f648, %f649;
-$L__tmp587:
-	.loc	2 1527 31
-	mov.b32 	%r652, %f650;
-	shfl.sync.bfly.b32 %r651, %r652, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f651, %r651;
-$L__tmp588:
-	.loc	2 1518 15
-	add.f32 	%f652, %f650, %f651;
-$L__tmp589:
-	.loc	2 1527 31
-	mov.b32 	%r654, %f652;
-	shfl.sync.bfly.b32 %r653, %r654, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f653, %r653;
-$L__tmp590:
-	.loc	2 1518 15
-	add.f32 	%f654, %f652, %f653;
-$L__tmp591:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r655, %r656, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f655, %r655;
-$L__tmp592:
-	.loc	2 1518 15
-	add.f32 	%f656, %f655, %f60;
-$L__tmp593:
-	.loc	2 1527 31
-	mov.b32 	%r658, %f656;
-	shfl.sync.bfly.b32 %r657, %r658, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f657, %r657;
-$L__tmp594:
-	.loc	2 1518 15
-	add.f32 	%f658, %f656, %f657;
-$L__tmp595:
-	.loc	2 1527 31
-	mov.b32 	%r660, %f658;
-	shfl.sync.bfly.b32 %r659, %r660, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f659, %r659;
-$L__tmp596:
-	.loc	2 1518 15
-	add.f32 	%f660, %f658, %f659;
-$L__tmp597:
-	.loc	2 1527 31
-	mov.b32 	%r662, %f660;
-	shfl.sync.bfly.b32 %r661, %r662, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f661, %r661;
-$L__tmp598:
-	.loc	2 1518 15
-	add.f32 	%f662, %f660, %f661;
-$L__tmp599:
-	.loc	2 1527 31
-	mov.b32 	%r664, %f662;
-	shfl.sync.bfly.b32 %r663, %r664, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f663, %r663;
-$L__tmp600:
-	.loc	2 1518 15
-	add.f32 	%f664, %f662, %f663;
-$L__tmp601:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r665, %r666, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f665, %r665;
-$L__tmp602:
-	.loc	2 1518 15
-	add.f32 	%f666, %f665, %f61;
-$L__tmp603:
-	.loc	2 1527 31
-	mov.b32 	%r668, %f666;
-	shfl.sync.bfly.b32 %r667, %r668, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f667, %r667;
-$L__tmp604:
-	.loc	2 1518 15
-	add.f32 	%f668, %f666, %f667;
-$L__tmp605:
-	.loc	2 1527 31
-	mov.b32 	%r670, %f668;
-	shfl.sync.bfly.b32 %r669, %r670, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f669, %r669;
-$L__tmp606:
-	.loc	2 1518 15
-	add.f32 	%f670, %f668, %f669;
-$L__tmp607:
-	.loc	2 1527 31
-	mov.b32 	%r672, %f670;
-	shfl.sync.bfly.b32 %r671, %r672, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f671, %r671;
-$L__tmp608:
-	.loc	2 1518 15
-	add.f32 	%f672, %f670, %f671;
-$L__tmp609:
-	.loc	2 1527 31
-	mov.b32 	%r674, %f672;
-	shfl.sync.bfly.b32 %r673, %r674, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f673, %r673;
-$L__tmp610:
-	.loc	2 1518 15
-	add.f32 	%f674, %f672, %f673;
-$L__tmp611:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r675, %r676, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f675, %r675;
-$L__tmp612:
-	.loc	2 1518 15
-	add.f32 	%f676, %f675, %f62;
-$L__tmp613:
-	.loc	2 1527 31
-	mov.b32 	%r678, %f676;
-	shfl.sync.bfly.b32 %r677, %r678, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f677, %r677;
-$L__tmp614:
-	.loc	2 1518 15
-	add.f32 	%f678, %f676, %f677;
-$L__tmp615:
-	.loc	2 1527 31
-	mov.b32 	%r680, %f678;
-	shfl.sync.bfly.b32 %r679, %r680, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f679, %r679;
-$L__tmp616:
-	.loc	2 1518 15
-	add.f32 	%f680, %f678, %f679;
-$L__tmp617:
-	.loc	2 1527 31
-	mov.b32 	%r682, %f680;
-	shfl.sync.bfly.b32 %r681, %r682, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f681, %r681;
-$L__tmp618:
-	.loc	2 1518 15
-	add.f32 	%f682, %f680, %f681;
-$L__tmp619:
-	.loc	2 1527 31
-	mov.b32 	%r684, %f682;
-	shfl.sync.bfly.b32 %r683, %r684, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f683, %r683;
-$L__tmp620:
-	.loc	2 1518 15
-	add.f32 	%f684, %f682, %f683;
-$L__tmp621:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r685, %r686, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f685, %r685;
-$L__tmp622:
-	.loc	2 1518 15
-	add.f32 	%f686, %f685, %f63;
-$L__tmp623:
-	.loc	2 1527 31
-	mov.b32 	%r688, %f686;
-	shfl.sync.bfly.b32 %r687, %r688, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f687, %r687;
-$L__tmp624:
-	.loc	2 1518 15
-	add.f32 	%f688, %f686, %f687;
-$L__tmp625:
-	.loc	2 1527 31
-	mov.b32 	%r690, %f688;
-	shfl.sync.bfly.b32 %r689, %r690, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f689, %r689;
-$L__tmp626:
-	.loc	2 1518 15
-	add.f32 	%f690, %f688, %f689;
-$L__tmp627:
-	.loc	2 1527 31
-	mov.b32 	%r692, %f690;
-	shfl.sync.bfly.b32 %r691, %r692, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f691, %r691;
-$L__tmp628:
-	.loc	2 1518 15
-	add.f32 	%f692, %f690, %f691;
-$L__tmp629:
-	.loc	2 1527 31
-	mov.b32 	%r694, %f692;
-	shfl.sync.bfly.b32 %r693, %r694, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f693, %r693;
-$L__tmp630:
-	.loc	2 1518 15
-	add.f32 	%f694, %f692, %f693;
-$L__tmp631:
-	.loc	2 1527 31
-	shfl.sync.bfly.b32 %r695, %r696, 0x10, 0x1f, 0xffffffff;
-	mov.b32 	%f695, %r695;
-$L__tmp632:
-	.loc	2 1518 15
-	add.f32 	%f696, %f695, %f64;
-$L__tmp633:
-	.loc	2 1527 31
-	mov.b32 	%r698, %f696;
-	shfl.sync.bfly.b32 %r697, %r698, 0x8, 0x1f, 0xffffffff;
-	mov.b32 	%f697, %r697;
-$L__tmp634:
-	.loc	2 1518 15
-	add.f32 	%f698, %f696, %f697;
-$L__tmp635:
-	.loc	2 1527 31
-	mov.b32 	%r700, %f698;
-	shfl.sync.bfly.b32 %r699, %r700, 0x4, 0x1f, 0xffffffff;
-	mov.b32 	%f699, %r699;
-$L__tmp636:
-	.loc	2 1518 15
-	add.f32 	%f700, %f698, %f699;
-$L__tmp637:
-	.loc	2 1527 31
-	mov.b32 	%r702, %f700;
-	shfl.sync.bfly.b32 %r701, %r702, 0x2, 0x1f, 0xffffffff;
-	mov.b32 	%f701, %r701;
-$L__tmp638:
-	.loc	2 1518 15
-	add.f32 	%f702, %f700, %f701;
-$L__tmp639:
-	.loc	2 1527 31
-	mov.b32 	%r704, %f702;
-	shfl.sync.bfly.b32 %r703, %r704, 0x1, 0x1f, 0xffffffff;
-	mov.b32 	%f703, %r703;
-$L__tmp640:
-	.loc	2 1518 15
-	add.f32 	%f704, %f702, %f703;
-$L__tmp641:
-	.loc	1 11 14
-	mul.f32 	%f705, %f74, %f1;
-	mul.f32 	%f706, %f84, %f2;
-	mul.f32 	%f707, %f94, %f3;
-	mul.f32 	%f708, %f104, %f4;
-	mul.f32 	%f709, %f114, %f5;
-	mul.f32 	%f710, %f124, %f6;
-	mul.f32 	%f711, %f134, %f7;
-	mul.f32 	%f712, %f144, %f8;
-	mul.f32 	%f713, %f154, %f9;
-	mul.f32 	%f714, %f164, %f10;
-	mul.f32 	%f715, %f174, %f11;
-	mul.f32 	%f716, %f184, %f12;
-	mul.f32 	%f717, %f194, %f13;
-	mul.f32 	%f718, %f204, %f14;
-	mul.f32 	%f719, %f214, %f15;
-	mul.f32 	%f720, %f224, %f16;
-	mul.f32 	%f721, %f234, %f17;
-	mul.f32 	%f722, %f244, %f18;
-	mul.f32 	%f723, %f254, %f19;
-	mul.f32 	%f724, %f264, %f20;
-	mul.f32 	%f725, %f274, %f21;
-	mul.f32 	%f726, %f284, %f22;
-	mul.f32 	%f727, %f294, %f23;
-	mul.f32 	%f728, %f304, %f24;
-	mul.f32 	%f729, %f314, %f25;
-	mul.f32 	%f730, %f324, %f26;
-	mul.f32 	%f731, %f334, %f27;
-	mul.f32 	%f732, %f344, %f28;
-	mul.f32 	%f733, %f354, %f29;
-	mul.f32 	%f734, %f364, %f30;
-	mul.f32 	%f735, %f374, %f31;
-	mul.f32 	%f736, %f384, %f32;
-	mul.f32 	%f737, %f394, %f33;
-	mul.f32 	%f738, %f404, %f34;
-	mul.f32 	%f739, %f414, %f35;
-	mul.f32 	%f740, %f424, %f36;
-	mul.f32 	%f741, %f434, %f37;
-	mul.f32 	%f742, %f444, %f38;
-	mul.f32 	%f743, %f454, %f39;
-	mul.f32 	%f744, %f464, %f40;
-	mul.f32 	%f745, %f474, %f41;
-	mul.f32 	%f746, %f484, %f42;
-	mul.f32 	%f747, %f494, %f43;
-	mul.f32 	%f748, %f504, %f44;
-	mul.f32 	%f749, %f514, %f45;
-	mul.f32 	%f750, %f524, %f46;
-	mul.f32 	%f751, %f534, %f47;
-	mul.f32 	%f752, %f544, %f48;
-	mul.f32 	%f753, %f554, %f49;
-	mul.f32 	%f754, %f564, %f50;
-	mul.f32 	%f755, %f574, %f51;
-	mul.f32 	%f756, %f584, %f52;
-	mul.f32 	%f757, %f594, %f53;
-	mul.f32 	%f758, %f604, %f54;
-	mul.f32 	%f759, %f614, %f55;
-	mul.f32 	%f760, %f624, %f56;
-	mul.f32 	%f761, %f634, %f57;
-	mul.f32 	%f762, %f644, %f58;
-	mul.f32 	%f763, %f654, %f59;
-	mul.f32 	%f764, %f664, %f60;
-	mul.f32 	%f765, %f674, %f61;
-	mul.f32 	%f766, %f684, %f62;
-	mul.f32 	%f767, %f694, %f63;
-	mul.f32 	%f768, %f704, %f64;
-	.loc	1 13 17
-	add.s64 	%rd65, %rd130, %rd131;
-	add.s64 	%rd66, %rd65, 128;
-	add.s64 	%rd67, %rd65, 256;
-	add.s64 	%rd68, %rd65, 384;
-	add.s64 	%rd69, %rd65, 512;
-	add.s64 	%rd70, %rd65, 640;
-	add.s64 	%rd71, %rd65, 768;
-	add.s64 	%rd72, %rd65, 896;
-	add.s64 	%rd73, %rd65, 1024;
-	add.s64 	%rd74, %rd65, 1152;
-	add.s64 	%rd75, %rd65, 1280;
-	add.s64 	%rd76, %rd65, 1408;
-	add.s64 	%rd77, %rd65, 1536;
-	add.s64 	%rd78, %rd65, 1664;
-	add.s64 	%rd79, %rd65, 1792;
-	add.s64 	%rd80, %rd65, 1920;
-	add.s64 	%rd81, %rd65, 2048;
-	add.s64 	%rd82, %rd65, 2176;
-	add.s64 	%rd83, %rd65, 2304;
-	add.s64 	%rd84, %rd65, 2432;
-	add.s64 	%rd85, %rd65, 2560;
-	add.s64 	%rd86, %rd65, 2688;
-	add.s64 	%rd87, %rd65, 2816;
-	add.s64 	%rd88, %rd65, 2944;
-	add.s64 	%rd89, %rd65, 3072;
-	add.s64 	%rd90, %rd65, 3200;
-	add.s64 	%rd91, %rd65, 3328;
-	add.s64 	%rd92, %rd65, 3456;
-	add.s64 	%rd93, %rd65, 3584;
-	add.s64 	%rd94, %rd65, 3712;
-	add.s64 	%rd95, %rd65, 3840;
-	add.s64 	%rd96, %rd65, 3968;
-	add.s64 	%rd97, %rd65, 4096;
-	add.s64 	%rd98, %rd65, 4224;
-	add.s64 	%rd99, %rd65, 4352;
-	add.s64 	%rd100, %rd65, 4480;
-	add.s64 	%rd101, %rd65, 4608;
-	add.s64 	%rd102, %rd65, 4736;
-	add.s64 	%rd103, %rd65, 4864;
-	add.s64 	%rd104, %rd65, 4992;
-	add.s64 	%rd105, %rd65, 5120;
-	add.s64 	%rd106, %rd65, 5248;
-	add.s64 	%rd107, %rd65, 5376;
-	add.s64 	%rd108, %rd65, 5504;
-	add.s64 	%rd109, %rd65, 5632;
-	add.s64 	%rd110, %rd65, 5760;
-	add.s64 	%rd111, %rd65, 5888;
-	add.s64 	%rd112, %rd65, 6016;
-	add.s64 	%rd113, %rd65, 6144;
-	add.s64 	%rd114, %rd65, 6272;
-	add.s64 	%rd115, %rd65, 6400;
-	add.s64 	%rd116, %rd65, 6528;
-	add.s64 	%rd117, %rd65, 6656;
-	add.s64 	%rd118, %rd65, 6784;
-	add.s64 	%rd119, %rd65, 6912;
-	add.s64 	%rd120, %rd65, 7040;
-	add.s64 	%rd121, %rd65, 7168;
-	add.s64 	%rd122, %rd65, 7296;
-	add.s64 	%rd123, %rd65, 7424;
-	add.s64 	%rd124, %rd65, 7552;
-	add.s64 	%rd125, %rd65, 7680;
-	add.s64 	%rd126, %rd65, 7808;
-	add.s64 	%rd127, %rd65, 7936;
-	add.s64 	%rd128, %rd65, 8064;
-	.loc	1 13 24
-	mov.b32 	%r705, %f705;
-	@%p1 st.global.b32 [ %rd65 + 0 ], { %r705 };
-	mov.b32 	%r706, %f706;
-	@%p1 st.global.b32 [ %rd66 + 0 ], { %r706 };
-	mov.b32 	%r707, %f707;
-	@%p1 st.global.b32 [ %rd67 + 0 ], { %r707 };
-	mov.b32 	%r708, %f708;
-	@%p1 st.global.b32 [ %rd68 + 0 ], { %r708 };
-	mov.b32 	%r709, %f709;
-	@%p1 st.global.b32 [ %rd69 + 0 ], { %r709 };
-	mov.b32 	%r710, %f710;
-	@%p1 st.global.b32 [ %rd70 + 0 ], { %r710 };
-	mov.b32 	%r711, %f711;
-	@%p1 st.global.b32 [ %rd71 + 0 ], { %r711 };
-	mov.b32 	%r712, %f712;
-	@%p1 st.global.b32 [ %rd72 + 0 ], { %r712 };
-	mov.b32 	%r713, %f713;
-	@%p1 st.global.b32 [ %rd73 + 0 ], { %r713 };
-	mov.b32 	%r714, %f714;
-	@%p1 st.global.b32 [ %rd74 + 0 ], { %r714 };
-	mov.b32 	%r715, %f715;
-	@%p1 st.global.b32 [ %rd75 + 0 ], { %r715 };
-	mov.b32 	%r716, %f716;
-	@%p1 st.global.b32 [ %rd76 + 0 ], { %r716 };
-	mov.b32 	%r717, %f717;
-	@%p1 st.global.b32 [ %rd77 + 0 ], { %r717 };
-	mov.b32 	%r718, %f718;
-	@%p1 st.global.b32 [ %rd78 + 0 ], { %r718 };
-	mov.b32 	%r719, %f719;
-	@%p1 st.global.b32 [ %rd79 + 0 ], { %r719 };
-	mov.b32 	%r720, %f720;
-	@%p1 st.global.b32 [ %rd80 + 0 ], { %r720 };
-	mov.b32 	%r721, %f721;
-	@%p1 st.global.b32 [ %rd81 + 0 ], { %r721 };
-	mov.b32 	%r722, %f722;
-	@%p1 st.global.b32 [ %rd82 + 0 ], { %r722 };
-	mov.b32 	%r723, %f723;
-	@%p1 st.global.b32 [ %rd83 + 0 ], { %r723 };
-	mov.b32 	%r724, %f724;
-	@%p1 st.global.b32 [ %rd84 + 0 ], { %r724 };
-	mov.b32 	%r725, %f725;
-	@%p1 st.global.b32 [ %rd85 + 0 ], { %r725 };
-	mov.b32 	%r726, %f726;
-	@%p1 st.global.b32 [ %rd86 + 0 ], { %r726 };
-	mov.b32 	%r727, %f727;
-	@%p1 st.global.b32 [ %rd87 + 0 ], { %r727 };
-	mov.b32 	%r728, %f728;
-	@%p1 st.global.b32 [ %rd88 + 0 ], { %r728 };
-	mov.b32 	%r729, %f729;
-	@%p1 st.global.b32 [ %rd89 + 0 ], { %r729 };
-	mov.b32 	%r730, %f730;
-	@%p1 st.global.b32 [ %rd90 + 0 ], { %r730 };
-	mov.b32 	%r731, %f731;
-	@%p1 st.global.b32 [ %rd91 + 0 ], { %r731 };
-	mov.b32 	%r732, %f732;
-	@%p1 st.global.b32 [ %rd92 + 0 ], { %r732 };
-	mov.b32 	%r733, %f733;
-	@%p1 st.global.b32 [ %rd93 + 0 ], { %r733 };
-	mov.b32 	%r734, %f734;
-	@%p1 st.global.b32 [ %rd94 + 0 ], { %r734 };
-	mov.b32 	%r735, %f735;
-	@%p1 st.global.b32 [ %rd95 + 0 ], { %r735 };
-	mov.b32 	%r736, %f736;
-	@%p1 st.global.b32 [ %rd96 + 0 ], { %r736 };
-	mov.b32 	%r737, %f737;
-	@%p1 st.global.b32 [ %rd97 + 0 ], { %r737 };
-	mov.b32 	%r738, %f738;
-	@%p1 st.global.b32 [ %rd98 + 0 ], { %r738 };
-	mov.b32 	%r739, %f739;
-	@%p1 st.global.b32 [ %rd99 + 0 ], { %r739 };
-	mov.b32 	%r740, %f740;
-	@%p1 st.global.b32 [ %rd100 + 0 ], { %r740 };
-	mov.b32 	%r741, %f741;
-	@%p1 st.global.b32 [ %rd101 + 0 ], { %r741 };
-	mov.b32 	%r742, %f742;
-	@%p1 st.global.b32 [ %rd102 + 0 ], { %r742 };
-	mov.b32 	%r743, %f743;
-	@%p1 st.global.b32 [ %rd103 + 0 ], { %r743 };
-	mov.b32 	%r744, %f744;
-	@%p1 st.global.b32 [ %rd104 + 0 ], { %r744 };
-	mov.b32 	%r745, %f745;
-	@%p1 st.global.b32 [ %rd105 + 0 ], { %r745 };
-	mov.b32 	%r746, %f746;
-	@%p1 st.global.b32 [ %rd106 + 0 ], { %r746 };
-	mov.b32 	%r747, %f747;
-	@%p1 st.global.b32 [ %rd107 + 0 ], { %r747 };
-	mov.b32 	%r748, %f748;
-	@%p1 st.global.b32 [ %rd108 + 0 ], { %r748 };
-	mov.b32 	%r749, %f749;
-	@%p1 st.global.b32 [ %rd109 + 0 ], { %r749 };
-	mov.b32 	%r750, %f750;
-	@%p1 st.global.b32 [ %rd110 + 0 ], { %r750 };
-	mov.b32 	%r751, %f751;
-	@%p1 st.global.b32 [ %rd111 + 0 ], { %r751 };
-	mov.b32 	%r752, %f752;
-	@%p1 st.global.b32 [ %rd112 + 0 ], { %r752 };
-	mov.b32 	%r753, %f753;
-	@%p1 st.global.b32 [ %rd113 + 0 ], { %r753 };
-	mov.b32 	%r754, %f754;
-	@%p1 st.global.b32 [ %rd114 + 0 ], { %r754 };
-	mov.b32 	%r755, %f755;
-	@%p1 st.global.b32 [ %rd115 + 0 ], { %r755 };
-	mov.b32 	%r756, %f756;
-	@%p1 st.global.b32 [ %rd116 + 0 ], { %r756 };
-	mov.b32 	%r757, %f757;
-	@%p1 st.global.b32 [ %rd117 + 0 ], { %r757 };
-	mov.b32 	%r758, %f758;
-	@%p1 st.global.b32 [ %rd118 + 0 ], { %r758 };
-	mov.b32 	%r759, %f759;
-	@%p1 st.global.b32 [ %rd119 + 0 ], { %r759 };
-	mov.b32 	%r760, %f760;
-	@%p1 st.global.b32 [ %rd120 + 0 ], { %r760 };
-	mov.b32 	%r761, %f761;
-	@%p1 st.global.b32 [ %rd121 + 0 ], { %r761 };
-	mov.b32 	%r762, %f762;
-	@%p1 st.global.b32 [ %rd122 + 0 ], { %r762 };
-	mov.b32 	%r763, %f763;
-	@%p1 st.global.b32 [ %rd123 + 0 ], { %r763 };
-	mov.b32 	%r764, %f764;
-	@%p1 st.global.b32 [ %rd124 + 0 ], { %r764 };
-	mov.b32 	%r765, %f765;
-	@%p1 st.global.b32 [ %rd125 + 0 ], { %r765 };
-	mov.b32 	%r766, %f766;
-	@%p1 st.global.b32 [ %rd126 + 0 ], { %r766 };
-	mov.b32 	%r767, %f767;
-	@%p1 st.global.b32 [ %rd127 + 0 ], { %r767 };
-	mov.b32 	%r768, %f768;
-	@%p1 st.global.b32 [ %rd128 + 0 ], { %r768 };
-	.loc	1 13 4
+$L__tmp98:
+	.loc	1 52 14
+	mul.f32 	%f209, %f118, %f1;
+	mul.f32 	%f210, %f118, %f2;
+	mul.f32 	%f211, %f118, %f3;
+	mul.f32 	%f212, %f118, %f4;
+	mul.f32 	%f213, %f124, %f5;
+	mul.f32 	%f214, %f124, %f6;
+	mul.f32 	%f215, %f124, %f7;
+	mul.f32 	%f216, %f124, %f8;
+	mul.f32 	%f217, %f130, %f9;
+	mul.f32 	%f218, %f130, %f10;
+	mul.f32 	%f219, %f130, %f11;
+	mul.f32 	%f220, %f130, %f12;
+	mul.f32 	%f221, %f136, %f13;
+	mul.f32 	%f222, %f136, %f14;
+	mul.f32 	%f223, %f136, %f15;
+	mul.f32 	%f224, %f136, %f16;
+	mul.f32 	%f225, %f142, %f17;
+	mul.f32 	%f226, %f142, %f18;
+	mul.f32 	%f227, %f142, %f19;
+	mul.f32 	%f228, %f142, %f20;
+	mul.f32 	%f229, %f148, %f21;
+	mul.f32 	%f230, %f148, %f22;
+	mul.f32 	%f231, %f148, %f23;
+	mul.f32 	%f232, %f148, %f24;
+	mul.f32 	%f233, %f154, %f25;
+	mul.f32 	%f234, %f154, %f26;
+	mul.f32 	%f235, %f154, %f27;
+	mul.f32 	%f236, %f154, %f28;
+	mul.f32 	%f237, %f160, %f29;
+	mul.f32 	%f238, %f160, %f30;
+	mul.f32 	%f239, %f160, %f31;
+	mul.f32 	%f240, %f160, %f32;
+	mul.f32 	%f241, %f166, %f33;
+	mul.f32 	%f242, %f166, %f34;
+	mul.f32 	%f243, %f166, %f35;
+	mul.f32 	%f244, %f166, %f36;
+	mul.f32 	%f245, %f172, %f37;
+	mul.f32 	%f246, %f172, %f38;
+	mul.f32 	%f247, %f172, %f39;
+	mul.f32 	%f248, %f172, %f40;
+	mul.f32 	%f249, %f178, %f41;
+	mul.f32 	%f250, %f178, %f42;
+	mul.f32 	%f251, %f178, %f43;
+	mul.f32 	%f252, %f178, %f44;
+	mul.f32 	%f253, %f184, %f45;
+	mul.f32 	%f254, %f184, %f46;
+	mul.f32 	%f255, %f184, %f47;
+	mul.f32 	%f256, %f184, %f48;
+	mul.f32 	%f257, %f190, %f49;
+	mul.f32 	%f258, %f190, %f50;
+	mul.f32 	%f259, %f190, %f51;
+	mul.f32 	%f260, %f190, %f52;
+	mul.f32 	%f261, %f196, %f53;
+	mul.f32 	%f262, %f196, %f54;
+	mul.f32 	%f263, %f196, %f55;
+	mul.f32 	%f264, %f196, %f56;
+	mul.f32 	%f265, %f202, %f57;
+	mul.f32 	%f266, %f202, %f58;
+	mul.f32 	%f267, %f202, %f59;
+	mul.f32 	%f268, %f202, %f60;
+	mul.f32 	%f269, %f208, %f61;
+	mul.f32 	%f270, %f208, %f62;
+	mul.f32 	%f271, %f208, %f63;
+	mul.f32 	%f272, %f208, %f64;
+	.loc	1 54 17
+	add.s64 	%rd17, %rd34, %rd35;
+	add.s64 	%rd18, %rd17, 512;
+	add.s64 	%rd19, %rd17, 1024;
+	add.s64 	%rd20, %rd17, 1536;
+	add.s64 	%rd21, %rd17, 2048;
+	add.s64 	%rd22, %rd17, 2560;
+	add.s64 	%rd23, %rd17, 3072;
+	add.s64 	%rd24, %rd17, 3584;
+	add.s64 	%rd25, %rd17, 4096;
+	add.s64 	%rd26, %rd17, 4608;
+	add.s64 	%rd27, %rd17, 5120;
+	add.s64 	%rd28, %rd17, 5632;
+	add.s64 	%rd29, %rd17, 6144;
+	add.s64 	%rd30, %rd17, 6656;
+	add.s64 	%rd31, %rd17, 7168;
+	add.s64 	%rd32, %rd17, 7680;
+	.loc	1 54 24
+	mov.b32 	%r161, %f209;
+	mov.b32 	%r162, %f210;
+	mov.b32 	%r163, %f211;
+	mov.b32 	%r164, %f212;
+	@%p1 st.global.v4.b32 [ %rd17 + 0 ], { %r161, %r162, %r163, %r164 };
+	mov.b32 	%r165, %f213;
+	mov.b32 	%r166, %f214;
+	mov.b32 	%r167, %f215;
+	mov.b32 	%r168, %f216;
+	@%p1 st.global.v4.b32 [ %rd18 + 0 ], { %r165, %r166, %r167, %r168 };
+	mov.b32 	%r169, %f217;
+	mov.b32 	%r170, %f218;
+	mov.b32 	%r171, %f219;
+	mov.b32 	%r172, %f220;
+	@%p1 st.global.v4.b32 [ %rd19 + 0 ], { %r169, %r170, %r171, %r172 };
+	mov.b32 	%r173, %f221;
+	mov.b32 	%r174, %f222;
+	mov.b32 	%r175, %f223;
+	mov.b32 	%r176, %f224;
+	@%p1 st.global.v4.b32 [ %rd20 + 0 ], { %r173, %r174, %r175, %r176 };
+	mov.b32 	%r177, %f225;
+	mov.b32 	%r178, %f226;
+	mov.b32 	%r179, %f227;
+	mov.b32 	%r180, %f228;
+	@%p1 st.global.v4.b32 [ %rd21 + 0 ], { %r177, %r178, %r179, %r180 };
+	mov.b32 	%r181, %f229;
+	mov.b32 	%r182, %f230;
+	mov.b32 	%r183, %f231;
+	mov.b32 	%r184, %f232;
+	@%p1 st.global.v4.b32 [ %rd22 + 0 ], { %r181, %r182, %r183, %r184 };
+	mov.b32 	%r185, %f233;
+	mov.b32 	%r186, %f234;
+	mov.b32 	%r187, %f235;
+	mov.b32 	%r188, %f236;
+	@%p1 st.global.v4.b32 [ %rd23 + 0 ], { %r185, %r186, %r187, %r188 };
+	mov.b32 	%r189, %f237;
+	mov.b32 	%r190, %f238;
+	mov.b32 	%r191, %f239;
+	mov.b32 	%r192, %f240;
+	@%p1 st.global.v4.b32 [ %rd24 + 0 ], { %r189, %r190, %r191, %r192 };
+	mov.b32 	%r193, %f241;
+	mov.b32 	%r194, %f242;
+	mov.b32 	%r195, %f243;
+	mov.b32 	%r196, %f244;
+	@%p1 st.global.v4.b32 [ %rd25 + 0 ], { %r193, %r194, %r195, %r196 };
+	mov.b32 	%r197, %f245;
+	mov.b32 	%r198, %f246;
+	mov.b32 	%r199, %f247;
+	mov.b32 	%r200, %f248;
+	@%p1 st.global.v4.b32 [ %rd26 + 0 ], { %r197, %r198, %r199, %r200 };
+	mov.b32 	%r201, %f249;
+	mov.b32 	%r202, %f250;
+	mov.b32 	%r203, %f251;
+	mov.b32 	%r204, %f252;
+	@%p1 st.global.v4.b32 [ %rd27 + 0 ], { %r201, %r202, %r203, %r204 };
+	mov.b32 	%r205, %f253;
+	mov.b32 	%r206, %f254;
+	mov.b32 	%r207, %f255;
+	mov.b32 	%r208, %f256;
+	@%p1 st.global.v4.b32 [ %rd28 + 0 ], { %r205, %r206, %r207, %r208 };
+	mov.b32 	%r209, %f257;
+	mov.b32 	%r210, %f258;
+	mov.b32 	%r211, %f259;
+	mov.b32 	%r212, %f260;
+	@%p1 st.global.v4.b32 [ %rd29 + 0 ], { %r209, %r210, %r211, %r212 };
+	mov.b32 	%r213, %f261;
+	mov.b32 	%r214, %f262;
+	mov.b32 	%r215, %f263;
+	mov.b32 	%r216, %f264;
+	@%p1 st.global.v4.b32 [ %rd30 + 0 ], { %r213, %r214, %r215, %r216 };
+	mov.b32 	%r217, %f265;
+	mov.b32 	%r218, %f266;
+	mov.b32 	%r219, %f267;
+	mov.b32 	%r220, %f268;
+	@%p1 st.global.v4.b32 [ %rd31 + 0 ], { %r217, %r218, %r219, %r220 };
+	mov.b32 	%r221, %f269;
+	mov.b32 	%r222, %f270;
+	mov.b32 	%r223, %f271;
+	mov.b32 	%r224, %f272;
+	@%p1 st.global.v4.b32 [ %rd32 + 0 ], { %r221, %r222, %r223, %r224 };
+	.loc	1 54 4
 	ret;
-$L__tmp642:
+$L__tmp99:
 $L__func_end0:
 
 }
-	.file	1 "<ipython-input-6-50a4f79e9a13>"
-	.file	2 "/home/allan/anaconda3/envs/hidet/lib/python3.9/site-packages/triton/language/core.py"
+	.file	1 "/home/allan/Programs/hidet-repos/hidet/experiments/tile/reduce_expand_triton.py"
+	.file	2 "/home/allan/.conda/envs/hidet/lib/python3.9/site-packages/triton/language/core.py"
 	.section	.debug_abbrev
 	{
 .b8 1
@@ -3065,6 +814,8 @@ $L__func_end0:
 .b8 8
 .b8 16
 .b8 6
+.b8 27
+.b8 8
 .b8 180
 .b8 66
 .b8 12
@@ -3107,7 +858,7 @@ $L__func_end0:
 .b8 0
 .b8 4
 .b8 29
-.b8 0
+.b8 1
 .b8 49
 .b8 19
 .b8 17
@@ -3124,7 +875,7 @@ $L__func_end0:
 .b8 0
 .b8 5
 .b8 29
-.b8 1
+.b8 0
 .b8 49
 .b8 19
 .b8 17
@@ -3134,7 +885,7 @@ $L__func_end0:
 .b8 88
 .b8 11
 .b8 89
-.b8 11
+.b8 5
 .b8 87
 .b8 11
 .b8 0
@@ -3151,7 +902,7 @@ $L__func_end0:
 .b8 88
 .b8 11
 .b8 89
-.b8 5
+.b8 11
 .b8 87
 .b8 11
 .b8 0
@@ -3160,7 +911,7 @@ $L__func_end0:
 	}
 	.section	.debug_info
 	{
-.b32 191
+.b32 244
 .b8 2
 .b8 0
 .b32 .debug_abbrev
@@ -3175,38 +926,87 @@ $L__func_end0:
 .b8 0
 .b8 2
 .b8 0
-.b8 60
-.b8 105
+.b8 114
+.b8 101
+.b8 100
+.b8 117
+.b8 99
+.b8 101
+.b8 95
+.b8 101
+.b8 120
 .b8 112
-.b8 121
+.b8 97
+.b8 110
+.b8 100
+.b8 95
 .b8 116
-.b8 104
+.b8 114
+.b8 105
+.b8 116
 .b8 111
 .b8 110
-.b8 45
-.b8 105
-.b8 110
+.b8 46
 .b8 112
-.b8 117
-.b8 116
-.b8 45
-.b8 54
-.b8 45
-.b8 53
-.b8 48
-.b8 97
-.b8 52
-.b8 102
-.b8 55
-.b8 57
-.b8 101
-.b8 57
-.b8 97
-.b8 49
-.b8 51
-.b8 62
+.b8 121
 .b8 0
 .b32 .debug_line
+.b8 47
+.b8 104
+.b8 111
+.b8 109
+.b8 101
+.b8 47
+.b8 97
+.b8 108
+.b8 108
+.b8 97
+.b8 110
+.b8 47
+.b8 80
+.b8 114
+.b8 111
+.b8 103
+.b8 114
+.b8 97
+.b8 109
+.b8 115
+.b8 47
+.b8 104
+.b8 105
+.b8 100
+.b8 101
+.b8 116
+.b8 45
+.b8 114
+.b8 101
+.b8 112
+.b8 111
+.b8 115
+.b8 47
+.b8 104
+.b8 105
+.b8 100
+.b8 101
+.b8 116
+.b8 47
+.b8 101
+.b8 120
+.b8 112
+.b8 101
+.b8 114
+.b8 105
+.b8 109
+.b8 101
+.b8 110
+.b8 116
+.b8 115
+.b8 47
+.b8 116
+.b8 105
+.b8 108
+.b8 101
+.b8 0
 .b8 1
 .b64 $L__func_begin0
 .b64 $L__func_end0
@@ -3218,7 +1018,9 @@ $L__func_end0:
 .b8 49
 .b8 95
 .b8 48
+.b8 100
 .b8 49
+.b8 100
 .b8 0
 .b8 116
 .b8 101
@@ -3227,10 +1029,12 @@ $L__func_end0:
 .b8 49
 .b8 95
 .b8 48
+.b8 100
 .b8 49
+.b8 100
 .b8 0
 .b8 1
-.b8 3
+.b8 44
 .b8 1
 .b8 1
 .b8 3
@@ -3238,30 +1042,30 @@ $L__func_end0:
 .b64 $L__func_end0
 .b8 1
 .b8 156
-.b32 73
+.b32 122
 .b8 4
-.b32 73
+.b32 122
 .b64 $L__tmp1
-.b64 $L__tmp640
+.b64 $L__tmp98
 .b8 2
-.b8 11
+.b8 52
 .b8 25
 .b8 5
-.b32 73
-.b64 $L__tmp2
-.b64 $L__tmp641
-.b8 2
-.b8 11
-.b8 25
-.b8 6
-.b32 73
-.b64 $L__tmp2
-.b64 $L__tmp641
+.b32 122
+.b64 $L__tmp1
+.b64 $L__tmp98
 .b8 2
 .b8 247
 .b8 5
 .b8 31
 .b8 0
+.b8 6
+.b32 122
+.b64 $L__tmp2
+.b64 $L__tmp97
+.b8 2
+.b8 52
+.b8 25
 .b8 0
 .b8 0
 	}
@@ -3272,8 +1076,8 @@ $L__pubNames_start0:
 .b8 2
 .b8 0
 .b32 .debug_info
-.b32 195
-.b32 73
+.b32 248
+.b32 122
 .b8 116
 .b8 101
 .b8 115
@@ -3281,7 +1085,9 @@ $L__pubNames_start0:
 .b8 49
 .b8 95
 .b8 48
+.b8 100
 .b8 49
+.b8 100
 .b8 0
 .b32 0
 $L__pubNames_end0:
@@ -3293,7 +1099,7 @@ $L__pubTypes_start0:
 .b8 2
 .b8 0
 .b32 .debug_info
-.b32 195
+.b32 248
 .b32 0
 $L__pubTypes_end0:
 	}

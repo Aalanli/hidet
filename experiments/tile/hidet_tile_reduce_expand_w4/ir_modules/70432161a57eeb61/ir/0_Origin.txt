@@ -1,0 +1,21 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 128
+    # cuda.grid_dim: 1
+    declare a_idx1: int32[32] = create(i, shape=[32], axes=[i])
+    declare a_idx2: int32[64] = create(i_0, shape=[64], axes=[i_0])
+    declare b_idx1: int32[16] = create(i_1, shape=[16], axes=[i_1])
+    declare b_idx2: int32[64] = create(i_2, shape=[64], axes=[i_2])
+    declare a_idx: int32[64, 32] = ((expand_dims(a_idx2, axis=1) * 32) + expand_dims(a_idx1, axis=0))
+    declare b_idx: int32[64, 16] = ((expand_dims(b_idx2, axis=1) * 16) + expand_dims(b_idx1, axis=0))
+    declare a_ptr: float32*[64, 32] = (a + a_idx)
+    declare b_ptr: float32*[64, 16] = (b + b_idx)
+    declare a1: float32[64, 32] = load(a_ptr)
+    declare b1: float32[64, 16] = load(b_ptr)
+    declare c1: float32[64, 16] = (b1 * expand_dims(reduce_op(a1, axis=1, keepdims=False, kind=ReduceKind.sum), axis=1))
+    store((c + b_idx), c1)
+

@@ -2,6 +2,8 @@
 import triton
 import triton.language as tl
 
+from collections import namedtuple
+
 # @triton.autotune(configs=[
 #     triton.Config({}, num_warps=1, num_stages=1)
 # ], key=[])
@@ -27,8 +29,11 @@ test[(1,)](a, b, c)
 print(torch.allclose(c, b[:, None] + a[None, :]))
 from triton.compiler import compile
 
-n_warps = 2
-compiled = compile(test, num_warps=n_warps, signature='*fp32, *fp32, *fp32')
+
+n_warps = 4
+Spec = namedtuple("instance_descriptor", ["divisible_by_16", "equal_to_1"], defaults=[set(), set()])
+specialization = Spec(divisible_by_16={0, 1, 2}, equal_to_1=set())
+compiled = compile(test, num_warps=n_warps, signature='*fp32, *fp32, *fp32', configs=[specialization])
 
 path = f'triton-ir/oversub/over_sub_w{n_warps}'
 with open(path + '.ttir', 'w') as f:
@@ -37,4 +42,3 @@ with open(path + '.ttgir', 'w') as f:
     f.write(str(compiled.asm['ttgir']))
 with open(path + '.ptx', 'w') as f:
     f.write(str(compiled.asm['ptx']))
-

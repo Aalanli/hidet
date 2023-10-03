@@ -1,0 +1,40 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 128
+    # cuda.grid_dim: 1
+    let a_idx1: int32[32] = create(i, shape=[32], axes=[i])
+    let a_idx2: int32[64] = create(i_0, shape=[64], axes=[i_0])
+    let b_idx1: int32[16] = create(i_1, shape=[16], axes=[i_1])
+    let b_idx2: int32[64] = create(i_2, shape=[64], axes=[i_2])
+    let expand_dims: int32[64, 1] = expand_dims(a_idx2, axis=1)
+    let create: int32[64, 1] = create(32, shape=[64, 1], axes=[i_3, j])
+    let multiply: int32[64, 1] = multiply(expand_dims, create)
+    let broadcast: int32[64, 32] = broadcast(multiply, shape=[64, 32])
+    let expand_dims_0: int32[1, 32] = expand_dims(a_idx1, axis=0)
+    let broadcast_0: int32[64, 32] = broadcast(expand_dims_0, shape=[64, 32])
+    let a_idx: int32[64, 32] = add(broadcast, broadcast_0)
+    let expand_dims_1: int32[64, 1] = expand_dims(b_idx2, axis=1)
+    let create_0: int32[64, 1] = create(16, shape=[64, 1], axes=[i_4, j_0])
+    let multiply_0: int32[64, 1] = multiply(expand_dims_1, create_0)
+    let broadcast_1: int32[64, 16] = broadcast(multiply_0, shape=[64, 16])
+    let expand_dims_2: int32[1, 16] = expand_dims(b_idx1, axis=0)
+    let broadcast_2: int32[64, 16] = broadcast(expand_dims_2, shape=[64, 16])
+    let b_idx: int32[64, 16] = add(broadcast_1, broadcast_2)
+    let create_1: float32*[64, 32] = create(a, shape=[64, 32], axes=[i_5, j_1])
+    let a_ptr: float32*[64, 32] = add(create_1, a_idx)
+    let create_2: float32*[64, 16] = create(b, shape=[64, 16], axes=[i_6, j_2])
+    let b_ptr: float32*[64, 16] = add(create_2, b_idx)
+    let a1: float32[64, 32] = load(a_ptr)
+    let b1: float32[64, 16] = load(b_ptr)
+    let reduce_op: float32[64] = reduce_op(a1, axis=1, keepdims=False, kind=ReduceKind.sum)
+    let expand_dims_3: float32[64, 1] = expand_dims(reduce_op, axis=1)
+    let broadcast_3: float32[64, 16] = broadcast(expand_dims_3, shape=[64, 16])
+    let c1: float32[64, 16] = multiply(b1, broadcast_3)
+    let create_3: float32*[64, 16] = create(c, shape=[64, 16], axes=[i_7, j_3])
+    let add: float32*[64, 16] = add(create_3, b_idx)
+    store(add, c1)
+

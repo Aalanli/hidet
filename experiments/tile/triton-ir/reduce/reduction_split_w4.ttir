@@ -1,5 +1,5 @@
 module {
-  tt.func public @test1_012(%arg0: !tt.ptr<f32>, %arg1: !tt.ptr<f32>, %arg2: !tt.ptr<f32>) attributes {noinline = false} {
+  tt.func public @test1_0d1d2d(%arg0: !tt.ptr<f32> {tt.divisibility = 16 : i32}, %arg1: !tt.ptr<f32> {tt.divisibility = 16 : i32}, %arg2: !tt.ptr<f32> {tt.divisibility = 16 : i32}) attributes {noinline = false} {
     %cst = arith.constant dense<16> : tensor<64x1xi32>
     %cst_0 = arith.constant dense<32> : tensor<64x1xi32>
     %0 = tt.make_range {end = 32 : i32, start = 0 : i32} : tensor<32xi32>

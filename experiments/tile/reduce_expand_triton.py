@@ -24,9 +24,13 @@ def test1(a, b, c):
 
 from triton.compiler import compile
 
-n_warps = 4
-compiled = compile(test1, num_warps=n_warps, signature='*fp32, *fp32, *fp32')
+n_warps = 1
+from collections import namedtuple
+Spec = namedtuple("instance_descriptor", ["divisible_by_16", "equal_to_1"], defaults=[set(), set()])
+specialization = Spec(divisible_by_16={0, 1, 2}, equal_to_1=set())
+compiled = compile(test1, num_warps=n_warps, configs=[specialization], signature='*fp32, *fp32, *fp32')
 
+# %%
 path = f'triton-ir/reduce/reduction_split_w{n_warps}'
 with open(path + '.ttir', 'w') as f:
     f.write(str(compiled.asm['ttir']))
@@ -52,8 +56,11 @@ def test1(a, c):
 
 from triton.compiler import compile
 
-n_warps = 1
-compiled = compile(test1, num_warps=n_warps, signature='*fp32, *fp32')
+n_warps = 2
+from collections import namedtuple
+Spec = namedtuple("instance_descriptor", ["divisible_by_16", "equal_to_1"], defaults=[set(), set()])
+specialization = Spec(divisible_by_16={0, 1}, equal_to_1=set())
+compiled = compile(test1, num_warps=n_warps, configs=[specialization], signature='*fp32, *fp32')
 
 path = f'triton-ir/reduce/reduction_split2_w{n_warps}'
 with open(path + '.ttir', 'w') as f:

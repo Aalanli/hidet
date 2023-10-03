@@ -395,15 +395,16 @@ class RemoveLayoutConvertPass(TileFunctionPass):
                 func = transform(func)
                 if func_before is not func:
                     func_ssa = canonicalize_to_ssa(func)
-                try:
-                    check_for_stranded_var(func_ssa)
-                except RuntimeError as e:
-                    print(func)
-                    print(func_before)
-                    print(transform.__class__.__name__)
-                    raise e
+                
+                    try:
+                        check_for_stranded_var(func_ssa)
+                    except RuntimeError as e:
+                        print(func)
+                        print(func_before)
+                        print(transform.__class__.__name__)
+                        raise e
 
-                func = func_ssa
+                    func = func_ssa
             if func is orig_func:
                 break
         return func

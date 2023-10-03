@@ -1,0 +1,39 @@
+#layout: block(shape=[32], size_per_thread=[1], thread_per_warp=[32], warps_per_block=[1])
+#layout1: block(shape=[64], size_per_thread=[1], thread_per_warp=[32], warps_per_block=[1])
+#layout2: block(shape=[32], size_per_thread=[4], thread_per_warp=[32], warps_per_block=[1])
+#layout3: block(shape=[64], size_per_thread=[4], thread_per_warp=[32], warps_per_block=[1])
+#layout4: block(shape=[64, 1], size_per_thread=[1, 1], thread_per_warp=[32, 1], warps_per_block=[1, 1])
+#layout5: block(shape=[64, 32], size_per_thread=[1, 1], thread_per_warp=[32, 1], warps_per_block=[1, 1])
+#layout6: block(shape=[1, 32], size_per_thread=[1, 1], thread_per_warp=[1, 32], warps_per_block=[1, 1])
+#layout7: block(shape=[64, 32], size_per_thread=[1, 1], thread_per_warp=[1, 32], warps_per_block=[1, 1])
+
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 32
+    # cuda.grid_dim: 1
+    let a_ptr: float32*[32, #layout] = create((a + i), shape=[32], axes=[i], layout=#layout)
+    let b_ptr: float32*[64, #layout1] = create((b + i_0), shape=[64], axes=[i_0], layout=#layout1)
+    let cvt: float32*[32, #layout2] = convert_layout(a_ptr, layout=#layout2)
+    let load: float32[32, #layout2] = load(cvt)
+    let a1: float32[32, #layout] = convert_layout(load, layout=#layout)
+    let cvt_0: float32*[64, #layout3] = convert_layout(b_ptr, layout=#layout3)
+    let load_0: float32[64, #layout3] = load(cvt_0)
+    let b1: float32[64, #layout1] = convert_layout(load_0, layout=#layout1)
+    let cvt_1: float32[64, flatten_block(#layout4, axis=1)] = convert_layout(b1, layout=flatten_block(#layout4, axis=1))
+    let expand_dims: float32[64, 1, #layout4] = expand_dims(cvt_1, axis=1, layout=#layout4)
+    let cvt_2: float32[64, 1, #layout5] = convert_layout(expand_dims, layout=#layout5)
+    let broadcast: float32[64, 32, #layout5] = broadcast(cvt_2, shape=[64, 32], layout=#layout5)
+    let cvt_3: float32[32, flatten_block(#layout6, axis=0)] = convert_layout(a1, layout=flatten_block(#layout6, axis=0))
+    let expand_dims_0: float32[1, 32, #layout6] = expand_dims(cvt_3, axis=0, layout=#layout6)
+    let cvt_4: float32[1, 32, #layout7] = convert_layout(expand_dims_0, layout=#layout7)
+    let broadcast_0: float32[64, 32, #layout7] = broadcast(cvt_4, shape=[64, 32], layout=#layout7)
+    let cvt_5: float32[64, 32, #layout5] = convert_layout(broadcast_0, layout=#layout5)
+    let cres: float32[64, 32, #layout5] = add(broadcast, cvt_5)
+    let add: float32*[64, 32, #layout7] = create((c + ((i_1 * 32) + j)), shape=[64, 32], axes=[i_1, j], layout=#layout7)
+    let cvt_6: float32*[64, 32, #layout5] = convert_layout(add, layout=#layout5)
+    store(cvt_6, cres)
+

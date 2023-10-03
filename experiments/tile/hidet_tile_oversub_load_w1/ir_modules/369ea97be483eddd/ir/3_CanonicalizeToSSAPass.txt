@@ -1,0 +1,32 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_tile
+    # cuda.block_dim: 32
+    # cuda.grid_dim: 1
+    let a_idx: int32[32] = create(i, shape=[32], axes=[i])
+    let b_idx: int32[64] = create(i_0, shape=[64], axes=[i_0])
+    let create: float32*[32] = create(a, shape=[32], axes=[i_1])
+    let a_ptr: float32*[32] = add(create, a_idx)
+    let create_0: float32*[64] = create(b, shape=[64], axes=[i_2])
+    let b_ptr: float32*[64] = add(create_0, b_idx)
+    let a1: float32[32] = load(a_ptr)
+    let b1: float32[64] = load(b_ptr)
+    let expand_dims: float32[64, 1] = expand_dims(b1, axis=1)
+    let broadcast: float32[64, 32] = broadcast(expand_dims, shape=[64, 32])
+    let expand_dims_0: float32[1, 32] = expand_dims(a1, axis=0)
+    let broadcast_0: float32[64, 32] = broadcast(expand_dims_0, shape=[64, 32])
+    let cres: float32[64, 32] = add(broadcast, broadcast_0)
+    let create_1: float32*[64, 32] = create(c, shape=[64, 32], axes=[i_3, j])
+    let expand_dims_1: int32[64, 1] = expand_dims(b_idx, axis=1)
+    let create_2: int32[64, 1] = create(32, shape=[64, 1], axes=[i_4, j_0])
+    let multiply: int32[64, 1] = multiply(expand_dims_1, create_2)
+    let broadcast_1: int32[64, 32] = broadcast(multiply, shape=[64, 32])
+    let expand_dims_2: int32[1, 32] = expand_dims(a_idx, axis=0)
+    let broadcast_2: int32[64, 32] = broadcast(expand_dims_2, shape=[64, 32])
+    let add: int32[64, 32] = add(broadcast_1, broadcast_2)
+    let add_0: float32*[64, 32] = add(create_1, add)
+    store(add_0, cres)
+

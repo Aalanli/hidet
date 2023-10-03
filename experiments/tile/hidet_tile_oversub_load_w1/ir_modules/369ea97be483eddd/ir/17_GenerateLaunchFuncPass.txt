@@ -1,0 +1,104 @@
+def over_sub_load(
+    a: float32*,
+    b: float32*,
+    c: float32*
+)
+    # kind: cuda_kernel
+    # cuda.block_dim: 32
+    # cuda.grid_dim: 1
+    # cuda.dynamic_smem_bytes: 8580
+    declare cvt: tensor(float32*, [4])
+    for i in repeat(4) on 0
+        cvt[i] = (a + ((((((threadIdx.x / 32) + ((threadIdx.x / 32) % 1)) * 8) + ((threadIdx.x % 32) % 8)) * 4) + ((threadIdx.x % 1) + (i % 4))))
+    declare load: tensor(float32, [4])
+    for i_0 in repeat(1) on 0
+        cuda_ld_global_nc_L2_128B_v4_b32(cvt[(i_0 * 4)], &load[(i_0 * 4)], &load[((i_0 * 4) + 1)], &load[(((i_0 * 4) + 1) + 1)], &load[((((i_0 * 4) + 1) + 1) + 1)])
+    declare cvt_0: tensor(float32*, [4])
+    for i_1 in repeat(4) on 0
+        cvt_0[i_1] = (b + ((((((threadIdx.x / 32) + ((threadIdx.x / 32) % 1)) * 16) + ((threadIdx.x % 32) % 16)) * 4) + ((threadIdx.x % 1) + (i_1 % 4))))
+    declare load_0: tensor(float32, [4])
+    for i_2 in repeat(1) on 0
+        cuda_ld_global_nc_L2_128B_v4_b32(cvt_0[(i_2 * 4)], &load_0[(i_2 * 4)], &load_0[((i_2 * 4) + 1)], &load_0[(((i_2 * 4) + 1) + 1)], &load_0[((((i_2 * 4) + 1) + 1) + 1)])
+    declare cvt_1: tensor(float32, [2, 1])
+    let cvt_smem: tensor_pointer(float32, [65]) = cast(float32*, cast(void*, cuda_dynamic_shared_memory_void(0)))
+    cuda_syncthreads()
+    for i_3 in repeat(4) on 0
+        if ((true && (true && ((threadIdx.x % 32) < 16))) && true)
+            cvt_smem[((((((threadIdx.x / 32) + ((threadIdx.x / 32) % 1)) * 16) + ((threadIdx.x % 32) % 16)) * 4) + ((threadIdx.x % 1) + (i_3 % 4)))] = load_0[i_3]
+    cuda_syncthreads()
+    for i_4, j in repeat(2, 1) on 0
+        cvt_1[i_4, j] = cvt_smem[((((((threadIdx.x / 32) + i_4) + ((threadIdx.x / 32) % 1)) * 32) + (threadIdx.x % 32)) + (threadIdx.x % 1))]
+    cuda_syncthreads()
+    declare expand_dims: tensor(float32, [2, 1])
+    for i_5, j_0 in repeat(2, 1) on 0
+        expand_dims[i_5, j_0] = cvt_1[i_5, j_0]
+    declare cvt_2: tensor(float32, [2, 32])
+    let cvt_smem_0: tensor_pointer(float32, [65, 2]) = cast(float32*, cast(void*, cuda_dynamic_shared_memory_void(0)))
+    cuda_syncthreads()
+    for i_6, j_1 in repeat(2, 1) on 0
+        if true
+            cvt_smem_0[((((((threadIdx.x / 32) + i_6) + ((threadIdx.x / 32) % 1)) * 32) + (threadIdx.x % 32)) + (threadIdx.x % 1)), (((((threadIdx.x / 32) % 1) + (((threadIdx.x / 32) % 1) % 1)) + ((threadIdx.x % 32) % 1)) + ((threadIdx.x % 1) % 1))] = expand_dims[i_6, j_1]
+    cuda_syncthreads()
+    for i_7, j_2 in repeat(2, 32) on 0
+        cvt_2[i_7, j_2] = cvt_smem_0[((((((threadIdx.x / 32) + i_7) + ((threadIdx.x / 32) % 1)) * 32) + (threadIdx.x % 32)) + (threadIdx.x % 1)), ((((((threadIdx.x / 32) % 1) + j_2) + (((threadIdx.x / 32) % 1) % 1)) + ((threadIdx.x % 32) % 1)) + ((threadIdx.x % 1) % 1))]
+    cuda_syncthreads()
+    declare broadcast: tensor(float32, [2, 32])
+    for i_8, j_3 in repeat(2, 32) on 0
+        broadcast[i_8, j_3] = cvt_2[i_8, 0]
+    declare cvt_3: tensor(float32, [1, 1])
+    let cvt_smem_1: tensor_pointer(float32, [33]) = cast(float32*, cast(void*, cuda_dynamic_shared_memory_void(0)))
+    cuda_syncthreads()
+    for i_9 in repeat(4) on 0
+        if ((true && (true && ((threadIdx.x % 32) < 8))) && true)
+            cvt_smem_1[((((((threadIdx.x / 32) + ((threadIdx.x / 32) % 1)) * 8) + ((threadIdx.x % 32) % 8)) * 4) + ((threadIdx.x % 1) + (i_9 % 4)))] = load[i_9]
+    cuda_syncthreads()
+    for i_10, j_4 in repeat(1, 1) on 0
+        cvt_3[i_10, j_4] = cvt_smem_1[((((((threadIdx.x / 32) % 1) + (((threadIdx.x / 32) % 1) % 1)) * 32) + ((threadIdx.x % 32) % 32)) + ((threadIdx.x % 1) % 1))]
+    cuda_syncthreads()
+    declare expand_dims_0: tensor(float32, [1, 1])
+    for i_11, j_5 in repeat(1, 1) on 0
+        expand_dims_0[i_11, j_5] = cvt_3[i_11, j_5]
+    declare cvt_4: tensor(float32, [64, 1])
+    let cvt_smem_2: tensor_pointer(float32, [2, 33]) = cast(float32*, cast(void*, cuda_dynamic_shared_memory_void(0)))
+    cuda_syncthreads()
+    for i_12, j_6 in repeat(1, 1) on 0
+        if true
+            cvt_smem_2[((((threadIdx.x / 32) + ((threadIdx.x / 32) % 1)) + ((threadIdx.x % 32) / 32)) + (threadIdx.x % 1)), ((((((threadIdx.x / 32) % 1) + (((threadIdx.x / 32) % 1) % 1)) * 32) + ((threadIdx.x % 32) % 32)) + ((threadIdx.x % 1) % 1))] = expand_dims_0[i_12, j_6]
+    cuda_syncthreads()
+    for i_13, j_7 in repeat(64, 1) on 0
+        cvt_4[i_13, j_7] = cvt_smem_2[(((((threadIdx.x / 32) + i_13) + ((threadIdx.x / 32) % 1)) + ((threadIdx.x % 32) / 32)) + (threadIdx.x % 1)), ((((((threadIdx.x / 32) % 1) + (((threadIdx.x / 32) % 1) % 1)) * 32) + ((threadIdx.x % 32) % 32)) + ((threadIdx.x % 1) % 1))]
+    cuda_syncthreads()
+    declare broadcast_0: tensor(float32, [64, 1])
+    for i_14, j_8 in repeat(64, 1) on 0
+        broadcast_0[i_14, j_8] = cvt_4[0, j_8]
+    declare cvt_5: tensor(float32, [2, 32])
+    let cvt_smem_3: tensor_pointer(float32, [65, 33]) = cast(float32*, cast(void*, cuda_dynamic_shared_memory_void(0)))
+    cuda_syncthreads()
+    for i_15, j_9 in repeat(64, 1) on 0
+        if true
+            cvt_smem_3[(((((threadIdx.x / 32) + i_15) + ((threadIdx.x / 32) % 1)) + ((threadIdx.x % 32) / 32)) + (threadIdx.x % 1)), ((((((threadIdx.x / 32) % 1) + (((threadIdx.x / 32) % 1) % 1)) * 32) + ((threadIdx.x % 32) % 32)) + ((threadIdx.x % 1) % 1))] = broadcast_0[i_15, j_9]
+    cuda_syncthreads()
+    for i_16, j_10 in repeat(2, 32) on 0
+        cvt_5[i_16, j_10] = cvt_smem_3[((((((threadIdx.x / 32) + i_16) + ((threadIdx.x / 32) % 1)) * 32) + (threadIdx.x % 32)) + (threadIdx.x % 1)), ((((((threadIdx.x / 32) % 1) + j_10) + (((threadIdx.x / 32) % 1) % 1)) + ((threadIdx.x % 32) % 1)) + ((threadIdx.x % 1) % 1))]
+    cuda_syncthreads()
+    declare cres: tensor(float32, [2, 32])
+    for i_17, j_11 in repeat(2, 32) on 0
+        cres[i_17, j_11] = (broadcast[i_17, j_11] + cvt_5[i_17, j_11])
+    declare cvt_6: tensor(float32*, [2, 32])
+    for i_18, j_12 in repeat(2, 32) on 0
+        cvt_6[i_18, j_12] = (c + ((((((((threadIdx.x / 32) + i_18) + ((threadIdx.x / 32) % 1)) * 32) + (threadIdx.x % 32)) + (threadIdx.x % 1)) * 32) + ((((((threadIdx.x / 32) % 1) + j_12) + (((threadIdx.x / 32) % 1) % 1)) + ((threadIdx.x % 32) % 1)) + ((threadIdx.x % 1) % 1))))
+    for i_19, j_13 in repeat(2, 32) on 0
+        if true
+            cuda_st_global_b32(cvt_6[i_19, j_13], &cres[i_19, j_13])
+
+def launch(
+    a_0: float32*,
+    b_0: float32*,
+    c_0: float32*
+)
+    # kind: public
+    # label: 
+    if false
+        cudaFuncSetAttribute(over_sub_load, cudaFuncAttributeMaxDynamicSharedMemorySize, 8580);
+    over_sub_load<<<dim3(1, 1, 1), dim3(32, 1, 1), 8580>>>(a_0, b_0, c_0);
+

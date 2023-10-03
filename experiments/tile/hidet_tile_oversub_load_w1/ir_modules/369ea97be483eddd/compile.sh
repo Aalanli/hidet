@@ -1,0 +1,3 @@
+#!/bin/bash
+
+/usr/local/cuda/bin/nvcc -I/home/allan/Programs/hidet_repo/hidet/include -L/home/allan/Programs/hidet_repo/hidet/build/lib -O3 -Xcompiler -fPIC,-m64,-O3,-funroll-loops,-ffast-math -std=c++11 -gencode arch=compute_86,code=sm_86 --ptxas-options=-v -lineinfo -ftz=true -prec-div=false -lhidet_runtime --cudart shared --diag-suppress 177 --diag-suppress 179 --diag-suppress 39 --shared  /home/allan/Programs/hidet_repo/hidet/experiments/tile/hidet_tile_oversub_load_w1/ir_modules/369ea97be483eddd/source.cu -o /home/allan/Programs/hidet_repo/hidet/experiments/tile/hidet_tile_oversub_load_w1/ir_modules/369ea97be483eddd/lib.so

@@ -98,3 +98,7 @@ plt.show()
 # org_t: 1.9178423881530762
 # avg_t: 0.004179380834102631
 
+# decode 128 tokens with 0 prefill, batch size 1, float16
+# torch-llama: 3.2441110706329344
+# torch-compile-llama: 2.6624171352386474
+

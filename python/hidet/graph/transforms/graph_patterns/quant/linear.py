@@ -123,7 +123,7 @@ class SymmetricQuantizeMatmulFused(SubgraphRewriteRule):
 
         # For now we set parallel_k_parts to 1, as from benchmarking shapes [B, C, C] x [C, C]
         # from C between [32, 2048], we see that parallel_k_parts=1 is the fastest
-        return [ops.quant.symmetric_quant_matmul(x, wq, scale, parallel_k_parts=1).sum(0)]
+        return [ops.quant.SymmetricQuantizedMatmulOp(x, wq, scale).outputs[0]]
 
 
 def matmul_specialization_rules() -> List[SubgraphRewriteRule]:

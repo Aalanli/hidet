@@ -96,7 +96,8 @@ def bench_ref(i, **kwargs):
     sa = hidet.symbol(['s', k], dtype=a.dtype, device='cuda')
     sb = hidet.symbol([k, n], dtype=b.dtype, device='cuda')
     sscale = hidet.symbol_like(scale)
-    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=1)
+    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=4)
+    ys = ys.sum(0)
     g = hidet.trace_from(ys, [sa, sb, sscale])
     func = g.build(space=kwargs['space'])
     return lambda: func(a, b, scale)
@@ -108,11 +109,11 @@ def bench_packed_quant(i, **kwargs):
     sa = hidet.symbol(['s', k], dtype=a.dtype, device='cuda')
     sb = hidet.symbol([k, n], dtype=b.dtype, device='cuda')
     sscale = hidet.symbol_like(scale)
-    if k <= 4096:
-        ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=1)
-    else:
-        ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=4)
-        ys = ys.sum(0)
+    # if k <= 4096:
+    #     ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=1)
+    # else:
+    ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=4)
+    ys = ys.sum(0)
     g = hidet.trace_from(ys, [sa, sb, sscale])
     func = g.build(space=kwargs['space'])
     return lambda: func(a, b, scale)

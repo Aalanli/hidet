@@ -224,6 +224,7 @@ class LlamaAttention(nn.Module):
         attn_weights = hidet.ops.softmax(attn_weights, axis=-1).to(query_states.dtype)
         attn_output = hidet.ops.matmul(attn_weights, value_states)
 
+        # attn_output = hidet.ops.attention(query_states / math.sqrt(self.head_dim), key_states.transpose(2, 3), value_states, attention_mask)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape([bsz, q_len, self.hidden_size])
 

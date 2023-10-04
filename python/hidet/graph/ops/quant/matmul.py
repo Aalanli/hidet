@@ -25,6 +25,71 @@ from hidet.graph.operator import Operator, Tensor
 from hidet.utils.py import is_power_of_two, cdiv, prod
 from hidet.graph.ops.utils import broadcast_indices
 
+class SymmetricQuantizedMatmulTask(Task):
+    def __init__(self, a: TensorNode, weight: TensorNode, scale: TensorNode):
+
+        self._assert(
+            a.type.dtype == float16 and weight.type.dtype == int8, 'Expect a to be float16 and weight to be int8'
+        )
+        # weight.shape = [K, M], scale.shape = [M]
+        # such that the quantization is done over K
+        self._assert(scale.shape[0] == weight.shape[1])
+
+        if len(a.shape) < 2 or len(weight.shape) != 2:
+            raise ValueError('SymmetricQuantizedMatmul expect , got {} and {}'.format(a.shape, weight.shape))
+
+        self._assert(
+            a.shape[-1] == weight.shape[-2],
+            msg=(
+                'Matrix multiplication expect tensor A and B with shape [..., M, K] and [..., K, N]'
+                ', got {} and {}'.format(a.shape, weight.shape)
+            ),
+        )
+
+        self._assert(
+            can_mutually_broadcast(a.shape[:-2], weight.shape[:-2]),
+            msg=(
+                'Matrix multiplication expect tensor A and B with compatible broadcast shape, '
+                'got {} and {}'.format(a.shape, weight.shape)
+            ),
+        )
+
+        a_shape = a.shape
+        b_shape = weight.shape
+        k_size = a.shape[-1]
+        c_shape = broadcast_shape(a.shape[:-2], weight.shape[:-2]) + [a_shape[-2], b_shape[-1]]
+        c = compute(
+            name='c',
+            shape=c_shape,
+            fcompute=lambda *indices: reduce(
+                shape=[k_size],
+                fcompute=lambda k:
+                    a[broadcast_indices(indices[:-2], a.shape[:-2], c_shape[:-2]) + [indices[-2], k]]
+                    * (
+                        cast(
+                            weight[
+                                broadcast_indices(indices[:-2], weight.shape[:-2], c_shape[:-2]) + [k, indices[-1]]
+                            ],
+                            float16,
+                        )
+                        * scale[indices[-1]]
+                    ),
+                    reduce_type='sum',
+                ),
+        )
+
+        super().__init__(
+            name='symmetric_quantized_matmul',
+            inputs=[a, weight, scale],
+            outputs=[c],
+            attributes={},
+        )
+
+class SymmetricQuantizedMatmulOp(Operator):
+    def __init__(self, a: Tensor, b: Tensor, scale: Tensor):
+        task = SymmetricQuantizedMatmulTask(input_like(a, 'a'), input_like(b, 'b'), input_like(scale, 'scale'))
+        super().__init__(inputs=[a, b, scale], attributes={}, task=task)
+
 
 class SymmetricQuantizedMatmulF16Task(Task):
     def __init__(self, a: TensorNode, weight: TensorNode, scale: TensorNode, parallel_k_parts: int = 1):
@@ -461,3 +526,83 @@ def symmetric_quant_matmul(a: Tensor, weight: Tensor, scale: Tensor, parallel_k_
     if a.dtype != dtypes.float16 or weight.dtype != dtypes.int8:
         raise ValueError('BatchMatmulF16Op only support float16, int8, got {} and {}'.format(a.dtype, weight.dtype))
     return SymmetricQuantizedMatmulF16Op(a, weight, scale, parallel_k_parts).outputs[0]
+
+import hidet
+from hidet.graph.transforms import ResolveRule, register_resolve_rule
+from hidet.ir.expr import is_constant
+from typing import Optional
+
+@register_resolve_rule(SymmetricQuantizedMatmulOp)
+class QuantSymmetricResolveRule(ResolveRule):
+    def resolve(self, op: Operator) -> Optional[List[Tensor]]:
+        # if op.task.has_symbolic_shape():
+        #     return None
+
+        a: Tensor = op.inputs[0]
+        b: Tensor = op.inputs[1]
+        scale: Tensor = op.inputs[2]
+        c: Tensor = op.outputs[0]
+
+        if hidet.option.cuda.get_arch_pair() < (8, 0):
+            return None
+
+        parallel_k = self.get_config('parallel_k', default='default')  # 'default', 'search', 2, 4, ...
+        
+        if not (is_constant(a.shape[-1]) and is_constant(b.shape[-2])):
+            k_parts = 1
+        elif isinstance(parallel_k, str):
+            if parallel_k == 'default':
+                batch_size, m_size, n_size, k_size = prod(c.shape[:-2]), c.shape[-2], c.shape[-1], a.shape[-1]
+                if is_constant(batch_size, m_size):
+                    estimate_blocks = batch_size * cdiv(m_size, 64) * cdiv(n_size, 64)
+                    estimate_concurrent_blocks = 80 * 5
+                    max_k_parts = cdiv(k_size, 64)
+                    k_parts = min(cdiv(estimate_concurrent_blocks, estimate_blocks), max_k_parts)
+                else:
+                    k_parts = 1
+            elif parallel_k == 'disabled':
+                k_parts = 1
+            elif parallel_k == 'search':
+                candidates = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
+                # to get around vcuda error
+                # temporary hack to sample latency from symbolic shape
+                a_shape = list(a.shape)
+                b_shape = list(b.shape)
+                for i in range(len(a_shape)):
+                    if not is_constant(a_shape[i]):
+                        a_shape[i] = 1
+                for i in range(len(b_shape)):
+                    if not is_constant(b_shape[i]):
+                        b_shape[i] = 1
+                
+                aa = hidet.symbol(a_shape, dtype=a.dtype, device='cuda')                
+                bb = hidet.symbol(b_shape, dtype=b.dtype, device='cuda')
+                sscale = hidet.symbol_like(scale, device='cuda')
+
+                latencies: List[float] = []
+                print('Symmetric Quantized Matmul: Searching the best parallel_k for {} x {} x {} among {}'.format(a.shape, b.shape, scale.shape, candidates))
+                for candidate in candidates:
+                    cc = symmetric_quant_matmul(aa, bb, sscale, parallel_k_parts=candidate)
+                    cc = cc.sum(0)
+                    graph = hidet.trace_from([cc], [aa, bb, sscale])
+                    # prevent recursion
+                    with hidet.graph.PassContext() as ctx:
+                        graph: hidet.FlowGraph = hidet.graph.optimize(graph)
+                    latency: float = graph.latency()
+                    latencies.append(latency)
+                best_idx = min(range(len(candidates)), key=lambda i: latencies[i])
+                print(
+                    'Results: {{{}}},'.format(
+                        ', '.join('{}: {:.1f}'.format(a, b * 1000) for a, b in zip(candidates, latencies))
+                    ),
+                    'Picked {} with {:.1f} micro-seconds'.format(candidates[best_idx], latencies[best_idx] * 1000),
+                )
+                k_parts = candidates[best_idx]
+            else:
+                raise ValueError(f'invalid parallel_k: {parallel_k}')
+        elif isinstance(parallel_k, int):
+            k_parts = min(max(parallel_k, 1), 32)
+        else:
+            raise ValueError(f'invalid parallel_k: {parallel_k}')
+        c = symmetric_quant_matmul(a, b, scale, parallel_k_parts=k_parts).sum(0)
+        return [c]

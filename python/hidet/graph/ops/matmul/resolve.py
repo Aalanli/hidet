@@ -194,7 +194,8 @@ class MatmulResolveRule(ResolveRule):
             return None
 
         parallel_k = self.get_config('parallel_k', default='default')  # 'default', 'search', 2, 4, ...
-        if op.task.has_symbolic_shape():
+        
+        if not (is_constant(a.shape[-1]) and is_constant(b.shape[-2])):
             k_parts = 1
         elif isinstance(parallel_k, str):
             if parallel_k == 'default':
@@ -210,16 +211,28 @@ class MatmulResolveRule(ResolveRule):
                 k_parts = 1
             elif parallel_k == 'search':
                 candidates = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
-                aa = hidet.symbol_like(a)
-                bb = hidet.symbol_like(b)
+                # to get around vcuda error
+                # temporary hack to sample latency from symbolic shape
+                a_shape = list(a.shape)
+                b_shape = list(b.shape)
+                for i in range(len(a_shape)):
+                    if not is_constant(a_shape[i]):
+                        a_shape[i] = 1
+                for i in range(len(b_shape)):
+                    if not is_constant(b_shape[i]):
+                        b_shape[i] = 1
+                
+                aa = hidet.symbol(a_shape, dtype=a.dtype, device='cuda')                
+                bb = hidet.symbol(b_shape, dtype=b.dtype, device='cuda')
+
                 latencies: List[float] = []
                 print('Searching the best parallel_k for {} x {} among {}'.format(a.shape, b.shape, candidates))
                 for candidate in candidates:
                     cc = matmul_f16(aa, bb, parallel_k_parts=candidate)
-                    # if candidate > 1:
-                    #     cc = cc.sum(0)
+                    cc = cc.sum(0)
                     graph = hidet.trace_from([cc], [aa, bb])
-                    graph: hidet.FlowGraph = hidet.graph.optimize(graph)
+                    with hidet.graph.PassContext() as ctx:
+                        graph: hidet.FlowGraph = hidet.graph.optimize(graph)
                     latency: float = graph.latency()
                     latencies.append(latency)
                 best_idx = min(range(len(candidates)), key=lambda i: latencies[i])

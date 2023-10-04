@@ -21,15 +21,20 @@ def get_model_llama_torch(name: str = 'decapoda-research/llama-7b-hf'):
 
 
 def bench_llama_torch(model, model_config: ModelConfig, config: DecodingSampleConfig):
-    ids = torch.randint(0, 32000, (config.batch_size, config.q_seq_len)).to('cuda')
+    # ids = torch.randint(0, 32000, (config.batch_size, config.q_seq_len)).to('cuda')
     kv_cache = tuple(tuple(
         torch.randn(config.batch_size, model_config.n_heads, config.kv_seq_len, model_config.head_dim, dtype=torch.float16, device='cuda')
         for _ in range(2)) for _ in range(model_config.n_layers))
-    
+    attn_mask = torch.ones((config.batch_size, 1024), device='cuda', dtype=torch.bool)
+    pos_ids = torch.arange(0, 1024, device='cuda').unsqueeze(0).repeat(config.batch_size, 1)
     def bench():
-        model(ids, use_cache=True, past_key_values=kv_cache)
+        ids = [torch.randint(0, 32000, (config.batch_size, 1), device='cuda') for _ in range(config.q_seq_len)]
+        cache = kv_cache
+        for i in range(config.q_seq_len):
+            cache = model(ids[i], attention_mask=attn_mask[:, :i+1], position_ids=pos_ids[:, i:i+1], use_cache=True, past_key_values=cache).past_key_values
+            # print(cache[0][0].shape)
     
-    return benchmark_func(bench, repeat=config.repeat, median=False, warmup=config.warmup)
+    return benchmark_func(bench, median=False, warmup=3)
 
 def bench_llama_hidet(model, model_config: ModelConfig, config: DecodingSampleConfig):
     ids = torch.randint(0, 32000, (config.batch_size, config.q_seq_len), dtype=torch.int32, device='cuda')
@@ -92,49 +97,49 @@ def bench_gpt2_onnx(model, model_config: ModelConfig, config: DecodingSampleConf
 # optimum-cli export onnx --model meta-llama/Llama-2-7b-hf --task text-generation --framework pt --opset 16 --sequence_length 1024 --batch_size 1 --device cuda --fp16 llama-2-7b-optimum/
 
 
-config = DecodingSampleConfig(q_seq_len=32, kv_seq_len=512, batch_size=32)
-#####################
-model, model_config = get_model_gpt2_torch('gpt2')
-model = model.to('cuda')
-with torch.autocast('cuda'):
-    times = bench_gpt2_torch(model, model_config, config)
+# config = DecodingSampleConfig(q_seq_len=32, kv_seq_len=512, batch_size=32)
+# #####################
+# model, model_config = get_model_gpt2_torch('gpt2')
+# model = model.to('cuda')
+# with torch.autocast('cuda'):
+#     times = bench_gpt2_torch(model, model_config, config)
 
-print('torch-gpt2:', sum(times) / len(times))
-# torch-gpt2: 18.939590454101562
+# print('torch-gpt2:', sum(times) / len(times))
+# # torch-gpt2: 18.939590454101562
 
-del model
-# print(torch.cuda.memory_summary())
-torch.cuda.empty_cache()
+# del model
+# # print(torch.cuda.memory_summary())
+# torch.cuda.empty_cache()
 
-#####################
-model, model_config = get_model_gpt2_torch('gpt2')
-model = model.to('cuda')
-model = torch.compile(model) # for some reason max-autotune is slower than default
-with torch.autocast('cuda'):
-    times = bench_gpt2_torch(model, model_config, config)
+# #####################
+# model, model_config = get_model_gpt2_torch('gpt2')
+# model = model.to('cuda')
+# model = torch.compile(model) # for some reason max-autotune is slower than default
+# with torch.autocast('cuda'):
+#     times = bench_gpt2_torch(model, model_config, config)
 
-print('torch-compile-gpt2:', sum(times) / len(times))
-# torch-compile-gpt2: 17.110588550567627
+# print('torch-compile-gpt2:', sum(times) / len(times))
+# # torch-compile-gpt2: 17.110588550567627
 
-del model
-torch.cuda.empty_cache()
+# del model
+# torch.cuda.empty_cache()
 
-#####################
-model, model_config = get_model_gpt2_onnx('gpt2')
-timse = bench_gpt2_onnx(model, model_config, config)
-print('onnx gpt2:', sum(times) / len(times))
-# onnx gpt2: 17.110588550567627
+# #####################
+# model, model_config = get_model_gpt2_onnx('gpt2')
+# timse = bench_gpt2_onnx(model, model_config, config)
+# print('onnx gpt2:', sum(times) / len(times))
+# # onnx gpt2: 17.110588550567627
 
-del model
-torch.cuda.empty_cache()
-
+# del model
+# torch.cuda.empty_cache()
 
 # don't have enough memory for larger batch/kv_seq_len
-config = DecodingSampleConfig(q_seq_len=32, kv_seq_len=128, batch_size=1)
+config = DecodingSampleConfig(q_seq_len=128, kv_seq_len=0, batch_size=1)
+# %%
 #####################
 model, model_config = get_model_llama_torch()
 times = bench_llama_torch(model, model_config, config)
-print('torch-llama:', sum(times) / len(times))
+print('torch-llama:', sum(times) / len(times) / 1000)
 # torch-llama: 26.811532974243164
 
 del model
@@ -144,9 +149,28 @@ torch.cuda.empty_cache()
 model, model_config = get_model_llama_torch()
 model = torch.compile(model)
 times = bench_llama_torch(model, model_config, config)
-print('torch-compile-llama:', sum(times) / len(times))
+print('torch-compile-llama:', sum(times) / len(times) / 1000)
 # torch-compile-llama: 23.289554119110107
 
 del model
 torch.cuda.empty_cache()
 
+torch._dynamo.reset()
+torch.cuda.empty_cache()
+print(torch.cuda.memory_summary())
+import gc
+gc.collect()
+
+# %%
+model, model_config = get_model_llama_torch()
+model = torch.compile(model, mode='max-autotune')
+times = bench_llama_torch(model, model_config, config)
+print('torch-compile-llama:', sum(times) / len(times) / 1000)
+# torch-compile-llama: 23.289554119110107
+
+del model
+torch.cuda.empty_cache()
+
+# decode 128 tokens with 0 prefill, batch size 1
+# torch-llama: 3.2441110706329344
+# torch-compile-llama: 2.6624171352386474

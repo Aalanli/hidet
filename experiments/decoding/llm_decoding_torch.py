@@ -27,14 +27,15 @@ def bench_llama_torch(model, model_config: ModelConfig, config: DecodingSampleCo
         for _ in range(2)) for _ in range(model_config.n_layers))
     attn_mask = torch.ones((config.batch_size, 1024), device='cuda', dtype=torch.bool)
     pos_ids = torch.arange(0, 1024, device='cuda').unsqueeze(0).repeat(config.batch_size, 1)
-    def bench():
-        ids = [torch.randint(0, 32000, (config.batch_size, 1), device='cuda') for _ in range(config.q_seq_len)]
-        cache = kv_cache
-        for i in range(config.q_seq_len):
-            cache = model(ids[i], attention_mask=attn_mask[:, :i+1], position_ids=pos_ids[:, i:i+1], use_cache=True, past_key_values=cache).past_key_values
-            # print(cache[0][0].shape)
-    
-    return benchmark_func(bench, median=False, warmup=3)
+    with torch.no_grad():
+        def bench():
+            ids = [torch.randint(0, 32000, (config.batch_size, 1), device='cuda') for _ in range(config.q_seq_len)]
+            cache = kv_cache
+            for i in range(config.q_seq_len):
+                cache = model(ids[i], attention_mask=attn_mask[:, :config.kv_seq_len+i+1], position_ids=pos_ids[:, i+config.kv_seq_len:i+config.kv_seq_len+1], use_cache=True, past_key_values=cache).past_key_values
+                # print(cache[0][0].shape)
+        
+        return benchmark_func(bench, median=False, warmup=3)
 
 def bench_llama_hidet(model, model_config: ModelConfig, config: DecodingSampleConfig):
     ids = torch.randint(0, 32000, (config.batch_size, config.q_seq_len), dtype=torch.int32, device='cuda')
@@ -154,16 +155,14 @@ print('torch-compile-llama:', sum(times) / len(times) / 1000)
 
 del model
 torch.cuda.empty_cache()
-
 torch._dynamo.reset()
 torch.cuda.empty_cache()
-print(torch.cuda.memory_summary())
 import gc
 gc.collect()
 
 # %%
 model, model_config = get_model_llama_torch()
-model = torch.compile(model, mode='max-autotune')
+model = torch.compile(model, mode='reduce-overhead')
 times = bench_llama_torch(model, model_config, config)
 print('torch-compile-llama:', sum(times) / len(times) / 1000)
 # torch-compile-llama: 23.289554119110107
@@ -172,5 +171,9 @@ del model
 torch.cuda.empty_cache()
 
 # decode 128 tokens with 0 prefill, batch size 1
-# torch-llama: 3.2441110706329344
-# torch-compile-llama: 2.6624171352386474
+# torch-llama: 2.921869134902954
+# torch-compile-llama: 2.659517068862915
+
+# 128 prefill, decode 128, batch size 1
+# torch-llama: 2.9668309116363525
+# torch-compile-llama: 2.657146110534668

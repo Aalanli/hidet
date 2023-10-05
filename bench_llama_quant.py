@@ -74,7 +74,6 @@ print(f'avg_t: {sum(times) / len(times)}')
 plt.plot(times)
 plt.show()
 
-
 # fp16 - 128 tokens
 # org_t: 3.048099994659424
 # avg_t: 0.0044784750789403915

@@ -99,10 +99,6 @@ plt.show()
 # org_t: 1.9178423881530762
 # avg_t: 0.004179380834102631
 
-# decode 128 tokens with 0 prefill, batch size 1, float16
-# torch-llama: 3.2441110706329344
-# torch-compile-llama: 2.6624171352386474
-
 # int8 - prefill 128, decode 128, batch size 1, k_parks=4, flash-attn
 # org_t: 2.031648635864258
 # avg_t: 0.01493494026362896
@@ -111,3 +107,11 @@ plt.show()
 # org_t: 1.767362117767334
 # avg_t: 0.013012891635298729
 
+# ---torch---
+# decode 128 tokens with 0 prefill, batch size 1
+# torch-llama: 3.195237979888916
+# torch-compile-llama: 2.881284008026123
+
+# 128 prefill, decode 128, batch size 1
+# torch-llama: 3.2373869705200193
+# torch-compile-llama: 2.905135974884033

@@ -135,7 +135,7 @@ def bench_gpt2_onnx(model, model_config: ModelConfig, config: DecodingSampleConf
 # torch.cuda.empty_cache()
 
 # don't have enough memory for larger batch/kv_seq_len
-config = DecodingSampleConfig(q_seq_len=128, kv_seq_len=0, batch_size=1)
+config = DecodingSampleConfig(q_seq_len=128, kv_seq_len=128, batch_size=1)
 # %%
 #####################
 model, model_config = get_model_llama_torch()
@@ -171,9 +171,9 @@ del model
 torch.cuda.empty_cache()
 
 # decode 128 tokens with 0 prefill, batch size 1
-# torch-llama: 2.921869134902954
-# torch-compile-llama: 2.659517068862915
+# torch-llama: 3.195237979888916
+# torch-compile-llama: 2.881284008026123
 
 # 128 prefill, decode 128, batch size 1
-# torch-llama: 2.9668309116363525
-# torch-compile-llama: 2.657146110534668
+# torch-llama: 3.2373869705200193
+# torch-compile-llama: 2.905135974884033

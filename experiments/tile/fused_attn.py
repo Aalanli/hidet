@@ -41,7 +41,7 @@ def demo_flash_attn(B, H, M, N, D, dtype, BLOCK_M, BLOCK_N, BLOCK_D, num_warps=4
             v_ptrs = v_ptr + ti.expand_dims(nidx * D, 1) + ti.expand_dims(didx, 0) + offset_kv
             
             q = ti.load(q_ptrs)
-            maxes = ti.zeros([BLOCK_M], dtype=f32) - float('inf')
+            maxes = ti.zeros([BLOCK_M], dtype=f32) - f32.max_value
             sums  = ti.zeros([BLOCK_M], dtype=f32)
             acc = ti.zeros([BLOCK_M, BLOCK_D], dtype=f32)
 
@@ -96,5 +96,6 @@ qh = hidet.from_torch(q)
 kh = hidet.from_torch(k)
 vh = hidet.from_torch(v)
 y2 = run(qh, kh, vh)
-
-
+y2 = y2.torch()
+# %%
+print((y1 - y2).abs().max())

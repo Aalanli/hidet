@@ -554,8 +554,93 @@ def assert_close(actual, expected, rtol=1e-5, atol=1e-5):
     numpy.testing.assert_allclose(actual, expected, rtol, atol)
 
 
+def diff_word(old: str, new: str, color_new: str) -> str:
+    chars = []
+    old = old.split(' ')
+    new = new.split(' ')
+    for i in range(max(len(old), len(new))):
+        c1 = old[i] if i < len(old) else ''
+        c2 = new[i] if i < len(new) else ''
+        if c1 != c2:
+            chars.append(color(c2, fg=color_new))
+        else:
+            chars.append(c1)
+    return ' '.join(chars)
+    
+
+def diff_lines(old: str, new: str) -> str:
+    lines = []
+    old = old.split('\n')
+    new = new.split('\n')
+
+    for i in range(max(len(old), len(new))):
+        s1 = old[i] if i < len(old) else ''
+        s2 = new[i] if i < len(new) else ''
+        if s1 != s2:
+            lines.append(diff_word(s2, s1, 'red'))
+            lines.append(diff_word(s1, s2, 'green'))
+        else:
+            lines.append(s1)
+    return '\n'.join(lines)
+
+
+def fuzzy_diff_text(old: str, new: str, look_ahead_lines: int = 10) -> str:
+    lines = []
+    old = old.split('\n')
+    new = new.split('\n')
+    i = 0
+    j = 0
+    while i < len(old) and j < len(new):
+        s_old = old[i]
+        matched = list(map(lambda x: x == s_old, new[j:j+look_ahead_lines]))
+        if True in matched:
+            jump = matched.index(True)
+            lines.extend(map(lambda x: color(x, fg='green'), new[j:j+jump]))
+            lines.append(old[i])
+            j += jump + 1
+            i += 1
+            continue
+        s_new = new[j]
+        matched = list(map(lambda x: x == s_new, old[i:i+look_ahead_lines]))
+        if True in matched:
+            jump = matched.index(True)
+            lines.extend(map(lambda x: color(x, fg='red'), old[i:i+jump]))
+            lines.append(new[j])
+            j += 1
+            i += jump + 1
+            continue
+        lines.append(diff_word(s_new, s_old, 'red'))
+        lines.append(diff_word(s_old, s_new, 'green'))
+        i += 1
+        j += 1
+    if i < len(old):
+        lines.extend(map(lambda x: color(x, fg='red'), old[i:]))
+    if j < len(new):
+        lines.extend(map(lambda x: color(x, fg='green'), new[j:]))
+    return '\n'.join(lines)
+
 if __name__ == '__main__':
     # color_table()
     print(color_text('sample', idx=1))
     print(color_text('sample', idx=2))
     print(color('sample', fg='red'))
+
+    a = """
+    a b c
+    1 2 3
+    bonjour
+    hola
+    """
+    b = """
+    a b c
+
+    12 3
+    1 2 3
+    hello
+    hallo
+    bonjour
+    """
+
+    print(diff_lines(a, b))
+    print('---fuzzy diff text---')
+    print(fuzzy_diff_text(a, b))

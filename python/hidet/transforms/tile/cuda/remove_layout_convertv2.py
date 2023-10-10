@@ -1,3 +1,4 @@
+# %%
 from typing import List, Dict, Optional, Type, Any, Set
 from collections import defaultdict
 from hidet.ir.expr import Let, Var, Expr, var
@@ -57,7 +58,6 @@ class VarScope:
     
     def define(self, v: Var, value: Any):
         self.scope[-1][v] = value
-
 
 class CheckStrandedVar(IRVisitor):
     def __init__(self):
@@ -245,6 +245,16 @@ class FoldConvertLayoutBeforeAndAfterCast(PatternTransform):
         cst: CastOp = self.get_tile_op(self.cst, matched, var2call)
         cvt2: ConvertLayout = self.get_tile_op(self.cvt2, matched, var2call)
         return cast(convert_layout(x, cvt2.layout), cst.dtype)
+
+
+class PropagateLayoutAnalysis(IRVisitor):
+    def __init__(self):
+        super().__init__()
+        self.layouts: Dict[Var, List[TileLayout]] = {}
+    
+    def is_anchor(self, op: TileOp) -> bool:
+        pass
+    
 
 class ChangeForArgLayoutRewriter(IRRewriter):
     def __init__(self):
@@ -436,3 +446,5 @@ class RemoveLayoutConvertPass(TileFunctionPass):
 
 def remove_layout_convert_pass() -> TileFunctionPass:
     return RemoveLayoutConvertPass()
+
+

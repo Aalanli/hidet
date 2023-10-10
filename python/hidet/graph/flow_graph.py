@@ -25,6 +25,7 @@ from hidet.ir.expr import is_constant
 from hidet.ir.task import Task
 from hidet.graph.tensor import Tensor, zeros_like, randn_like
 from hidet.graph.operator import Operator, SymbolVar
+from hidet.utils.benchmark import do_bench
 
 logger = logging.getLogger(__name__)
 
@@ -395,7 +396,7 @@ class FlowGraph:
         return CudaGraph(f_create_inputs, f_run, ref_objs=[self])
 
     def latency(
-        self, warmup=1, number=3, repeat=3, median=True, dummy_inputs: Optional[Sequence[Tensor]] = None
+        self, warmup=10, number=3, repeat=50, median=True, dummy_inputs: Optional[Sequence[Tensor]] = None
     ) -> Union[float, List[float]]:
         """Measure the latency of the flow graph.
 
@@ -426,21 +427,12 @@ class FlowGraph:
 
         if dummy_inputs is None:
             dummy_inputs = self.dummy_inputs()
-        for _ in range(warmup):
-            self.forward(dummy_inputs)
-        results = []
-        for _ in range(repeat):
-            hidet.cuda.synchronize()
-            t1 = time.time()
-            for _ in range(number):
-                self.forward(dummy_inputs)
-            hidet.cuda.synchronize()
-            t2 = time.time()
-            results.append((t2 - t1) * 1000 / number)
-        if median:
-            return float(np.median(results))
+        res = do_bench(lambda: self.forward(dummy_inputs), warmup=warmup, rep=repeat)
+        if median is True:
+            return res[1]
         else:
-            return results
+            return res
+        
 
     @staticmethod
     def _analyze(outputs: List[Tensor]) -> Tuple[List[Tensor], List[Operator], Dict[Tensor, int]]:

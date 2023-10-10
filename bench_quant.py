@@ -23,7 +23,6 @@ print(torch.allclose(y1.torch(), y2.torch()))
 print(torch.allclose(y1.torch(), y3, atol=1e-2, rtol=1e-2))
 print((y1.torch() - y3).abs().max())
 
-# %%
 from hidet.utils.benchmark import Bench
 
 def bench_ref(i, **kwargs):
@@ -84,9 +83,9 @@ for k, v in _kernel.cache.items():
 from hidet.utils.benchmark import Bench
 
 def get_args2(m, k, n):
-    a = hidet.from_torch(torch.randn(m, k, dtype=torch.float16, device='cuda'))
-    b = hidet.from_torch((torch.randn(k, n, dtype=torch.float16, device='cuda') * 10).to(torch.int8))
-    scale = hidet.from_torch(torch.randn(n, dtype=torch.float16, device='cuda'))
+    a = hidet.from_torch(torch.zeros(m, k, dtype=torch.float16, device='cuda'))
+    b = hidet.from_torch((torch.zeros(k, n, dtype=torch.float16, device='cuda') * 10).to(torch.int8))
+    scale = hidet.from_torch(torch.zeros(n, dtype=torch.float16, device='cuda'))
     return a, b, scale
 
 def bench_ref(i, **kwargs):

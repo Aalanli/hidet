@@ -24,7 +24,7 @@ def get_compiled_model(name='decapoda-research/llama-7b-hf', device='cuda', opt=
         with hidet.graph.PassContext() as ctx:
             ctx.set_precision('int8')
             # ctx.set_use_attention(True)
-            ctx.set_parallel_k(nparts=4)
+            ctx.set_parallel_k(search=True)
             ctx.reduce_cuda_compile_mem()
             flow_graph = hidet.graph.optimize(flow_graph)
     print(flow_graph)

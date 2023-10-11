@@ -29,10 +29,15 @@ test[(1,)](a, b, c)
 print(torch.allclose(c, b[:, None] + a[None, :]))
 from triton.compiler import compile
 
+from save_triton_ir import get_ir
+
 
 n_warps = 4
 Spec = namedtuple("instance_descriptor", ["divisible_by_16", "equal_to_1"], defaults=[set(), set()])
 specialization = Spec(divisible_by_16={0, 1, 2}, equal_to_1=set())
+irs = get_ir(test, num_warps=n_warps, signature='*fp32, *fp32, *fp32', configs=[specialization])
+
+# %%
 compiled = compile(test, num_warps=n_warps, signature='*fp32, *fp32, *fp32', configs=[specialization])
 
 path = f'triton-ir/oversub/over_sub_w{n_warps}'

@@ -31,7 +31,7 @@ def bench_ref(i, **kwargs):
     sa = hidet.symbol(['s', i], dtype=a.dtype, device='cuda')
     sb = hidet.symbol([i, i], dtype=b.dtype, device='cuda')
     sscale = hidet.symbol_like(scale)
-    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=1)
+    ys = symmetric_quant_matmul_ref(sa, sb, sscale, parallel_k_parts=kwargs['pk_parts'])
     g = hidet.trace_from(ys, [sa, sb, sscale])
     func = g.build(space=kwargs['space'])
     return lambda: func(a, b, scale)
@@ -42,7 +42,7 @@ def bench_packed_quant(i, **kwargs):
     sa = hidet.symbol(['s', i], dtype=a.dtype, device='cuda')
     sb = hidet.symbol([i, i], dtype=b.dtype, device='cuda')
     sscale = hidet.symbol_like(scale)
-    ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=1)
+    ys = symmetric_quant_matmul(sa, sb, sscale, parallel_k_parts=kwargs['pk_parts'])
     g = hidet.trace_from(ys, [sa, sb, sscale])
     func = g.build(space=kwargs['space'])
     return lambda: func(a, b, scale)
@@ -61,14 +61,14 @@ def torch_orig(i, **kwargs):
     return lambda: a @ b
 
 S = 128
-bn = Bench(x_name='C', x_vals=[2048, 4096, 4096 * 2, 4096 * 4], space=2, s=S)
+bn = Bench(x_name='C', x_vals=[1024, 2048, 4096, 4096 * 2, 4096 * 4], space=2, s=S, pk_parts=8)
 bn.bench(bench_ref)
 bn.bench(bench_packed_quant)
-bn.bench(bench_triton)
+# bn.bench(bench_triton)
 # bn.bench(torch_orig)
 # bn.measure_flops(lambda config, c: torch.finfo(config.dtype).bits // 8 * c**2)
 data = bn.run()
-data.show_plot(title=f'f32[{S}, C] x i8[C, C]')
+data.show_plot(title=f'f16[{S}, C] x i8[C, C]')
 data.print_data()
 
 # %%
@@ -132,13 +132,13 @@ def torch_orig(i, **kwargs):
 
     return lambda: a @ b
 
-S = 1
+S = 128
 bn = Bench(x_name='C', x_vals=[(S, 4096, 11008), (S, 11008, 4096), (S, 4096, 4096), (S, 4096, 32000)], space=2)
 bn.bench(bench_ref)
 bn.bench(bench_packed_quant)
-bn.bench(bench_triton)
-bn.bench(torch_orig)
+# bn.bench(bench_triton)
+# bn.bench(torch_orig)
 # bn.measure_flops(lambda config, c: torch.finfo(config.dtype).bits // 8 * c**2)
 data = bn.run()
-data.show_plot(title=f'f32 x i8')
+data.show_plot(title=f'f16 x i8')
 data.print_data()

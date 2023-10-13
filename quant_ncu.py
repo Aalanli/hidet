@@ -6,6 +6,7 @@ from hidet.graph.ops.quant.matmul import symmetric_quant_matmul as symmetric_qua
 from quant_matmul import symmetric_quant_matmul
 from triton_matmul_experiment import triton_matmul
 
+hidet.option.cache_dir('quant-ncu/outs/cache')
 def get_args(M, K, N):
     a = hidet.from_torch(torch.randn(M, K, dtype=torch.float16, device='cuda'))
     b = hidet.from_torch((torch.randn(K, N, dtype=torch.float16, device='cuda') * 10).to(torch.int8))
@@ -39,10 +40,16 @@ def bench_ref(i, **kwargs):
 
 
 MKN = (8, 4096, 11008)
+bench_packed_quant(MKN, space=2, pk_parts=1)()
+bench_ref(MKN, space=2, pk_parts=1)()
+
 bench_packed_quant(MKN, space=2, pk_parts=4)()
 bench_ref(MKN, space=2, pk_parts=4)()
 
 MKN = (128, 4096 * 4, 4096 * 4)
+bench_packed_quant(MKN, space=2, pk_parts=1)()
+bench_ref(MKN, space=2, pk_parts=1)()
+
 bench_packed_quant(MKN, space=2, pk_parts=4)()
 bench_ref(MKN, space=2, pk_parts=4)()
 

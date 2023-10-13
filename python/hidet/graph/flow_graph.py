@@ -396,7 +396,7 @@ class FlowGraph:
         return CudaGraph(f_create_inputs, f_run, ref_objs=[self])
 
     def latency(
-        self, warmup=10, number=3, repeat=50, median=True, dummy_inputs: Optional[Sequence[Tensor]] = None
+        self, warmup=25, repeat=100, dummy_inputs: Optional[Sequence[Tensor]] = None
     ) -> Union[float, List[float]]:
         """Measure the latency of the flow graph.
 
@@ -405,14 +405,8 @@ class FlowGraph:
         warmup: int
             The number of warmup runs.
 
-        number: int
-            The number of runs to measure the latency.
-
         repeat: int
             The number of times to repeat the measurement.
-
-        median: bool
-            Whether to return the median latency.
 
         dummy_inputs: Optional[Sequence[Tensor]]
             The dummy inputs to run the flow graph. If not given, automatic generated dummy inputs would be used.
@@ -422,17 +416,12 @@ class FlowGraph:
         ret: Union[float, List[float]]
             The measured latency in milliseconds.
         """
-        import time
-        import numpy as np
 
         if dummy_inputs is None:
             dummy_inputs = self.dummy_inputs()
-        res = do_bench(lambda: self.forward(dummy_inputs), warmup=warmup, rep=repeat)
-        if median is True:
-            return res[1]
-        else:
-            return res
-        
+
+        # return the median
+        return do_bench(lambda: self.forward(dummy_inputs), warmup=warmup, rep=repeat)[1]
 
     @staticmethod
     def _analyze(outputs: List[Tensor]) -> Tuple[List[Tensor], List[Operator], Dict[Tensor, int]]:

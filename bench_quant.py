@@ -61,7 +61,7 @@ def torch_orig(i, **kwargs):
     return lambda: a @ b
 
 S = 128
-bn = Bench(x_name='C', x_vals=[1024, 2048, 4096, 4096 * 2, 4096 * 4], space=2, s=S, pk_parts=8)
+bn = Bench(x_name='C', x_vals=[4096, 4096 * 2, 4096 * 4], space=2, s=S, pk_parts=8)
 bn.bench(bench_ref)
 bn.bench(bench_packed_quant)
 # bn.bench(bench_triton)
@@ -70,6 +70,21 @@ bn.bench(bench_packed_quant)
 data = bn.run()
 data.show_plot(title=f'f16[{S}, C] x i8[C, C]')
 data.print_data()
+
+# k-parts=1
+#        bench_ref  bench_packed_quant
+# 1024    0.062464            0.060416
+# 2048    0.062464            0.061664
+# 4096    0.062464            0.065536
+# 8192    0.201728            0.190464
+# 16384   0.780288            0.726208
+# k-parts=4
+#        bench_ref  bench_packed_quant
+# 1024    0.059392            0.060208
+# 2048    0.062464            0.061440
+# 4096    0.061440            0.061440
+# 8192    0.176128            0.192512
+# 16384   0.632832            0.688416
 
 # %%
 from triton_matmul_experiment import _kernel
@@ -132,7 +147,7 @@ def torch_orig(i, **kwargs):
 
     return lambda: a @ b
 
-S = 128
+S = 1
 bn = Bench(x_name='C', x_vals=[(S, 4096, 11008), (S, 11008, 4096), (S, 4096, 4096), (S, 4096, 32000)], space=2)
 bn.bench(bench_ref)
 bn.bench(bench_packed_quant)
@@ -142,3 +157,16 @@ bn.bench(bench_packed_quant)
 data = bn.run()
 data.show_plot(title=f'f16 x i8')
 data.print_data()
+
+
+# k-parts=4
+#                   bench_ref  bench_packed_quant
+# (1, 4096, 11008)   0.063488            0.065536
+# (1, 11008, 4096)   0.067584            0.064512
+# (1, 4096, 4096)    0.065536            0.064512
+# (1, 4096, 32000)   0.155648            0.157696
+#                     bench_ref  bench_packed_quant
+# (128, 4096, 11008)   0.137216            0.142336
+# (128, 11008, 4096)   0.129024            0.130048
+# (128, 4096, 4096)    0.064512            0.063488
+# (128, 4096, 32000)   0.337920            0.352256

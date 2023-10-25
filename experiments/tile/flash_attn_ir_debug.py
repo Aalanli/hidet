@@ -81,8 +81,6 @@ D = 64
 ir_module = demo_flash_attn(B, H, M, N, D, float16, BLOCK_M=32, BLOCK_N=32, BLOCK_D=64)
 
 
-# %%
-
 from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa_pass
 from hidet.transforms.tile.generic.inject_explicit_transform_ops import inject_explicit_transform_ops_pass
 from hidet.transforms.tile.generic.canonicalize_expressions import canonicalize_expressions_pass
@@ -97,8 +95,8 @@ from hidet.transforms.tile.cuda.software_pipeline import software_pipeline_pass
 from hidet.transforms.tile.cuda.split_dot_k import split_dot_k_pass
 from hidet.transforms.tile.cuda.plan_shared_memory import plan_shared_memory_pass
 from hidet.transforms.tile.cuda.lower_tile_dialect import lower_tile_dialect_pass
-
-
+from hidet.transforms.tile.analyzers.usage_analyzer import SourceAnalyzer, UsageAnalyzer
+from hidet.transforms.tile.cuda.remove_layout_convertv2 import PropagateLayoutAnalysis
 def transforms(module):
     passes = [
         inject_explicit_transform_ops_pass(),
@@ -111,7 +109,9 @@ def transforms(module):
         resolve_dot_pass(),
         instantiate_layout_pass(),
         coalesce_memory_access_pass(),
+
         loop_invariant_code_motion_pass(),
+        canonicalize_to_ssa_pass(),
         # remove_layout_convert_pass(),
         # loop_invariant_code_motion_pass(),
         # software_pipeline_pass(),
@@ -123,9 +123,134 @@ def transforms(module):
         module = t(module)
     return module
 
-
+from hidet.transforms.tile.analyzers import DependencyAnalyzer
 ir_module = transforms(ir_module)
 print(ir_module)
+
+
+# %%
+
+
+def dependency_analysis(ir_module) -> Dict[Var, List[Var]]:
+    dep = DependencyAnalyzer()
+    dep.visit(ir_module)
+    return dep.depends
+
+def contains_layout(v: Var) -> bool:
+    return isinstance(v, Var) and isinstance(v.type, TileType) and v.type.layout is not None
+
+def filter_dependencies(depends: Dict[Var, List[Var]]) -> Dict[Var, List[Var]]:
+    new_depends = {}
+    for k, v in depends.items():
+        if contains_layout(k):
+            new_depends[k] = [x for x in v if contains_layout(x)]
+    return new_depends
+
+def sanity_check_layout_analysis(ir_module):
+    layouts = PropagateLayoutAnalysis()
+    layouts.visit(ir_module)
+    layouts = layouts.layouts
+    dep = DependencyAnalyzer()
+    dep.visit(ir_module)
+    dependence: Dict[Var, List[Var]] = dep.depends
+    dep_set = {k for k in dependence.keys() if contains_layout(k)}
+    layout_set = {k for k in layouts.keys()}
+    if dep_set != layout_set:
+        print('dep_set - layout_set', dep_set - layout_set)
+        print('layout_set - dep_set', layout_set - dep_set)
+        assert False
+
+depends = dependency_analysis(ir_module)
+# depends = {k.id: [x.id for x in v] for k, v, in depends.items()}
+# depends = filter_dependencies(depends)
+
+
+
+# %%
+layouts = PropagateLayoutAnalysis()
+layouts.visit(ir_module)
+sanity_check_layout_analysis(ir_module)
+
+from visualize_var_dependence import ir_to_graph_html, dependence_graph_to_graph_html
+# ir_to_graph_html(ir_module, 'flash-attn.html', notebook=True)
+dependence_graph_to_graph_html(depends, 'flash-attn-dep.html', notebook=True)
+
+# %%
+from typing import Tuple
+# todo: better cost function
+def cvt_layout_cost(a: TileLayout, b: TileLayout) -> int:
+    # assert isinstance(a, TileLayout) and isinstance(b, TileLayout)
+    if hash(a) == hash(b):
+        return 0
+    else:
+        return 1
+
+class BruteForceSolver:
+    def __init__(self, cost_fn, depends: Dict[Var, List[Var]], layout: Dict[Var, Set[TileLayout]]):
+        self.cost_fn = cost_fn
+        self.depends = depends
+        inv_depends: Dict[Var, Set[Var]] = {}
+        for k, v in depends.items():
+            for x in v:
+                if x not in inv_depends:
+                    inv_depends[x] = set()
+                inv_depends[x].add(k)
+        self.inv_depends: Dict[Var, List[Var]] = {k: list(v) for k, v in inv_depends.items()}
+    
+        self.layout = layout
+        self.assignment: Dict[Var, TileLayout] = {}
+        for v, ls in layout.items():
+            if len(ls) == 1:
+                self.assignment[v] = next(iter(ls))
+        self.worklist: List[Var] = []
+        seen = set()
+        work_list = list(layout.keys())
+        while len(work_list) > 0:
+            v = work_list.pop()
+            if v in seen:
+                continue
+            self.worklist.append(v)
+            seen.add(v)
+            for ks in depends[v]:
+                if ks not in self.assignment and k not in seen:
+                    self.worklist.append(ks)
+        
+        self.best_seen: Dict[Var, Tuple[int, TileLayout]] = {}
+                
+    def solve_helper(self, v: Var, layout: TileLayout, cost_so_far: int):
+        parent = self.inv_depends[v]
+        parent_layout = self.assignment[parent]
+
+
+
+
+# %%
+print(len(layouts.layouts), max(map(lambda x: len(x), layouts.layouts.values())))
+
+# %%
+layouts.layouts
+
+ids_to_layouts = {k.id: list(v) for k, v in layouts.layouts.items()}
+def print_layout(lst):
+    for i in lst:
+        print(i)
+
+
+# %%
+
+
+# %%
+usage = UsageAnalyzer()
+usage.visit(ir_module)
+usage.usages
+# %%
+source = SourceAnalyzer()
+source.visit(ir_module)
+print(source.source)
+# %%
+source.source
+
+# %%
 ir_func = ir_module.functions['flash_attn']
 
 cvt_layouts = [
@@ -179,5 +304,3 @@ def concat_horizontal(a: str, b: str) -> str:
     return '\n'.join(combined)
 
 print(concat_horizontal(str(layout_transforms[0][4]), str(layout_transforms[-1][3])))
-
-# %%

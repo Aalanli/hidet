@@ -556,6 +556,9 @@ class BlockDotOperandLayout(DotOperandLayout):
     def __eq__(self, other):
         assert isinstance(other, TileLayout)
         return isinstance(other, BlockDotOperandLayout) and self.parent == other.parent and self.op_idx == other.op_idx
+    
+    def __hash__(self):
+        return hash(str(self))
 
 
 if __name__ == '__main__':

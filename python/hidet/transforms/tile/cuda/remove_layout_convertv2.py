@@ -1,5 +1,5 @@
 # %%
-from typing import List, Dict, Optional, Type, Any, Set
+from typing import List, Dict, Optional, Type, Any, Set, Union, Tuple
 from collections import defaultdict
 from hidet.ir.expr import Let, Var, Expr, var
 from hidet.ir.func import Function
@@ -16,7 +16,7 @@ from hidet.ir.tile.stmt import PureForStmt, YieldStmt
 from hidet.ir.tile.layout import BlockDotOperandLayout
 from hidet.ir.tools import TypeInfer
 from hidet.transforms.base import TileFunctionPass
-from hidet.transforms.tile.analyzers import VarUsage, UsageAnalyzer
+from hidet.transforms.tile.analyzers import VarUsage, UsageAnalyzer, SourceAnalyzer, LetSource, ForArgSource, ForLetSource, FuncSource
 from hidet.transforms.tile.generic.pattern_transform import apply_transforms, PatternTransform, TilePattern, Pattern
 from hidet.transforms.tile.generic.dead_code_elimination import DeadCodeEliminationRewriter
 from hidet.transforms.tile.generic.canonicalize_to_ssa import canonicalize_to_ssa
@@ -247,204 +247,231 @@ class FoldConvertLayoutBeforeAndAfterCast(PatternTransform):
         return cast(convert_layout(x, cvt2.layout), cst.dtype)
 
 
+class CancanonicalSSAOperation:
+    def __init__(self, op, args: List[Var], returns: List[Var]):
+        assert all(isinstance(v, Var) for v in args)
+        assert all(isinstance(v, Var) for v in returns)
+        self.op = op
+        self.args = args
+        self.returns = returns
+
+class ExtractAnchorOps(IRVisitor):
+    def __init__(self):
+        super().__init__()
+        self.anchors: Set[CancanonicalSSAOperation] = set()
+    
+    def visit_LetStmt(self, stmt: LetStmt):
+        for bind_var, bind_value in zip(stmt.bind_vars, stmt.bind_values):
+            if isinstance(bind_value, CallTileOp):
+                op: TileOp = bind_value.op
+                if isinstance(op, (Load, Dot)):                    
+                    self.anchors.add(CancanonicalSSAOperation(op, op.args, [bind_var]))
+                
+        super().visit_LetStmt(stmt)
+    
+    def visit_StoreBaseOp(self, e: StoreBaseOp):
+        self.anchors.add(CancanonicalSSAOperation(e, e.args, []))
+
+class ExtractYieldParent(IRVisitor):
+    def __init__(self):
+        super().__init__()
+        self.yield_parent: Dict[YieldStmt, PureForStmt] = {}
+        self.for_yield: Dict[PureForStmt, YieldStmt] = {}
+        self.yield_to_return: Dict[Var, Var] = {}
+        self.yield_to_arg: Dict[Var, Var] = {}
+        self.for_arg_to_yield: Dict[Var, Var] = {}
+        self.for_ret_to_yield: Dict[Var, Var] = {}
+    
+    def visit_YieldStmt(self, stmt: YieldStmt):
+        self.yield_parent[stmt] = self.pure_for_stmts[-1]
+        self.for_yield[self.pure_for_stmts[-1]] = stmt
+        return super().visit_YieldStmt(stmt)
+    
+    def for_arg_to_yield_arg(self, for_stmt: PureForStmt, v: Var) -> Var:
+        if v in self.for_arg_to_yield:
+            return self.for_arg_to_yield[v]
+        idx = for_stmt.args.index(v)
+        yield_stmt = self.for_yield[for_stmt]
+        varg = yield_stmt.values[idx]
+        self.for_arg_to_yield[v] = varg
+        return varg
+    
+    def for_return_to_yield_arg(self, for_stmt: PureForStmt, v: Var) -> Var:
+        if v in self.for_ret_to_yield:
+            return self.for_ret_to_yield[v]
+        idx = for_stmt.let_vars.index(v)
+        yield_stmt = self.for_yield[for_stmt]
+        varg = yield_stmt.values[idx]
+        self.for_ret_to_yield[v] = varg
+        return varg
+    
+    def yield_arg_to_for_return(self, yield_stmt: YieldStmt, v: Var) -> Var:
+        if v in self.yield_to_return:
+            return self.yield_to_return[v]
+        idx = yield_stmt.values.index(v)
+        for_stmt = self.yield_parent[yield_stmt]
+        vret = for_stmt.let_vars[idx]
+        self.yield_to_return[v] = vret
+        return vret
+    
+    def yield_arg_to_for_arg(self, yield_stmt: YieldStmt, v: Var) -> Var:
+        if v in self.yield_to_arg:
+            return self.yield_to_arg[v]
+        idx = yield_stmt.values.index(v)
+        for_stmt = self.yield_parent[yield_stmt]
+        varg = for_stmt.args[idx]
+        self.yield_to_arg[v] = varg
+        return varg
+    
+    def for_arg_to_for_value(self, for_stmt: PureForStmt, v: Var) -> Var:
+        idx = for_stmt.args.index(v)
+        return for_stmt.values[idx]
+    
+    def parent_for(self, yield_stmt: YieldStmt) -> PureForStmt:
+        return self.yield_parent[yield_stmt]
+    
+    def child_yield(self, for_stmt: PureForStmt) -> YieldStmt:
+        return self.for_yield[for_stmt]
+
 class PropagateLayoutAnalysis(IRVisitor):
     def __init__(self):
         super().__init__()
-        self.layouts: Dict[Var, List[TileLayout]] = {}
+        self.layouts: Dict[Var, Set[TileLayout]] = {}
+        self.source: Dict[Var, Union[LetSource, ForArgSource, ForLetSource, FuncSource]] = {}
+        self.usage: Dict[Var, VarUsage] = {}
+        self.yield_analysis: ExtractYieldParent = ExtractYieldParent()
     
     def is_anchor(self, op: TileOp) -> bool:
-        pass
+        return isinstance(op, (Load, StoreBaseOp, Dot))
     
+    def is_terminal(self, op: TileOp) -> bool:
+        return isinstance(op, (Create,))
 
-class ChangeForArgLayoutRewriter(IRRewriter):
-    def __init__(self):
-        super().__init__(use_memo=False)
-        self.rewriter = ChangeForArgLayoutRewriterHelper()
-        
+    def verify_valid_arg(self, arg):
+        assert isinstance(arg, Var), f"Not SSA form, arg {arg} is not Var"
+        assert isinstance(arg.type, TileType)
+        assert arg.type.layout is not None
+    
     def visit_Function(self, func: Function):
-        print("------ChangeForArgLayoutRewriter------")
-        updated_func = self.rewriter.visit_Function(func)
-        if len(self.rewriter.remap) > 0:
-            print(self.rewriter.remap)
-            memo = self.rewriter.remap
-            rewrite_var = IRRewriter()
-            rewrite_var.memo = memo
-            self.rewriter.remap = {}
-            updated_func = rewrite_var.visit_Function(updated_func)
-            updated_func = canonicalize_to_ssa(updated_func)
+        self.yield_analysis.visit_Function(func)
+        source = SourceAnalyzer()
+        source.visit_Function(func)
+        self.source = source.source
+        usage = UsageAnalyzer()
+        usage.visit_Function(func)
+        self.usage = usage.usages
+
+        anchors = ExtractAnchorOps()
+        anchors.visit_Function(func)
+        anchors = anchors.anchors
+        for op in anchors:
+            print(op.op)
+            if isinstance(op.op, Load):
+                for arg in op.args:
+                    print("load_arg", arg)
+                    self.propagate_transient_parent(arg, arg.type.layout)
+                print("load_ret", op.returns[0])
+                self.propagate_transient_child(op.returns[0], op.returns[0].type.layout)
+            elif isinstance(op.op, Dot):
+                for arg in op.args:
+                    
+                    self.propagate_transient_parent(arg, arg.type.layout)
+                self.propagate_transient_child(op.returns[0], op.returns[0].type.layout)
+            elif isinstance(op.op, StoreBaseOp):
+                for arg in op.args:
+                    self.propagate_transient_parent(arg, arg.type.layout)    
+    
+    def propagate_transient_parent(self, var: Var, layout: TileLayout):
+        assert isinstance(var, Var), f"var {var} does not have type Var, found {type(var)}"
+        if var in self.layouts:
+            if layout in self.layouts[var]:
+                # already propagated through this chain
+                return
+            else:
+                self.layouts[var].add(layout)
         else:
-            print("No Change")
-            print(updated_func is func)
-        
-        print(fuzzy_diff_text(str(func), str(updated_func)))
-
-        return updated_func
-
-class ChangeForArgLayoutRewriterHelper(IRRewriter):
-    def __init__(self):
-        super().__init__(use_memo=True)
-        self.usages: Dict[Var, VarUsage] = dict()
-        self.remap: Dict[Var, Expr] = dict()
-
-    def anchor_priority(self, op: Type[TileOp]):
-        order = [Dot, Load, StoreBaseOp, ReduceOp, Broadcast, ExpandDims, BinaryTileOp, ConvertLayout, DebugPrint]
-        for idx, cls in enumerate(order):
-            if issubclass(op, cls):
-                return len(order) - idx
-        raise NotImplementedError(op)
-
-    def stmt_priority(self, stmt: Type[Stmt]):
-        if isinstance(stmt, PureForStmt):
-            return 100
-        elif isinstance(stmt, YieldStmt):
-            return 90
+            self.layouts[var] = {layout}
+        assert var in self.source, f"var {var} is not in source analysis"
+        source = self.source[var]
+        if isinstance(source, LetSource):
+            assert isinstance(source.bind_value, CallTileOp)
+            op: TileOp = source.bind_value.op
+            if self.is_anchor(op):
+                # stop propagating at anchor ops
+                return
+            if self.is_terminal(op):
+                # stop propagating at creation ops, where there are non-ssa forms
+                return
+            for arg in op.args:
+                assert isinstance(arg, Var), f"PropagateLayoutAnalysis only works on SSA form, found non-var arg {arg} of op {op}"
+                self.propagate_transient_parent(arg, layout)
+        elif isinstance(source, ForArgSource):
+            # we are within for loop
+            assert isinstance(source.value, Var), f"PropagateLayoutAnalysis only works on SSA form, found non-var arg {source.value} of for arg {var}"
+            self.propagate_transient_parent(source.value, layout)
+            cooresponding_yield_arg = self.yield_analysis.for_arg_to_yield_arg(source.stmt, source.arg)
+            # simulate loop until fixed point
+            self.propagate_transient_parent(cooresponding_yield_arg, layout)
+            # propagate to for return
+            self.propagate_transient_child(cooresponding_yield_arg, layout)
+            cooresponding_let_var = source.stmt.let_vars[source.idx]
+            self.propagate_transient_child(cooresponding_let_var, layout)
+        elif isinstance(source, ForLetSource):
+            let_var = source.let_var
+            for_yield = self.yield_analysis.for_return_to_yield_arg(source.stmt, let_var)
+            # for_arg = self.yield_analysis.yield_arg_to_for_arg(source.stmt, let_var)
+            self.propagate_transient_parent(for_yield, layout)
+            
+    def propagate_transient_child(self, var: Var, layout: TileLayout):
+        assert isinstance(var, Var), f"var {var} does not have type Var, found {type(var)}"
+        if var in self.layouts:
+            if layout in self.layouts[var]:
+                # already propagated through this chain
+                return
+            else:
+                self.layouts[var].add(layout)
         else:
-            raise NotImplementedError()
-
-    def visit_Function(self, func: Function):
-        usage_analyzer = UsageAnalyzer()
-        usage_analyzer.visit(func)
-        self.usages = usage_analyzer.usages
-        updated_func = super().visit_Function(func)
-        return updated_func
-
-    def get_usage_priority(self, usage: VarUsage):
-        ret = -1
-        for let_usage in usage.call_op_let_usages():
-            p = self.anchor_priority(type(let_usage.op))
-            ret = max(ret, p)
+            self.layouts[var] = {layout}
+        if var not in self.usage:
+            print(f"var {var} not found in usage")
+            return
+        # assert var in self.usage, f"var {var} is not in usage analysis"
+        usage: VarUsage = self.usage[var]
+        for lets in usage.let_usages:
+            if self.is_anchor(lets.op):
+                # stop propagating at anchor ops
+                continue
+            assert isinstance(lets.bind_var, Var), f"PropagateLayoutAnalysis only works on SSA form, found non-var arg {lets.bind_var} of op {lets.op}"
+            self.propagate_transient_child(lets.bind_var, layout)
         for stmt_usage in usage.stmt_usages:
-            s = stmt_usage.stmt
-            if isinstance(s, EvaluateStmt):
-                if isinstance(s.expr, CallTileOp):
-                    ret = max(ret, self.anchor_priority(type(s.expr.op)))
-                else:
-                    raise NotImplementedError()
+            stmt = stmt_usage.stmt
+            if isinstance(stmt, EvaluateStmt):
+                assert isinstance(stmt.expr, CallTileOp), f"PropagateLayoutAnalysis only works on SSA form, found non-call-expr {stmt.expr} of evaluate stmt {stmt}"
+                # op: TileOp = stmt.expr.op
+                # if self.is_anchor(op):
+                #     continue
+            elif isinstance(stmt, PureForStmt):
+                assert var in stmt.values, f"for stmt does not contain var {var}"
+                idx = stmt.values.index(var)
+                for_arg = stmt.values[idx]
+                # propagate inside for-loop
+                self.propagate_transient_child(for_arg, layout)
+                for_ret = stmt.let_vars[idx]
+                # propagate to for return
+                self.propagate_transient_child(for_ret, layout)
+            
+            elif isinstance(stmt, YieldStmt):                
+                # assert all(isinstance(v, Var) for v in stmt.values), f"PropagateLayoutAnalysis only works on SSA form, found non-var arg {stmt.values} of yield stmt {stmt}"
+                assert var in stmt.values, f"var {var} is not in yield stmt {stmt}"
+                assoc_let = self.yield_analysis.yield_arg_to_for_return(stmt, var)
+                print("assoc_let:", assoc_let)
+                self.propagate_transient_child(assoc_let, layout)
+                for_arg = self.yield_analysis.yield_arg_to_for_arg(stmt, var)
+                print("for arg:", for_arg)
+                self.propagate_transient_child(for_arg, layout)
+                for_value = self.yield_analysis.for_arg_to_for_value(self.yield_analysis.parent_for(stmt), for_arg)
+                print("for_value:", for_value)
+                self.propagate_transient_parent(for_value, layout)
             else:
-                ret = max(ret, self.stmt_priority(type(s)))
-        return ret
-
-    def visit_PureForStmt(self, stmt: PureForStmt):
-        arg2layout: Dict[Var, TileLayout] = {}
-        for arg in stmt.args:
-            if not isinstance(arg.type, TileType):
-                continue
-            layout = arg.type.layout
-
-            usage: VarUsage = self.usages[arg]
-
-            # the mapping from the layout to the list of tile operators that require the arg to have the layout
-            layout2priority: Dict[TileLayout, int] = defaultdict(int)
-
-            for let_usage in usage.call_op_let_usages():
-                op = let_usage.op
-                if isinstance(op, ConvertLayout):
-                    bind_var = let_usage.bind_var
-                    layout2priority[op.layout] = max(
-                        layout2priority[op.layout],
-                        self.get_usage_priority(self.usages[bind_var])
-                    )
-            layout2priority[layout] = max(layout2priority[layout], self.get_usage_priority(usage))
-
-            # find the layout that has the anchor with the highest priority
-            best_layout = max(layout2priority.keys(), key=lambda l: layout2priority[l])
-            if best_layout == layout:
-                continue
-            arg2layout[arg] = best_layout
-
-        if len(arg2layout) == 0:
-            return super().visit_PureForStmt(stmt)
-
-        # update the layout
-        args = []
-        values = []
-        let_vars = []
-        for orig_arg, let_var, value in zip(stmt.args, stmt.let_vars, stmt.values):
-            value = self.visit(value)
-            if orig_arg in arg2layout:
-                assert isinstance(orig_arg, Var) and isinstance(orig_arg.type, TileType)
-                tp = orig_arg.type
-                orig_layout = tp.layout
-                args.append(Var(orig_arg.hint, TileType(tp.type, tp.shape, arg2layout[orig_arg])))
-                let_vars.append(Var(let_var.hint, TileType(tp.type, tp.shape, arg2layout[orig_arg])))
-                values.append(convert_layout(value, arg2layout[orig_arg]))
-                self.remap[orig_arg] = convert_layout(args[-1], orig_layout)
-                self.remap[let_var] = convert_layout(let_vars[-1], orig_layout)
-            else:
-                args.append(orig_arg)
-                values.append(value)
-                let_vars.append(let_var)
-
-        loop_var = self.visit(stmt.loop_var)
-        extent = self.visit(stmt.extent)
-        self.pure_for_stmts.append(stmt)
-        body = self.visit(stmt.body)
-        self.pure_for_stmts.pop()
-        let_body = self.visit(stmt.let_body)
-        return PureForStmt(
-            args=args, values=values, loop_var=loop_var, extent=extent, body=body, let_vars=let_vars, let_body=let_body
-        )
-
-    def visit_YieldStmt(self, stmt: YieldStmt):
-        for_stmt = self.pure_for_stmts[-1]
-        yields = self.visit(stmt.values)
-        updated_yields = []
-        for arg, yield_value in zip(for_stmt.args, yields):
-            if arg in self.remap and arg is not self.remap[arg]:
-                call_cvt: CallTileOp = self.remap[arg]
-                assert isinstance(call_cvt.op, ConvertLayout)
-                cvt: ConvertLayout = call_cvt.op
-                assert isinstance(cvt.x, Var)
-                updated_arg = cvt.x
-                assert isinstance(updated_arg, Var) and isinstance(updated_arg.type, TileType)
-                updated_yields.append(convert_layout(yield_value, updated_arg.type.layout))
-            else:
-                updated_yields.append(yield_value)
-        if same_list(updated_yields, yields):
-            return stmt
-        else:
-            return YieldStmt(updated_yields)
-
-
-class RemoveLayoutConvertPass(TileFunctionPass):
-    def process_tile_func(self, func: Function) -> Function:
-        transforms = [
-            ChangeForArgLayoutRewriter(),
-            IdentityConvertLayoutTransform(),
-            ConvertConstructLayoutTransform(),
-            FoldConvertLayoutTransform(),
-            PushConvertLayoutForUnaryOpTransform(),
-            PushConvertLayoutForBinaryOpTransform(),
-            FoldConvertLayoutBeforeAndAfterCast(),
-            DeadCodeEliminationRewriter(),
-        ]
-        i = 0
-        max_iter = 4
-        while i < max_iter:
-            orig_func = func
-            for transform in transforms:
-                print(transform.__class__.__name__)
-
-                func_before = func
-                func = transform(func)
-                if func_before is not func:
-                    func_ssa = canonicalize_to_ssa(func)
-                    try:
-                        check_for_stranded_var(func_ssa)
-                    except RuntimeError as e:
-                        print(func)
-                        print(func_before)
-                        print(transform.__class__.__name__)
-                        raise e
-
-                    func = func_ssa
-            if func is orig_func:
-                break
-            i += 1
-        return func
-
-
-def remove_layout_convert_pass() -> TileFunctionPass:
-    return RemoveLayoutConvertPass()
-
+                raise NotImplementedError("PropagateLayoutAnalysis found unsupported stmt type, {}".format(type(stmt)))
 
